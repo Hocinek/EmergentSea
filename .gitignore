@@ -1,14 +1,26 @@
-# Ignorer uniquement les fichiers temporaires de Godot
+# ============================================================
+#  Godot 4 - .gitignore (projet collaboratif sous Windows)
+#  Objectif : ignorer uniquement les fichiers temporaires
+#  tout en gardant la structure et les ressources du projet.
+# ============================================================
 
-# Dossiers générés automatiquement
+# --- Dossiers générés automatiquement par Godot ---
+.godot/
+!.godot/.gdignore           # On garde ce fichier pour conserver la structure
+
+# --- Cache interne ---
 .godot/shader_cache/
 .godot/imported/
 .godot/mono/
+.godot/editor/              # Fichiers d’état de l’éditeur (fenêtres, favoris, cache)
+.godot/global_script_class_cache.cfg
+.godot/uid_cache.bin
+.godot/scene_groups_cache.cfg
 
-# Fichiers d’import
+# --- Fichiers d’import ---
 *.import
 
-# Build / export
+# --- Builds / exports ---
 export/
 *.pck
 *.exe
@@ -19,18 +31,45 @@ export/
 *.zip
 *.tar.gz
 
-# Logs et fichiers temporaires
+# --- Logs / fichiers temporaires ---
 *.log
 *.tmp
 
-# Mac / Windows
+# --- Sauvegardes / fichiers système ---
 .DS_Store
 Thumbs.db
+desktop.ini
 
-# C# / Mono
+# --- C# / Mono (si jamais activé plus tard) ---
 *.csproj
 *.sln
 *.user
 *.userprefs
 *.mdb
 *.pdb
+
+# --- Éditeurs / IDE ---
+.vscode/
+.idea/
+*.code-workspace
+
+# --- Python, Node.js, ou autres outils éventuels ---
+__pycache__/
+*.pyc
+node_modules/
+.env
+.env.*
+
+# --- Godot addons externes temporaires ---
+addons/*/.import/
+addons/*/.imported/
+
+# --- Sauvegardes ou fichiers de test ---
+*.bak
+*.old
+*.tmp
+~*
+
+# --- Export templates (Godot cache global, si jamais copié) ---
+export_templates/
+.cache/

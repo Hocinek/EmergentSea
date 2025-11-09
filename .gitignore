@@ -1,0 +1,36 @@
+# Ignorer uniquement les fichiers temporaires de Godot
+
+# Dossiers générés automatiquement
+.godot/shader_cache/
+.godot/imported/
+.godot/mono/
+
+# Fichiers d’import
+*.import
+
+# Build / export
+export/
+*.pck
+*.exe
+*.apk
+*.aab
+*.app
+*.dmg
+*.zip
+*.tar.gz
+
+# Logs et fichiers temporaires
+*.log
+*.tmp
+
+# Mac / Windows
+.DS_Store
+Thumbs.db
+
+# C# / Mono
+*.csproj
+*.sln
+*.user
+*.userprefs
+*.mdb
+*.pdb

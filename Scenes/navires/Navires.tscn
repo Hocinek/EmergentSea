@@ -1,0 +1,8 @@
+[gd_scene load_steps=2 format=3 uid="uid://cfhs5uyx5g4go"]
+
+[ext_resource type="Script" uid="uid://dcgfi57ni6w5q" path="res://Scripts/navires/Navires.gd" id="1_m8d8p"]
+
+[node name="Navires" type="Node3D"]
+script = ExtResource("1_m8d8p")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="."]

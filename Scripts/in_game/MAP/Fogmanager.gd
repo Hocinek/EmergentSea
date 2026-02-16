@@ -15,6 +15,8 @@ var game_manager: Node
 var update_timer: float = 0.0
 var is_ready := false
 
+# Signal émis quand le fog change
+signal fog_updated()
 
 # =========================
 # INITIALISATION
@@ -22,7 +24,7 @@ var is_ready := false
 func _ready():
 	add_to_group("fog_manager")
 	
-	print(">>> [FOGMGR] FogManager _ready() appelé")
+	print(">>> [FOGMGR] FogManager _ready() - Système Civ6")
 	
 	# Attendre que tout soit prêt
 	await get_tree().process_frame
@@ -56,14 +58,16 @@ func _ready():
 	else:
 		push_error(">>> [FOGMGR] ERREUR: MapManager non trouvé!")
 	
+	# Connecter aux signaux des navires
+	_connect_to_ship_signals()
+	
 	print(">>> [FOGMGR] FogManager initialisé")
-
 
 func _on_map_generated():
 	"""Appelé quand la map est générée"""
 	print(">>> [FOGMGR] Signal map_generated reçu!")
 	
-	# CORRECTION : Passer is_ready à true IMMÉDIATEMENT au lieu d'attendre
+	# Passer is_ready à true immédiatement
 	is_ready = true
 	print(">>> [FOGMGR] is_ready mis à TRUE")
 	
@@ -71,10 +75,27 @@ func _on_map_generated():
 	await get_tree().process_frame
 	await get_tree().process_frame
 	
+	# Reconnecter aux navires (au cas où ils ont été créés après)
+	_connect_to_ship_signals()
+	
 	# Première mise à jour immédiate
 	print(">>> [FOGMGR] Première mise à jour du brouillard...")
 	update_fog()
 
+func _connect_to_ship_signals():
+	"""Connecte le FogManager aux signaux des navires"""
+	# Attendre que les navires soient créés
+	await get_tree().process_frame
+	
+	var ships = get_tree().get_nodes_in_group("ships")
+	print(">>> [FOGMGR] Connexion aux navires: ", ships.size(), " navires trouvés")
+	
+	for ship in ships:
+		# Si le navire a un signal "moved", s'y connecter
+		if ship.has_signal("sig_navire_moved"):
+			if not ship.is_connected("sig_navire_moved", _on_ship_moved):
+				ship.connect("sig_navire_moved", _on_ship_moved)
+				print(">>> [FOGMGR] Connecté au navire ", ship.id)
 
 # =========================
 # UPDATE
@@ -98,63 +119,101 @@ func _process(delta):
 		update_timer = 0.0
 		update_fog()
 
-
 func update_fog():
-	"""Met à jour le brouillard pour le joueur humain"""
-	print(">>> [FOGMGR] update_fog() APPELÉE")
-	
+	"""Met à jour le brouillard pour le joueur humain (système Civ6)"""
 	if not players_manager:
-		print(">>> [FOGMGR] ✗ Pas de PlayersManager")
 		return
 	
 	# Récupérer le joueur humain
 	var human_player = players_manager.get_human_player()
 	if not human_player:
-		print(">>> [FOGMGR] ✗ Pas de joueur humain trouvé")
 		return
 	
-	var ships = human_player.get_navires()
-	print(">>> [FOGMGR] Joueur humain trouvé: %s, navires: %d" % [human_player.player_name, ships.size()])
-	
-	# CORRECTION : Vérifier que fog_of_war existe avant de l'utiliser
+	# Vérifier que fog_of_war existe
 	if not fog_of_war:
-		print(">>> [FOGMGR] ✗ ERREUR: FogOfWar n'existe plus!")
 		return
 	
-	print(">>> [FOGMGR] ✓ Appel de fog_of_war.update_vision_for_player()")
-	# Mettre à jour la vision (sans print à chaque frame)
+	# Mettre à jour la vision
 	fog_of_war.update_vision_for_player(human_player)
+	
+	# Émettre le signal
+	emit_signal("fog_updated")
 
+# =========================
+# ÉVÉNEMENTS
+# =========================
+func _on_ship_moved(ship: Navires):
+	"""Appelé quand un navire se déplace"""
+	if not fog_of_war:
+		return
+	
+	# Mise à jour immédiate si c'est un navire du joueur
+	if ship.player_owner and ship.player_owner.is_human:
+		print(">>> [FOGMGR] Navire [%d] bougé, mise à jour du fog" % ship.id)
+		force_update()
+
+func on_ship_moved(ship: Navires):
+	"""Appelé quand un navire se déplace (méthode publique)"""
+	_on_ship_moved(ship)
 
 # =========================
 # FONCTIONS PUBLIQUES
 # =========================
 func force_update():
 	"""Force une mise à jour immédiate du brouillard"""
-	print(">>> [FOGMGR] force_update() APPELÉE !")
-	print(">>> [FOGMGR] is_ready: %s" % is_ready)
-	print(">>> [FOGMGR] fog_of_war existe: %s" % (fog_of_war != null))
-	print(">>> [FOGMGR] players_manager existe: %s" % (players_manager != null))
-	
-	# CORRECTION : Ne PAS vérifier is_ready pour force_update
-	# C'est une mise à jour FORCÉE, on doit toujours l'exécuter
 	if not fog_of_war or not players_manager:
-		print(">>> [FOGMGR] ✗ SKIP - fog_of_war ou players_manager manquant")
 		return
 	
-	print(">>> [FOGMGR] ✓ Mise à jour FORCÉE du brouillard (bypass is_ready)")
 	update_fog()
 
-
-# =========================
-# ÉVÉNEMENTS
-# =========================
-func on_ship_moved(ship: Navires):
-	"""Appelé quand un navire se déplace"""
+func reveal_area(center: Vector2i, radius: int):
+	"""Révèle une zone spécifique (pour événements spéciaux, etc.)"""
 	if not fog_of_war:
 		return
 	
-	# Mise à jour immédiate de la vision autour du navire
-	if ship.player_owner and ship.player_owner.is_human:
-		print(">>> [FOGMGR] Navire bougé, mise à jour vision")
-		fog_of_war.reveal_around_position(ship.case_actuelle)
+	fog_of_war.reveal_area(center, radius)
+	emit_signal("fog_updated")
+
+func reveal_all():
+	"""Révèle toute la carte (mode debug/éditeur)"""
+	if not fog_of_war:
+		return
+	
+	fog_of_war.reveal_all()
+	emit_signal("fog_updated")
+
+func hide_all():
+	"""Cache toute la carte (reset)"""
+	if not fog_of_war:
+		return
+	
+	fog_of_war.reset_fog()
+	emit_signal("fog_updated")
+
+func is_position_visible(pos: Vector2i) -> bool:
+	"""Vérifie si une position est actuellement visible pour le joueur"""
+	if not fog_of_war:
+		return false
+	return fog_of_war.is_tile_visible(pos)
+
+func is_position_explored(pos: Vector2i) -> bool:
+	"""Vérifie si une position a été explorée"""
+	if not fog_of_war:
+		return false
+	return fog_of_war.is_tile_explored(pos)
+
+func get_fog_state_at(pos: Vector2i):
+	"""Obtient l'état du fog à une position"""
+	if not fog_of_war:
+		return null
+	return fog_of_war.get_fog_state(pos)
+
+# =========================
+# DEBUG
+# =========================
+func print_fog_stats():
+	"""Affiche les statistiques du fog"""
+	if not fog_of_war:
+		return
+	
+	fog_of_war.print_fog_stats()

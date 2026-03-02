@@ -88,14 +88,14 @@ func _connect_to_ship_signals():
 	await get_tree().process_frame
 	
 	var ships = get_tree().get_nodes_in_group("ships")
-	DEBUG.log("[FOGMGR] Connexion aux navires: ", ships.size(), " navires trouvés")
+	DEBUG.log("[FOGMGR] Connexion aux navires: "+ str(ships.size())+ " navires trouvés")
 	
 	for ship in ships:
 		# Si le navire a un signal "moved", s'y connecter
 		if ship.has_signal("sig_navire_moved"):
 			if not ship.is_connected("sig_navire_moved", _on_ship_moved):
 				ship.connect("sig_navire_moved", _on_ship_moved)
-				DEBUG.log("[FOGMGR] Connecté au navire ", ship.id)
+				DEBUG.log("[FOGMGR] Connecté au navire "+str(ship.id))
 
 # =========================
 # UPDATE

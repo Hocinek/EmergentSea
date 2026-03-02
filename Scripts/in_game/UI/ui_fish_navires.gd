@@ -7,8 +7,6 @@ var fish_feedback_timer: float = 0.0
 
 var visibility : bool = false
 
-var mutex : bool = false
-
 var navire : Navires
 
 func _init(ship : Navires) -> void:

@@ -24,6 +24,10 @@ var is_player_controlled: bool = false
 ## Indique si ce navire est actuellement sélectionné
 var is_selected: bool = false
 
+# AJOUT : Visibilité basée sur le fog of war
+var is_visible_to_human: bool = true  # true par défaut pour les navires du joueur
+var fog_of_war_ref: FogOfWar = null
+
 
 # =========================
 # TEXTURES
@@ -54,6 +58,9 @@ var stats_panel : UI_stats_navire
 @onready var ui_layer: CanvasLayer = get_tree().get_first_node_in_group("ui_layer")
 @onready var data := get_tree().get_first_node_in_group("shared_entities")
 @onready var players_manager: PlayersManager = get_tree().get_first_node_in_group("players_manager")
+
+# AJOUT : Référence au fog manager pour mise à jour en temps réel
+var fog_manager: FogManager = null
 
 
 # =========================
@@ -139,11 +146,20 @@ func _ready():
 	# Initialisation de l'UI
 	_init_stats_ui()
 	
+	# AJOUT : Récupérer le FogManager
+	fog_manager = get_tree().get_first_node_in_group("fog_manager")
+	if fog_manager:
+		DEBUG.log("Navire [%d] - FogManager connecté" % id)
+	
+	# AJOUT : Récupérer le FogOfWar pour vérifier la visibilité
+	fog_of_war_ref = get_tree().get_first_node_in_group("fog_of_war")
+	if fog_of_war_ref:
+		DEBUG.log("Navire [%d] - FogOfWar connecté pour visibilité" % id)
 	
 	# Debug
 	var owner_name = player_owner.player_name if player_owner else "AUCUN"
 	var control_type = "CONTRÔLÉ" if is_player_controlled else "IA/ENNEMI"
-	print(">>> Navire [%s] initialisé - Propriétaire: %s - Type: %s - Position: %s" % [
+	DEBUG.log("Navire [%s] initialisé - Propriétaire: %s - Type: %s - Position: %s" % [
 		id, owner_name, control_type, case_actuelle
 	])
 
@@ -220,7 +236,7 @@ func set_selected(selected: bool) -> void:
 	else:
 		stats_panel.hide_all_stats()
 	
-	print(">>> Navire %d %s" % [id, "SÉLECTIONNÉ" if selected else "désélectionné"])
+	DEBUG.log("Navire %d %s" % [id, "SÉLECTIONNÉ" if selected else "désélectionné"])
 
 
 # =========================
@@ -248,7 +264,7 @@ func take_damage(damage: int) -> void:
 
 func die() -> void:
 	"""Gère la mort du navire"""
-	print(">>> Navire [%d] en train de mourir..." % id)
+	DEBUG.log("Navire [%d] en train de mourir..." % id)
 	
 	# IMPORTANT : Émettre le signal AVANT toute modification
 	emit_signal("ship_destroyed", self)
@@ -270,7 +286,7 @@ func die() -> void:
 		player_owner.remove_navire(self)
 	
 	# Libération des ressources
-	print(">>> Navire [%d] détruit" % id)
+	DEBUG.log("Navire [%d] détruit" % id)
 	queue_free()
 
 
@@ -293,7 +309,7 @@ func reset_energie() -> void:
 # =========================
 func _init_stats_ui():
 	if not ui_layer:
-		push_error("ERREUR : ui_layer est null, impossible de créer l'UI des stats!")
+		DEBUG.log("ui_layer est null, impossible de créer l'UI des stats!",DEBUG.ERROR)
 		return
 	# ---------- UI STATS (pour TOUS les navires) ----------
 	# On vérifie si le panel existe déjà avant d'en créer un nouveau
@@ -303,7 +319,7 @@ func _init_stats_ui():
 	if fish_feedback_label == null:
 		fish_feedback_label = UI_fish_navires.new(self)
 	
-	print(">>> UI Stats créée pour navire [%d]" % id)
+	DEBUG.log("UI Stats créée pour navire [%d]" % id)
 
 
 # =========================
@@ -352,14 +368,20 @@ func _unhandled_input(event: InputEvent) -> void:
 				return  # On a cliqué sur un navire, ne pas se déplacer
 			
 			if energie > 0 and not is_moving and not is_fishing:
-				if Map_utils.is_on_water(mouse_pos):
-					path = calculer_chemin(case_actuelle, Map_utils.monde_vers_case(mouse_pos))
+				var target_case = Map_utils.monde_vers_case(mouse_pos)
+				if Map_utils.is_case_navigable(target_case):
+					path = Pathfinder.calculer_chemin(case_actuelle, target_case)
 					if not path.is_empty():
+						DEBUG.log("Chemin: "+ str(path))
 						is_moving = true
 						target_position = mouse_pos
 						show_arrow = true
 						queue_redraw()
 						get_viewport().set_input_as_handled()
+					else:
+						DEBUG.log("Chemin vide !")
+				else:
+					DEBUG.log("Case cible NON navigable !")
 		
 		# CLIC DROIT → TIR
 		elif event.button_index == MOUSE_BUTTON_RIGHT:
@@ -374,17 +396,17 @@ func attempt_shoot(target_case: Vector2i) -> void:
 	"""Tente de tirer sur une case cible"""
 	# Vérifications de base
 	if energie < 20:
-		print("Pas assez d'énergie pour tirer!")
+		DEBUG.log("Pas assez d'énergie pour tirer!")
 		return
 	
 	if not is_in_range(target_case):
-		print("Cible hors de portée!")
+		DEBUG.log("Cible hors de portée!")
 		return
 	
 	# Récupérer les navires sur la case cible
 	var target_ships = get_ships_at_position(target_case)
 	if target_ships.is_empty():
-		print("Aucune cible sur cette case!")
+		DEBUG.log("Aucune cible sur cette case!")
 		return
 	
 	# Tirer sur tous les navires ennemis présents
@@ -396,10 +418,10 @@ func attempt_shoot(target_case: Vector2i) -> void:
 	
 	if hit_count > 0:
 		energie = max(energie - 20, 0)
-		print("Tir effectué sur %d cible(s)!" % hit_count)
+		DEBUG.log("Tir effectué sur %d cible(s)!" % hit_count)
 		stats_panel.show_ally()  # Mise à jour de nos stats
 	else:
-		print("Aucun ennemi sur cette case!")
+		DEBUG.log("Aucun ennemi sur cette case!")
 
 
 func shoot_at(target: Navires) -> void:
@@ -407,7 +429,7 @@ func shoot_at(target: Navires) -> void:
 	if target == null or not target.is_alive():
 		return
 	
-	print(">>> Tir sur navire [%d]" % target.id)
+	DEBUG.log(">>> Tir sur navire [%d]" % target.id)
 	target.take_damage(dgt_tir)
 	
 	# Effets visuels / son (à implémenter)
@@ -469,29 +491,148 @@ func _process(delta):
 	# Pêche
 	_update_fishing(delta)
 	
-	# Déplacement (seulement pour le navire sélectionné)
-	if is_selected and is_moving and not path.is_empty():
+	# Déplacement (pour TOUS les navires en mouvement, pas juste le sélectionné)
+	if is_moving and not path.is_empty():
 		_process_movement(delta)
+	
+	# AJOUT : Mettre à jour la visibilité dans le fog (pour navires ennemis)
+	if player_owner and not player_owner.is_human:
+		_update_visibility_in_fog()
 
 
 func _process_movement(delta: float) -> void:
 	"""Gère le déplacement du navire"""
+	if path.is_empty():
+		DEBUG.log("Navire [%d] - Chemin vide, arrêt du mouvement" % id)
+		is_moving = false
+		show_arrow = false
+		queue_redraw()
+		return
+	
 	var next_case = path[0]
 	var next_pos: Vector2 = Map_utils.case_vers_monde(next_case)
 	var direction := next_pos - global_position
+	var distance = direction.length()
+	
+	#print("Navire [%d] - Distance: %.1f - Prochaine case: %s - Cases restantes: %d" % [
+		#id, distance, next_case, path.size()
+	#])
 
-	if direction.length() < 5:
+	if distance < 10:
+		# AJOUT : Sauvegarder l'ancienne position pour détecter le changement
+		var old_case = case_actuelle
+		
 		global_position = next_pos
 		path.remove_at(0)
 		case_actuelle = next_case
 		energie = max(energie - 1, 0)
 		
+		DEBUG.log(">>> Navire [%d] arrivé à %s - Cases restantes: %d" % [id, case_actuelle, path.size()])
+		
+		# DEBUG COMPLET
+		DEBUG.log("old_case: %s, case_actuelle: %s, changé: %s" % [old_case, case_actuelle, old_case != case_actuelle])
+		if player_owner:
+			DEBUG.log("player_owner existe: %s, is_human: %s" % [player_owner.player_name, player_owner.is_human])
+		else:
+			DEBUG.log("player_owner est NULL !")
+		
+		# AJOUT : Actualiser le fog si c'est un navire du joueur humain et qu'il a changé de case
+		if old_case != case_actuelle and player_owner and player_owner.is_human:
+			DEBUG.log("✓ CONDITIONS OK - Appel de _update_fog_of_war()")
+			_update_fog_of_war()
+		else:
+			DEBUG.log("✗ CONDITIONS PAS OK - Pas de mise à jour du fog")
+			if old_case == case_actuelle:
+				DEBUG.log("    Raison: case n'a pas changé")
+			if not player_owner:
+				DEBUG.log("    Raison: pas de player_owner")
+			if player_owner and not player_owner.is_human:
+				DEBUG.log("    Raison: player_owner n'est pas humain")
+		
+		# AJOUT : Mise à jour de la visibilité pour navires ennemis
+		if player_owner and not player_owner.is_human:
+			_update_visibility_in_fog()
+		
 		if path.is_empty():
 			is_moving = false
 			show_arrow = false  # Cacher la flèche quand on arrive
 			queue_redraw()
+			DEBUG.log("Navire [%d] DESTINATION FINALE atteinte!" % id)
 	else:
 		global_position += direction.normalized() * vitesse * delta
+
+
+# =========================
+# FOG OF WAR UPDATE
+# =========================
+func _update_fog_of_war() -> void:
+	"""Met à jour le fog of war autour de ce navire (pour joueur humain uniquement)"""
+	DEBUG.log("[NAVIRE %d] _update_fog_of_war() APPELÉE !" % id)
+	
+	if not player_owner or not player_owner.is_human:
+		DEBUG.log("[NAVIRE %d] SKIP - pas de player_owner ou pas humain" % id)
+		return
+	
+	DEBUG.log("[NAVIRE %d] Actualisation du fog à la position %s" % [id, case_actuelle])
+	
+	# DEBUG : Vérifier que fog_manager existe
+	if not fog_manager:
+		DEBUG.log("[NAVIRE %d] ERREUR - fog_manager est NULL, tentative de récupération..." % id)
+		fog_manager = get_tree().get_first_node_in_group("fog_manager")
+		if fog_manager:
+			DEBUG.log("[NAVIRE %d] fog_manager récupéré avec succès" % id)
+		else:
+			DEBUG.log("[NAVIRE %d] ERREUR CRITIQUE - fog_manager introuvable !" % id)
+	
+	# Méthode 1 : Via le FogManager (préféré car utilise la logique centralisée)
+	if fog_manager:
+		DEBUG.log("[NAVIRE %d] fog_manager existe, vérification de force_update..." % id)
+		if fog_manager.has_method("force_update"):
+			DEBUG.log("[NAVIRE %d] ✓ Appel de fog_manager.force_update()" % id)
+			fog_manager.force_update()
+			return
+		else:
+			DEBUG.log("[NAVIRE %d] ✗ fog_manager n'a pas la méthode force_update !" % id)
+	
+	# Méthode 2 : Directement via FogOfWar (fallback si FogManager pas dispo)
+	DEBUG.log("[NAVIRE %d] Fallback - tentative via FogOfWar direct" % id)
+	var fog_of_war = get_tree().get_first_node_in_group("fog_of_war")
+	if fog_of_war:
+		DEBUG.log("[NAVIRE %d] FogOfWar trouvé" % id)
+		if fog_of_war.has_method("reveal_around_position"):
+			DEBUG.log("[NAVIRE %d] ✓ Appel de fog_of_war.reveal_around_position(%s)" % [id, case_actuelle])
+			fog_of_war.reveal_around_position(case_actuelle)
+		else:
+			DEBUG.log("[NAVIRE %d] ✗ FogOfWar n'a pas la méthode reveal_around_position !" % id)
+	else:
+		DEBUG.log("[NAVIRE %d] ✗ FogOfWar introuvable !" % id)
+
+
+# =========================
+# VISIBILITÉ DANS LE FOG
+# =========================
+func _update_visibility_in_fog() -> void:
+	"""Met à jour la visibilité de ce navire basée sur le fog of war"""
+	
+	# Les navires du joueur humain sont toujours visibles
+	if player_owner and player_owner.is_human:
+		is_visible_to_human = true
+		visible = true
+		return
+	
+	# Pour les navires ennemis, vérifier s'ils sont dans le fog
+	if not fog_of_war_ref or not fog_of_war_ref.has_method("is_tile_visible"):
+		# Pas de fog = tout visible par défaut
+		is_visible_to_human = true
+		visible = true
+		return
+	
+	# Vérifier si la case du navire est visible
+	var is_case_visible = fog_of_war_ref.is_tile_visible(case_actuelle)
+	
+	# Mettre à jour la visibilité
+	is_visible_to_human = is_case_visible
+	visible = is_case_visible
 
 
 # =========================
@@ -602,7 +743,7 @@ func finish_fishing() -> void:
 	if fish_feedback_label:
 		fish_feedback_label.finished_fishing(gain)
 		sig_show_stats.emit()
-		print("fishing finished")
+		DEBUG.log("fishing finished")
 
 
 
@@ -611,6 +752,15 @@ func finish_fishing() -> void:
 # PATHFINDING
 # =========================
 func calculer_chemin(start: Vector2i, goal: Vector2i) -> Array:
+	# Vérifier que start et goal sont navigables
+	if not Map_utils.is_case_navigable(start):
+		DEBUG.log("Position de départ non navigable: " + str(start),DEBUG.ERROR)
+		return []
+	
+	if not Map_utils.is_case_navigable(goal):
+		DEBUG.log("Position d'arrivée non navigable: "+str(goal),DEBUG.ERROR)
+		return []
+	
 	var open_set := [start]
 	var came_from := {}
 	var g_score := { start: 0 }
@@ -628,7 +778,8 @@ func calculer_chemin(start: Vector2i, goal: Vector2i) -> Array:
 			return result
 
 		for neighbor in get_neighbors(current):
-			if not Map_utils.is_on_water(Map_utils.case_vers_monde(neighbor)):
+			# CORRECTION: Utiliser is_case_navigable au lieu de is_on_water
+			if not Map_utils.is_case_navigable(neighbor):
 				continue
 
 			var tentative = g_score[current] + 1
@@ -639,6 +790,7 @@ func calculer_chemin(start: Vector2i, goal: Vector2i) -> Array:
 				if neighbor not in open_set:
 					open_set.append(neighbor)
 
+	DEBUG.log("AUCUN CHEMIN TROUVÉ de "+str(start)+ " à "+ str(goal))
 	return []
 
 
@@ -682,7 +834,7 @@ func shoot(cible: Vector2):
 				bateau.show_enemy()
 
 func show_stats():
-	print("stats showed")
+	DEBUG.log("stats showed")
 	stats_panel.show_enemy()
 
 # On vérifie la présence d'un bateau adverse sur la case ciblée.

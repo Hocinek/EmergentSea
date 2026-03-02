@@ -59,7 +59,7 @@ func build_ui():
 	await get_tree().process_frame
 	ui_layer = get_tree().get_first_node_in_group("ui_layer")
 	if not ui_layer:
-		push_error("ERREUR : ui_layer est null, impossible de créer l'UI des stats!")
+		DEBUG.log("ui_layer est null, impossible de créer l'UI des stats!",DEBUG.ERROR)
 		return
 	# Créer le panneau allié (à droite)
 	_create_ally_stats_panel()

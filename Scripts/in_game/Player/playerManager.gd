@@ -17,7 +17,7 @@ func _ready():
 	add_to_group("players_manager")
 	
 	players.clear()
-	print(">>> PlayersManager initialisé")
+	DEBUG.log("PlayersManager initialisé")
 
 
 # ===============================
@@ -39,7 +39,6 @@ func create_player(
 	add_child(player)
 	players.append(player)
 	
-
 	
 	# Si c'est le premier joueur créé, on le définit comme joueur courant
 	if current_player == null:
@@ -69,6 +68,14 @@ func get_enemy_players(of_player: Player) -> Array[Player]:
 		if p != of_player:
 			enemies.append(p)
 	return enemies
+
+
+func get_human_player() -> Player:
+	"""Retourne le premier joueur humain trouvé"""
+	for player in players:
+		if player.is_human:
+			return player
+	return null
 
 
 # ===============================

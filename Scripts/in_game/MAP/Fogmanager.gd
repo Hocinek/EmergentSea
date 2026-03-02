@@ -149,7 +149,7 @@ func _on_ship_moved(ship: Navires):
 	
 	# Mise à jour immédiate si c'est un navire du joueur
 	if ship.player_owner and ship.player_owner.is_human:
-		print(">>> [FOGMGR] Navire [%d] bougé, mise à jour du fog" % ship.id)
+		DEBUG.log("[FOGMGR] Navire [%d] bougé, mise à jour du fog" % ship.id)
 		force_update()
 
 func on_ship_moved(ship: Navires):

@@ -157,31 +157,28 @@ func compute_ocean_cases() -> void:
 	var visited := {}
 	var queue := []
 
-	# Start from all border tiles
+	# 1. On initialise avec les bordures
 	for x in range(Map_data.map_width):
 		queue.append(Vector2i(x, 0))
 		queue.append(Vector2i(x, Map_data.map_height - 1))
-
 	for y in range(Map_data.map_height):
 		queue.append(Vector2i(0, y))
 		queue.append(Vector2i(Map_data.map_width - 1, y))
 
 	while queue.size() > 0:
 		var c: Vector2i = queue.pop_front()
-		if visited.has(c):
-			continue
+		if visited.has(c): continue
 		visited[c] = true
-		if not Map_utils.is_case_water(c):
-			continue
+		
+		# On ne traite que si c'est de l'eau
+		if not Map_utils.is_case_water(c): continue
+		
 		Map_data.ocean_cases.append(c)
-		var neighbors = [
-			Vector2i(c.x + 1, c.y),
-			Vector2i(c.x - 1, c.y),
-			Vector2i(c.x, c.y + 1),
-			Vector2i(c.x, c.y - 1)
-		]
+		
+		# 2. UTILISE LA NOUVELLE FONCTION ICI
+		var neighbors = Map_utils.get_neighbors_water_only(c)
 		for n in neighbors:
-			if Map_utils.is_case_valid(n) and not visited.has(n):
+			if not visited.has(n):
 				queue.append(n)
 
 
@@ -200,10 +197,10 @@ func generate_ports() -> void:
 				coastal_tiles.append(Vector2i(x, y))
 	
 	if coastal_tiles.is_empty():
-		print("Aucune case côtière trouvée pour placer des ports")
+		DEBUG.log("Aucune case côtière trouvée pour placer des ports",DEBUG.WARNING)
 		return
 	
-	print("Cases côtières trouvées: ", coastal_tiles.size())
+	DEBUG.log("Cases côtières trouvées: "+str( coastal_tiles.size()))
 	
 	# 2. Placer les ports avec distance minimale
 	var attempts: int = 0
@@ -220,9 +217,9 @@ func generate_ports() -> void:
 		if is_valid_port_location(candidate):
 			ports.append(candidate)
 			Map_data.tiles[candidate.y][candidate.x] = "port"
-			print("Port placé à: ", candidate)
+			DEBUG.log("Port placé à : "+str(candidate))
 	
-	print("Ports générés: ", ports.size(), "/", port_count)
+	DEBUG.log("Ports générés : "+str(ports.size(), "/", port_count))
 
 
 ## Synchronise les ports avec Map_data (appelé après generate_ports)

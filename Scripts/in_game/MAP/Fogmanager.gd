@@ -24,7 +24,7 @@ signal fog_updated()
 func _ready():
 	add_to_group("fog_manager")
 	
-	print(">>> [FOGMGR] FogManager _ready() - Système Civ6")
+	DEBUG.log("[FOGMGR] FogManager _ready() - Système Civ6")
 	
 	# Attendre que tout soit prêt
 	await get_tree().process_frame
@@ -37,39 +37,39 @@ func _ready():
 	game_manager = get_tree().get_first_node_in_group("game_manager")
 	
 	if not fog_of_war:
-		push_error(">>> [FOGMGR] ERREUR: FogOfWar non trouvé!")
+		DEBUG.log("[FOGMGR] ERREUR: FogOfWar non trouvé!",DEBUG.ERROR)
 		return
 	else:
-		print(">>> [FOGMGR] FogOfWar trouvé: ", fog_of_war)
+		DEBUG.log("[FOGMGR] FogOfWar trouvé: "+ str(fog_of_war))
 	
 	if not players_manager:
-		push_error(">>> [FOGMGR] ERREUR: PlayersManager non trouvé!")
+		DEBUG.log("[FOGMGR] ERREUR: PlayersManager non trouvé!",DEBUG.ERROR)
 		return
 	else:
-		print(">>> [FOGMGR] PlayersManager trouvé: ", players_manager)
+		DEBUG.log("[FOGMGR] PlayersManager trouvé: "+ str(players_manager))
 	
 	# Attendre que la map soit générée
 	var map_manager = get_tree().get_first_node_in_group("Map_manager")
 	if map_manager:
-		print(">>> [FOGMGR] MapManager trouvé, connexion au signal...")
+		DEBUG.log("[FOGMGR] MapManager trouvé, connexion au signal...")
 		if not map_manager.is_connected("map_generated", _on_map_generated):
 			map_manager.connect("map_generated", _on_map_generated)
-			print(">>> [FOGMGR] Signal map_generated connecté")
+			DEBUG.log("[FOGMGR] Signal map_generated connecté")
 	else:
-		push_error(">>> [FOGMGR] ERREUR: MapManager non trouvé!")
+		DEBUG.log("[FOGMGR] ERREUR: MapManager non trouvé!",DEBUG.ERROR)
 	
 	# Connecter aux signaux des navires
 	_connect_to_ship_signals()
 	
-	print(">>> [FOGMGR] FogManager initialisé")
+	DEBUG.log("[FOGMGR] FogManager initialisé")
 
 func _on_map_generated():
 	"""Appelé quand la map est générée"""
-	print(">>> [FOGMGR] Signal map_generated reçu!")
+	DEBUG.log("[FOGMGR] Signal map_generated reçu!")
 	
 	# Passer is_ready à true immédiatement
 	is_ready = true
-	print(">>> [FOGMGR] is_ready mis à TRUE")
+	DEBUG.log("[FOGMGR] is_ready mis à TRUE")
 	
 	# Attendre quelques frames pour que les navires soient créés
 	await get_tree().process_frame
@@ -79,7 +79,7 @@ func _on_map_generated():
 	_connect_to_ship_signals()
 	
 	# Première mise à jour immédiate
-	print(">>> [FOGMGR] Première mise à jour du brouillard...")
+	DEBUG.log("[FOGMGR] Première mise à jour du brouillard...")
 	update_fog()
 
 func _connect_to_ship_signals():
@@ -88,14 +88,14 @@ func _connect_to_ship_signals():
 	await get_tree().process_frame
 	
 	var ships = get_tree().get_nodes_in_group("ships")
-	print(">>> [FOGMGR] Connexion aux navires: ", ships.size(), " navires trouvés")
+	DEBUG.log("[FOGMGR] Connexion aux navires: ", ships.size(), " navires trouvés")
 	
 	for ship in ships:
 		# Si le navire a un signal "moved", s'y connecter
 		if ship.has_signal("sig_navire_moved"):
 			if not ship.is_connected("sig_navire_moved", _on_ship_moved):
 				ship.connect("sig_navire_moved", _on_ship_moved)
-				print(">>> [FOGMGR] Connecté au navire ", ship.id)
+				DEBUG.log("[FOGMGR] Connecté au navire ", ship.id)
 
 # =========================
 # UPDATE

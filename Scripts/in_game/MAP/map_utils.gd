@@ -2,13 +2,22 @@ class_name Map_utils
 extends Node
 
 
+# Les 6 directions constantes en coordonnées axiales (q, r)
+# Cela ne change JAMAIS, peu importe la parité de la ligne.
+static var _axial_directions = [
+	Vector2i(1, 0), Vector2i(1, -1), Vector2i(0, -1),
+	Vector2i(-1, 0), Vector2i(-1, 1), Vector2i(0, 1)
+]
+
+
+
 func _init():
 	# permet de rajouter l'objet dans le groupe avant le passage du GameManager
 	add_to_group("map")
 
 
 # =========================
-# Hex → Iso conversion
+# Hex -> Iso conversion (Visuel)
 # =========================
 static func hex_to_pixel_iso(q: int, r: int) -> Vector2:
 	var cx = q * (Map_data.hex_width * 0.5)
@@ -102,11 +111,129 @@ static func clamp_world_position(world_pos: Vector2) -> Vector2:
 ## Returns a random world position on ocean water (never lakes).
 static func get_random_ocean_position() -> Vector2:
 	if Map_data.ocean_cases.is_empty():
-		push_warning("Ocean case list is empty. Did you call compute_ocean_cases()?")
+		DEBUG.log("Ocean case list is empty. Did you call compute_ocean_cases()?",DEBUG.WARNING)
 		return Vector2.ZERO
 
 	var c: Vector2i = Map_data.ocean_cases[randi() % Map_data.ocean_cases.size()]
 	var pos = case_vers_monde(c)
 	if pos.x < 0 or pos.y < 0:
-		push_error("WORLD POS OUTSIDE MAP: " + str(pos) + " from case " + str(c))
+		DEBUG.log("WORLD POS OUTSIDE MAP: " + str(pos) + " from case " + str(c),DEBUG.ERROR)
 	return pos
+
+# Calcule la distance réelle en cases entre deux hexagones (offset coords)
+# ============================================================
+# CALCUL DE DISTANCE
+# ============================================================
+static func get_hex_distance(a: Vector2i, b: Vector2i) -> int:
+	# 1. Conversion Offset -> Axial (Version Pointy Top / Odd-Q)
+	# On doit utiliser la même logique que HexGrid.offset_to_axial
+	var aq = a.x
+	var ar = a.y - (a.x - (a.x & 1)) / 2
+	var as_coord = -aq - ar
+	
+	var bq = b.x
+	var br = b.y - (b.x - (b.x & 1)) / 2
+	var bs_coord = -bq - br
+	
+	# 2. Distance Manhattan cubique
+	return int((abs(aq - bq) + abs(ar - br) + abs(as_coord - bs_coord)) / 2)
+
+
+static func get_neighbors(c: Vector2i) -> Array[Vector2i]:
+	var res: Array[Vector2i] = []
+	
+	# Pour du Pointy-Top (Odd-Q), le décalage dépend de la COLONNE (X)
+	var directions
+	
+	if c.x % 2 == 0:
+		# Colonne PAIRE (Even)
+		# Note: En Odd-Q, les colonnes paires sont "plus hautes" visuellement que les impaires
+		
+		directions = [
+			Vector2i(-1, -1),  # Nord-Ouest
+			Vector2i(1, -1),  # Nord-Est
+			Vector2i(2, 0),  # Est
+			Vector2i(1, 0),   # Sud-Est
+			Vector2i(-1, 0),   # Sud-Ouest
+			Vector2i(-2, 0)  # Ouest
+		]
+	else:
+		# Colonne IMPAIRE (Odd) - Décalée vers le bas (+Y visuel)
+		directions = [
+			Vector2i(-1, 0),  # Nord-Ouest
+			Vector2i(1, 0),   # Nord-Est
+			Vector2i(2, 0),   # Est
+			Vector2i(1, 1),   # Sud-Est
+			Vector2i(-1, 1),  # Sud-Ouest
+			Vector2i(-2, 0)   # Ouest
+		]
+	for d in directions:
+		var neighbor = c + d
+		# On utilise votre vérification existante qui est très bien
+		if is_case_navigable(neighbor):
+			res.append(neighbor)
+	return res
+
+# Nouvelle fonction pour gérer le coût du terrain
+static func get_movement_cost(c: Vector2i) -> float:
+	if not is_case_valid(c): return INF
+	
+	var type = Map_data.tiles[c.y][c.x]
+	
+	match type:
+		"deepwater": return 1.0 # Autoroute maritime
+		"water": return 1.0     # Eau côtière (plus lent, on préfère le large)
+		_: return 1.0
+#static func get_neighbors(c: Vector2i) -> Array:
+	#var res := []
+	#
+	## Directions pour les lignes PAIRES (y % 2 == 0)
+	#var dirs_even = [
+		#Vector2i(1, 0), Vector2i(-1, 0),  # Droite, Gauche
+		#Vector2i(0, -1), Vector2i(-1, -1), # Haut-Droit, Haut-Gauche
+		#Vector2i(0, 1), Vector2i(-1, 1)    # Bas-Droit, Bas-Gauche
+	#]
+	#
+	## Directions pour les lignes IMPAIRES (y % 2 == 1)
+	#var dirs_odd = [
+		#Vector2i(1, 0), Vector2i(-1, 0),  # Droite, Gauche
+		#Vector2i(1, -1), Vector2i(0, -1),  # Haut-Droit, Haut-Gauche
+		#Vector2i(1, 1), Vector2i(0, 1)     # Bas-Droit, Bas-Gauche
+	#]
+	#
+	#var directions = dirs_even if c.y % 2 == 0 else dirs_odd
+#
+	#for d in directions:
+		#var n = c + d
+		#
+		## 1. Vérifier les limites de la carte
+		#if not Map_utils.is_case_valid(n):
+			#continue
+			#
+		## 2. Vérifier si c'est navigable (Eau)
+		## J'utilise ta fonction statique existante, c'est plus performant
+		## que de convertir en world pos puis re-convertir en case
+		#if not Map_utils.is_case_navigable(n): 
+			#continue
+			#
+		#res.append(n)
+		#
+	#return res
+
+
+# Pour la génération uniquement : on veut savoir si on peut "étendre" l'océan
+static func get_neighbors_water_only(c: Vector2i) -> Array[Vector2i]:
+	var res: Array[Vector2i] = []
+	var directions
+	
+	if c.x % 2 == 0:
+		directions = [Vector2i(0, -1), Vector2i(0, 1), Vector2i(1, -1), Vector2i(1, 0), Vector2i(-1, -1), Vector2i(-1, 0)]
+	else:
+		directions = [Vector2i(0, -1), Vector2i(0, 1), Vector2i(1, 0), Vector2i(1, 1), Vector2i(-1, 0), Vector2i(-1, 1)]
+
+	for d in directions:
+		var n = c + d
+		# ICI : On vérifie juste si c'est dans la map et si c'est de l'eau
+		if is_case_valid(n) and is_case_water(n):
+			res.append(n)
+	return res

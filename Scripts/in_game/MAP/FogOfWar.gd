@@ -45,29 +45,29 @@ func _ready():
 	z_index = 10000
 	z_as_relative = false
 	
-	print(">>> [FOG] FogOfWar _ready() - Système Civ6 à 3 états")
+	DEBUG.log("[FOG] FogOfWar _ready() - Système Civ6 à 3 états")
 	
 	# Charger la texture
 	fog_texture = Map_data.TileMountain
 	if not fog_texture:
-		push_error(">>> [FOG] ERREUR: Texture de montagne non trouvée!")
+		DEBUG.log("[FOG] ERREUR: Texture de montagne non trouvée!",DEBUG.ERROR)
 		return
 	
-	print(">>> [FOG] Texture chargée: ", fog_texture)
+	DEBUG.log("[FOG] Texture chargée: " + str(fog_texture))
 	
 	# Attendre que la map soit générée
 	var map_manager = get_tree().get_first_node_in_group("Map_manager")
 	if map_manager:
-		print(">>> [FOG] MapManager trouvé, connexion au signal...")
+		DEBUG.log("[FOG] MapManager trouvé, connexion au signal...")
 		if not map_manager.is_connected("map_generated", _on_map_generated):
 			map_manager.connect("map_generated", _on_map_generated)
-			print(">>> [FOG] Signal map_generated connecté")
+			DEBUG.log("[FOG] Signal map_generated connecté")
 	else:
-		push_error(">>> [FOG] ERREUR: MapManager non trouvé!")
+		DEBUG.log("[FOG] ERREUR: MapManager non trouvé!",DEBUG.ERROR)
 
 func _on_map_generated():
 	"""Appelé quand la map est générée"""
-	print(">>> [FOG] Signal map_generated reçu!")
+	DEBUG.log("[FOG] Signal map_generated reçu!")
 	await get_tree().process_frame
 	await get_tree().process_frame
 	initialize_fog()
@@ -77,10 +77,10 @@ func _on_map_generated():
 # =========================
 func initialize_fog():
 	"""Initialise la grille d'états du fog"""
-	print(">>> [FOG] ========================================")
-	print(">>> [FOG] INITIALISATION - Système Civ6")
-	print(">>> [FOG] ========================================")
-	print(">>> [FOG] Dimensions carte: ", Map_data.map_width, "x", Map_data.map_height)
+	DEBUG.log("[FOG] ========================================")
+	DEBUG.log("[FOG] INITIALISATION - Système Civ6")
+	DEBUG.log("[FOG] ========================================")
+	DEBUG.log("[FOG] Dimensions carte: "+str(Map_data.map_width) + "x" +str(Map_data.map_height))
 	
 	# Réinitialiser
 	fog_states.clear()
@@ -100,10 +100,10 @@ func initialize_fog():
 	# Forcer le redraw pour afficher le fog
 	queue_redraw()
 	
-	print(">>> [FOG] ========================================")
-	print(">>> [FOG] BROUILLARD INITIALISÉ SUR ", fog_count, " CASES")
-	print(">>> [FOG] États: UNEXPLORED (noir) / EXPLORED (gris) / VISIBLE (clair)")
-	print(">>> [FOG] ========================================")
+	DEBUG.log("[FOG] ========================================")
+	DEBUG.log("[FOG] BROUILLARD INITIALISÉ SUR "+str(fog_count)+ " CASES")
+	DEBUG.log("[FOG] États: UNEXPLORED (noir) / EXPLORED (gris) / VISIBLE (clair)")
+	DEBUG.log("[FOG] ========================================")
 
 # =========================
 # RENDU DYNAMIQUE
@@ -182,6 +182,7 @@ func update_vision_for_player(player: Player):
 	
 	# Redessiner si des changements ont eu lieu
 	if explored_count > 0 or revealed_count > 0:
+		DEBUG.log("[FOG] ✓ Révélé %d nouvelles cases" % revealed_count)
 		queue_redraw()
 
 func reveal_around_position(center: Vector2i) -> int:
@@ -298,9 +299,9 @@ func is_world_position_visible(world_pos: Vector2) -> bool:
 # =========================
 func reset_fog():
 	"""Remet le brouillard partout (UNEXPLORED)"""
-	print(">>> [FOG] ========================================")
-	print(">>> [FOG] RESET DU BROUILLARD - TOUT REDEVIENT NOIR")
-	print(">>> [FOG] ========================================")
+	DEBUG.log("[FOG] ========================================")
+	DEBUG.log("[FOG] RESET DU BROUILLARD - TOUT REDEVIENT NOIR")
+	DEBUG.log("[FOG] ========================================")
 	for pos in fog_states.keys():
 		fog_states[pos] = FogState.UNEXPLORED
 	explored_snapshots.clear()
@@ -308,9 +309,9 @@ func reset_fog():
 
 func reveal_all():
 	"""Révèle toute la carte (mode triche/spectateur)"""
-	print(">>> [FOG] ========================================")
-	print(">>> [FOG] RÉVÉLATION TOTALE - TOUT DEVIENT VISIBLE")
-	print(">>> [FOG] ========================================")
+	DEBUG.log("[FOG] ========================================")
+	DEBUG.log("[FOG] RÉVÉLATION TOTALE - TOUT DEVIENT VISIBLE")
+	DEBUG.log("[FOG] ========================================")
 	for pos in fog_states.keys():
 		if fog_states[pos] == FogState.UNEXPLORED:
 			capture_snapshot(pos)
@@ -367,14 +368,14 @@ func get_fog_stats() -> Dictionary:
 func print_fog_stats():
 	"""Affiche les statistiques du fog"""
 	var stats = get_fog_stats()
-	print(">>> [FOG] ========================================")
-	print(">>> [FOG] STATISTIQUES DU FOG OF WAR")
-	print(">>> [FOG] ========================================")
-	print(">>> [FOG] UNEXPLORED: %d (%.1f%%)" % [stats.unexplored, stats.unexplored_percent])
-	print(">>> [FOG] EXPLORED: %d (%.1f%%)" % [stats.explored, stats.explored_percent])
-	print(">>> [FOG] VISIBLE: %d (%.1f%%)" % [stats.visible, stats.visible_percent])
-	print(">>> [FOG] TOTAL: %d" % stats.total)
-	print(">>> [FOG] ========================================")
+	DEBUG.log("[FOG] ========================================")
+	DEBUG.log("[FOG] STATISTIQUES DU FOG OF WAR")
+	DEBUG.log("[FOG] ========================================")
+	DEBUG.log("[FOG] UNEXPLORED: %d (%.1f%%)" % [stats.unexplored, stats.unexplored_percent])
+	DEBUG.log("[FOG] EXPLORED: %d (%.1f%%)" % [stats.explored, stats.explored_percent])
+	DEBUG.log("[FOG] VISIBLE: %d (%.1f%%)" % [stats.visible, stats.visible_percent])
+	DEBUG.log("[FOG] TOTAL: %d" % stats.total)
+	DEBUG.log("[FOG] ========================================")
 
 # =========================
 # TESTS MANUELS
@@ -383,12 +384,12 @@ func _input(event):
 	# F1 : Révéler tout
 	if event is InputEventKey and event.pressed and event.keycode == KEY_F1:
 		reveal_all()
-		print(">>> [FOG] TEST - RÉVÉLATION TOTALE (F1)")
+		DEBUG.log("[FOG] TEST - RÉVÉLATION TOTALE (F1)")
 	
 	# F2 : Reset
 	if event is InputEventKey and event.pressed and event.keycode == KEY_F2:
 		reset_fog()
-		print(">>> [FOG] TEST - RESET TOTAL (F2)")
+		DEBUG.log("[FOG] TEST - RESET TOTAL (F2)")
 	
 	# F3 : Afficher les stats
 	if event is InputEventKey and event.pressed and event.keycode == KEY_F3:

@@ -1,6 +1,9 @@
 class_name Map_data
 extends Node
 
+# taille d'un sprite de case
+static var TILE_WIDTH : int = 256
+static var TILE_HEIGHT : int = 128
 
 # data :
 static var tiles := []

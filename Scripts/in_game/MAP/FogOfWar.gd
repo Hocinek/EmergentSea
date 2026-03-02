@@ -31,30 +31,30 @@ func _ready():
 	z_index = 10000
 	z_as_relative = false
 	
-	print(">>> [FOG] FogOfWar _ready() appelé - Rendu DYNAMIQUE")
+	DEBUG.log("[FOG] FogOfWar _ready() appelé - Rendu DYNAMIQUE")
 	
 	# Charger la texture
 	fog_texture = Map_data.TileMountain
 	if not fog_texture:
-		push_error(">>> [FOG] ERREUR: Texture de montagne non trouvée!")
+		DEBUG.log("[FOG] ERREUR: Texture de montagne non trouvée!",DEBUG.ERROR)
 		return
 	
-	print(">>> [FOG] Texture chargée: ", fog_texture)
+	DEBUG.log("[FOG] Texture chargée: " + str(fog_texture))
 	
 	# Attendre que la map soit générée
 	var map_manager = get_tree().get_first_node_in_group("Map_manager")
 	if map_manager:
-		print(">>> [FOG] MapManager trouvé, connexion au signal...")
+		DEBUG.log("[FOG] MapManager trouvé, connexion au signal...")
 		if not map_manager.is_connected("map_generated", _on_map_generated):
 			map_manager.connect("map_generated", _on_map_generated)
-			print(">>> [FOG] Signal map_generated connecté")
+			DEBUG.log("[FOG] Signal map_generated connecté")
 	else:
-		push_error(">>> [FOG] ERREUR: MapManager non trouvé!")
+		DEBUG.log("[FOG] ERREUR: MapManager non trouvé!",DEBUG.ERROR)
 
 
 func _on_map_generated():
 	"""Appelé quand la map est générée"""
-	print(">>> [FOG] Signal map_generated reçu!")
+	DEBUG.log("[FOG] Signal map_generated reçu!")
 	await get_tree().process_frame
 	await get_tree().process_frame
 	initialize_fog()
@@ -65,10 +65,10 @@ func _on_map_generated():
 # =========================
 func initialize_fog():
 	"""Initialise la grille de visibilité (sans créer de sprites)"""
-	print(">>> [FOG] ========================================")
-	print(">>> [FOG] INITIALISATION DU BROUILLARD DYNAMIQUE")
-	print(">>> [FOG] ========================================")
-	print(">>> [FOG] Dimensions carte: ", Map_data.map_width, "x", Map_data.map_height)
+	DEBUG.log("[FOG] ========================================")
+	DEBUG.log("[FOG] INITIALISATION DU BROUILLARD DYNAMIQUE")
+	DEBUG.log("[FOG] ========================================")
+	DEBUG.log("[FOG] Dimensions carte: "+str(Map_data.map_width) + "x" +str(Map_data.map_height))
 	
 	# Réinitialiser
 	visibility_grid.clear()
@@ -87,11 +87,11 @@ func initialize_fog():
 	# Forcer le redraw pour afficher le fog
 	queue_redraw()
 	
-	print(">>> [FOG] ========================================")
-	print(">>> [FOG] BROUILLARD INITIALISÉ SUR ", fog_count, " CASES")
-	print(">>> [FOG] MODE: Rendu dynamique (pas de sprites)")
-	print(">>> [FOG] TOUTE LA CARTE DEVRAIT ÊTRE NOIRE !")
-	print(">>> [FOG] ========================================")
+	DEBUG.log("[FOG] ========================================")
+	DEBUG.log("[FOG] BROUILLARD INITIALISÉ SUR "+str(fog_count)+ " CASES")
+	DEBUG.log("[FOG] MODE: Rendu dynamique (pas de sprites)")
+	DEBUG.log("[FOG] TOUTE LA CARTE DEVRAIT ÊTRE NOIRE !")
+	DEBUG.log("[FOG] ========================================")
 
 
 # =========================
@@ -154,7 +154,7 @@ func update_vision_for_player(player: Player):
 	
 	# Redessiner si des cases ont été révélées
 	if revealed_count > 0:
-		print(">>> [FOG] ✓ Révélé %d nouvelles cases" % revealed_count)
+		DEBUG.log("[FOG] ✓ Révélé %d nouvelles cases" % revealed_count)
 		queue_redraw()
 
 
@@ -234,9 +234,9 @@ func is_world_position_visible(world_pos: Vector2) -> bool:
 # =========================
 func reset_fog():
 	"""Remet le brouillard partout"""
-	print(">>> [FOG] ========================================")
-	print(">>> [FOG] RESET DU BROUILLARD - TOUT REDEVIENT NOIR")
-	print(">>> [FOG] ========================================")
+	DEBUG.log("[FOG] ========================================")
+	DEBUG.log("[FOG] RESET DU BROUILLARD - TOUT REDEVIENT NOIR")
+	DEBUG.log("[FOG] ========================================")
 	for pos in visibility_grid.keys():
 		visibility_grid[pos] = false
 	queue_redraw()
@@ -244,9 +244,9 @@ func reset_fog():
 
 func reveal_all():
 	"""Révèle toute la carte (mode triche/spectateur)"""
-	print(">>> [FOG] ========================================")
-	print(">>> [FOG] RÉVÉLATION TOTALE - TOUT DEVIENT VISIBLE")
-	print(">>> [FOG] ========================================")
+	DEBUG.log("[FOG] ========================================")
+	DEBUG.log("[FOG] RÉVÉLATION TOTALE - TOUT DEVIENT VISIBLE")
+	DEBUG.log("[FOG] ========================================")
 	for pos in visibility_grid.keys():
 		visibility_grid[pos] = true
 	queue_redraw()
@@ -259,22 +259,22 @@ func _input(event):
 	# Appuyer sur F1 pour révéler tout (test)
 	if event is InputEventKey and event.pressed and event.keycode == KEY_F1:
 		reveal_all()
-		print(">>> [FOG] TEST - RÉVÉLATION TOTALE (F1)")
+		DEBUG.log("[FOG] TEST - RÉVÉLATION TOTALE (F1)")
 	
 	# Appuyer sur F2 pour reset (test)
 	if event is InputEventKey and event.pressed and event.keycode == KEY_F2:
 		reset_fog()
-		print(">>> [FOG] TEST - RESET TOTAL (F2)")
+		DEBUG.log("[FOG] TEST - RESET TOTAL (F2)")
 	
 	# Appuyer sur F3 pour afficher les stats (debug)
 	if event is InputEventKey and event.pressed and event.keycode == KEY_F3:
-		print(">>> [FOG] ========================================")
-		print(">>> [FOG] DEBUG INFO")
-		print(">>> [FOG] ========================================")
-		print(">>> [FOG] Initialisé: ", is_initialized)
-		print(">>> [FOG] Mode: Rendu dynamique (_draw)")
-		print(">>> [FOG] Z-index node: ", z_index)
-		print(">>> [FOG] Z-as-relative: ", z_as_relative)
-		print(">>> [FOG] Cases visibles: ", visibility_grid.values().count(true))
-		print(">>> [FOG] Cases cachées: ", visibility_grid.values().count(false))
-		print(">>> [FOG] ========================================")
+		DEBUG.log("[FOG] ========================================")
+		DEBUG.log("[FOG] DEBUG INFO")
+		DEBUG.log("[FOG] ========================================")
+		DEBUG.log("[FOG] Initialisé: "+str(is_initialized))
+		DEBUG.log("[FOG] Mode: Rendu dynamique (_draw)")
+		DEBUG.log("[FOG] Z-index node: "+ str(z_index))
+		DEBUG.log("[FOG] Z-as-relative: " + str(z_as_relative))
+		DEBUG.log("[FOG] Cases visibles: " +str(visibility_grid.values().count(true)))
+		DEBUG.log("[FOG] Cases cachées: " +str(visibility_grid.values().count(false)))
+		DEBUG.log("[FOG] ========================================")

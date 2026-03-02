@@ -21,8 +21,7 @@ var is_ready := false
 # =========================
 func _ready():
 	add_to_group("fog_manager")
-	
-	print(">>> [FOGMGR] FogManager _ready() appelé")
+	DEBUG.log("[FOGMGR] FogManager _ready() appelé")
 	
 	# Attendre que tout soit prêt
 	await get_tree().process_frame
@@ -35,44 +34,44 @@ func _ready():
 	game_manager = get_tree().get_first_node_in_group("game_manager")
 	
 	if not fog_of_war:
-		push_error(">>> [FOGMGR] ERREUR: FogOfWar non trouvé!")
+		DEBUG.log("[FOGMGR] ERREUR: FogOfWar non trouvé!",DEBUG.ERROR)
 		return
 	else:
-		print(">>> [FOGMGR] FogOfWar trouvé: ", fog_of_war)
+		DEBUG.log("[FOGMGR] FogOfWar trouvé: "+ str(fog_of_war))
 	
 	if not players_manager:
-		push_error(">>> [FOGMGR] ERREUR: PlayersManager non trouvé!")
+		DEBUG.log("[FOGMGR] ERREUR: PlayersManager non trouvé!",DEBUG.ERROR)
 		return
 	else:
-		print(">>> [FOGMGR] PlayersManager trouvé: ", players_manager)
+		DEBUG.log("[FOGMGR] PlayersManager trouvé: "+ str(players_manager))
 	
 	# Attendre que la map soit générée
 	var map_manager = get_tree().get_first_node_in_group("Map_manager")
 	if map_manager:
-		print(">>> [FOGMGR] MapManager trouvé, connexion au signal...")
+		DEBUG.log("[FOGMGR] MapManager trouvé, connexion au signal...")
 		if not map_manager.is_connected("map_generated", _on_map_generated):
 			map_manager.connect("map_generated", _on_map_generated)
-			print(">>> [FOGMGR] Signal map_generated connecté")
+			DEBUG.log("[FOGMGR] Signal map_generated connecté")
 	else:
-		push_error(">>> [FOGMGR] ERREUR: MapManager non trouvé!")
+		DEBUG.log("[FOGMGR] ERREUR: MapManager non trouvé!",DEBUG.ERROR)
 	
-	print(">>> [FOGMGR] FogManager initialisé")
+	DEBUG.log("[FOGMGR] FogManager initialisé")
 
 
 func _on_map_generated():
 	"""Appelé quand la map est générée"""
-	print(">>> [FOGMGR] Signal map_generated reçu!")
+	DEBUG.log("[FOGMGR] Signal map_generated reçu!")
 	
 	# CORRECTION : Passer is_ready à true IMMÉDIATEMENT au lieu d'attendre
 	is_ready = true
-	print(">>> [FOGMGR] is_ready mis à TRUE")
+	DEBUG.log("[FOGMGR] is_ready mis à TRUE")
 	
 	# Attendre quelques frames pour que les navires soient créés
 	await get_tree().process_frame
 	await get_tree().process_frame
 	
 	# Première mise à jour immédiate
-	print(">>> [FOGMGR] Première mise à jour du brouillard...")
+	DEBUG.log("[FOGMGR] Première mise à jour du brouillard...")
 	update_fog()
 
 
@@ -101,27 +100,26 @@ func _process(delta):
 
 func update_fog():
 	"""Met à jour le brouillard pour le joueur humain"""
-	print(">>> [FOGMGR] update_fog() APPELÉE")
+	DEBUG.log("[FOGMGR] update_fog() APPELÉE")
 	
 	if not players_manager:
-		print(">>> [FOGMGR] ✗ Pas de PlayersManager")
+		DEBUG.log("[FOGMGR] ✗ Pas de PlayersManager")
 		return
 	
 	# Récupérer le joueur humain
 	var human_player = players_manager.get_human_player()
 	if not human_player:
-		print(">>> [FOGMGR] ✗ Pas de joueur humain trouvé")
+		DEBUG.log("[FOGMGR] ✗ Pas de joueur humain trouvé")
 		return
 	
 	var ships = human_player.get_navires()
-	print(">>> [FOGMGR] Joueur humain trouvé: %s, navires: %d" % [human_player.player_name, ships.size()])
+	DEBUG.log("[FOGMGR] Joueur humain trouvé: %s, navires: %d" % [human_player.player_name, ships.size()])
 	
 	# CORRECTION : Vérifier que fog_of_war existe avant de l'utiliser
 	if not fog_of_war:
-		print(">>> [FOGMGR] ✗ ERREUR: FogOfWar n'existe plus!")
+		DEBUG.log("[FOGMGR] ✗ ERREUR: FogOfWar n'existe plus!")
 		return
-	
-	print(">>> [FOGMGR] ✓ Appel de fog_of_war.update_vision_for_player()")
+	DEBUG.log("[FOGMGR] ✓ Appel de fog_of_war.update_vision_for_player()")
 	# Mettre à jour la vision (sans print à chaque frame)
 	fog_of_war.update_vision_for_player(human_player)
 
@@ -131,18 +129,17 @@ func update_fog():
 # =========================
 func force_update():
 	"""Force une mise à jour immédiate du brouillard"""
-	print(">>> [FOGMGR] force_update() APPELÉE !")
-	print(">>> [FOGMGR] is_ready: %s" % is_ready)
-	print(">>> [FOGMGR] fog_of_war existe: %s" % (fog_of_war != null))
-	print(">>> [FOGMGR] players_manager existe: %s" % (players_manager != null))
+	DEBUG.log("[FOGMGR] force_update() APPELÉE !")
+	DEBUG.log("[FOGMGR] is_ready: %s" % is_ready)
+	DEBUG.log("[FOGMGR] fog_of_war existe: %s" % (fog_of_war != null))
+	DEBUG.log("[FOGMGR] players_manager existe: %s" % (players_manager != null))
 	
 	# CORRECTION : Ne PAS vérifier is_ready pour force_update
 	# C'est une mise à jour FORCÉE, on doit toujours l'exécuter
 	if not fog_of_war or not players_manager:
-		print(">>> [FOGMGR] ✗ SKIP - fog_of_war ou players_manager manquant")
+		DEBUG.log("[FOGMGR] ✗ SKIP - fog_of_war ou players_manager manquant")
 		return
-	
-	print(">>> [FOGMGR] ✓ Mise à jour FORCÉE du brouillard (bypass is_ready)")
+	DEBUG.log("[FOGMGR] ✓ Mise à jour FORCÉE du brouillard (bypass is_ready)")
 	update_fog()
 
 
@@ -156,5 +153,5 @@ func on_ship_moved(ship: Navires):
 	
 	# Mise à jour immédiate de la vision autour du navire
 	if ship.player_owner and ship.player_owner.is_human:
-		print(">>> [FOGMGR] Navire bougé, mise à jour vision")
+		DEBUG.log("[FOGMGR] Navire bougé, mise à jour vision")
 		fog_of_war.reveal_around_position(ship.case_actuelle)

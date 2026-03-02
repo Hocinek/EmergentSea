@@ -43,14 +43,14 @@ func getNavireByPosition(pos: Vector2i) -> Array:
 		# Nettoyer les navires invalides
 		for uuid in to_remove:
 			liste_navires.erase(uuid)
-			print(">>> Navire avec UUID %d supprimé de la liste (invalide)" % uuid)
+			DEBUG.log("Navire avec UUID %d supprimé de la liste (invalide)" % uuid)
 	
 	return found
 
 func addNavireToData(ship: Navires) -> bool:
 	# Vérifier que le navire a un propriétaire
 	if not ship.player_owner:
-		push_error(">>> ERREUR : Le navire n'a pas de propriétaire (player_owner est null) !")
+		DEBUG.log("Le navire n'a pas de propriétaire (player_owner est null) !",DEBUG.ERROR)
 		return false
 	
 	# Utiliser l'ID du joueur propriétaire
@@ -66,7 +66,7 @@ func addNavireToData(ship: Navires) -> bool:
 		attempts += 1
 	
 	if attempts >= 100:
-		push_error(">>> ERREUR : Impossible de générer un UUID unique pour le navire !")
+		DEBUG.log("Impossible de générer un UUID unique pour le navire !",DEBUG.ERROR)
 		return false
 	
 	# Ajouter le navire à la liste
@@ -76,14 +76,14 @@ func addNavireToData(ship: Navires) -> bool:
 	if not ship.sig_navire_died.is_connected(_on_navire_died):
 		ship.sig_navire_died.connect(_on_navire_died.bind(uuid))
 	
-	print(">>> Navire ajouté à la liste avec UUID: %d (Joueur: %s, ID: %d)" % [uuid, ship.player_owner.player_name, ship.id])
+	DEBUG.log("Navire ajouté à la liste avec UUID: %d (Joueur: %s, ID: %d)" % [uuid, ship.player_owner.player_name, ship.id])
 	return true
 
 # Callback appelé quand un navire meurt
 func _on_navire_died(navire: Navires, uuid: int) -> void:
 	if liste_navires.has(uuid):
 		liste_navires.erase(uuid)
-		print(">>> Navire avec UUID %d retiré de la liste (mort)" % uuid)
+		DEBUG.log("Navire avec UUID %d retiré de la liste (mort)" % uuid)
 
 # Fonction utilitaire pour nettoyer tous les navires invalides
 func cleanup_invalid_ships() -> void:
@@ -98,4 +98,4 @@ func cleanup_invalid_ships() -> void:
 		liste_navires.erase(uuid)
 	
 	if to_remove.size() > 0:
-		print(">>> %d navire(s) invalide(s) nettoyé(s)" % to_remove.size())
+		DEBUG.log("%d navire(s) invalide(s) nettoyé(s)" % to_remove.size())

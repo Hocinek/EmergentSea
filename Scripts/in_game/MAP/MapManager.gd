@@ -23,13 +23,13 @@ func _ready():
 	await get_tree().process_frame
 	var is_map_gen = map_gen.generate()
 	if(is_map_gen):
-		print(">>> Map générée")
+		DEBUG.log("Map générée")
 		grid.generate_hex_grid_rectangular()
 		grid.import_from_map_data()
 		render_map_from_grid()
 		#grid.spawn_all_tiles(self)
 		#render_map()
-		print(">>> Rendu de la map effectué")
+		DEBUG.log("Rendu de la map effectué")
 		#permet de signaler au moteur que la map est générée
 		await get_tree().process_frame
 		emit_signal("map_generated")
@@ -62,7 +62,7 @@ func spawn_tile_object(cell: HexCell):
 			else:
 				# Fallback: utiliser une texture de sable si TilePort n'existe pas
 				s.texture = Map_data.TileSand
-				print("Attention: TilePort non trouvé, utilisation de TileSand")
+				DEBUG.log("TilePort non trouvé, utilisation de TileSand",DEBUG.WARNING)
 	var scale_x = Map_data.hex_width / s.texture.get_width()
 	var scale_y = Map_data.hex_height / s.texture.get_height()
 	s.scale = Vector2(scale_x, scale_y)
@@ -101,7 +101,7 @@ func spawn_tile(t: String, col: int, row: int):
 			else:
 				# Fallback: utiliser une texture de sable si TilePort n'existe pas
 				s.texture = Map_data.TileSand
-				print("Attention: TilePort non trouvé, utilisation de TileSand")
+				DEBUG.log("TilePort non trouvé, utilisation de TileSand",DEBUG.WARNING)
 	
 	s.position = Map_utils.hex_to_pixel_iso(col, row)
 	var scale_x = Map_data.hex_width / s.texture.get_width()

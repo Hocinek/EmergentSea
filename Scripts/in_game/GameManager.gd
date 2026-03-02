@@ -36,11 +36,11 @@ func _enter_tree():
 	data = get_tree().get_first_node_in_group("shared_entities")
 	
 	if not map_manager:
-		push_error(">>> ERREUR : Aucune carte trouvée dans le groupe 'Map_manager' !")
+		DEBUG.log("Aucune carte trouvée dans le groupe 'Map_manager' !",DEBUG.ERROR)
 		return
 	
 	if not data:
-		push_error(">>> ERREUR : Aucune donnée partagée n'est accessible !")
+		DEBUG.log("Aucune donnée partagée n'est accessible !",DEBUG.ERROR)
 	
 	# Connecter le signal de génération de map
 	map_manager.map_generated.connect(_on_map_generated)
@@ -60,7 +60,7 @@ func _ready():
 # NOUVELLE FONCTION : Setup du fog of war
 func _setup_fog_of_war():
 	"""Crée et configure le système de fog of war"""
-	print(">>> [GAMEMANAGER] Setup Fog of War...")
+	DEBUG.log("[GAMEMANAGER] Setup Fog of War...")
 	
 	# Vérifier si le fog existe déjà dans la scène
 	fog_of_war = get_tree().get_first_node_in_group("fog_of_war")
@@ -68,22 +68,22 @@ func _setup_fog_of_war():
 	
 	# Si pas trouvé, créer dynamiquement
 	if not fog_of_war:
-		print(">>> [GAMEMANAGER] Création dynamique de FogOfWar...")
+		DEBUG.log("[GAMEMANAGER] Création dynamique de FogOfWar...")
 		fog_of_war = FogOfWar.new()
 		fog_of_war.name = "FogOfWar"
 		add_child(fog_of_war)
 	else:
-		print(">>> [GAMEMANAGER] FogOfWar trouvé dans la scène")
+		DEBUG.log("[GAMEMANAGER] FogOfWar trouvé dans la scène")
 	
 	if not fog_manager:
-		print(">>> [GAMEMANAGER] Création dynamique de FogManager...")
+		DEBUG.log("[GAMEMANAGER] Création dynamique de FogManager...")
 		fog_manager = FogManager.new()
 		fog_manager.name = "FogManager"
 		add_child(fog_manager)
 	else:
-		print(">>> [GAMEMANAGER] FogManager trouvé dans la scène")
+		DEBUG.log("[GAMEMANAGER] FogManager trouvé dans la scène")
 	
-	print(">>> [GAMEMANAGER] Fog of War configuré")
+	DEBUG.log("[GAMEMANAGER] Fog of War configuré")
 
 
 # Fonction utilitaire pour récupérer le PlayersManager
@@ -96,7 +96,7 @@ func _try_get_players_manager() -> bool:
 	for group_name in possible_groups:
 		players_manager = get_tree().get_first_node_in_group(group_name)
 		if players_manager:
-			print(">>> PlayersManager trouvé dans le groupe: ", group_name)
+			DEBUG.log("PlayersManager trouvé dans le groupe: " +str(group_name))
 			return true
 	
 	var all_nodes = get_tree().get_nodes_in_group("players_manager")
@@ -105,7 +105,7 @@ func _try_get_players_manager() -> bool:
 		players_manager = _find_players_manager_recursive(root)
 		
 		if players_manager:
-			print(">>> PlayersManager trouvé par recherche récursive")
+			DEBUG.log("PlayersManager trouvé par recherche récursive")
 			return true
 	
 	return false
@@ -126,7 +126,7 @@ func _find_players_manager_recursive(node: Node) -> Node:
 # Faire apparaître un bateau sur la carte
 func spawn_navire(player: Player, position: Vector2, is_player_controlled: bool = false) -> Navires:
 	if player == null:
-		push_error(">>> ERREUR : Impossible de créer un navire sans joueur propriétaire !")
+		DEBUG.log("Impossible de créer un navire sans joueur propriétaire !",DEBUG.ERROR)
 		return null
 	
 	var navire: Navires = navire_scene.instantiate()
@@ -150,7 +150,7 @@ func spawn_navire(player: Player, position: Vector2, is_player_controlled: bool 
 	if data and data.has_method("addNavireToData"):
 		data.addNavireToData(navire)
 	
-	print(">>> Navire créé avec ID: ", navire.id if navire.has_method("get") else "N/A")
+	DEBUG.log("Navire créé avec ID: "+ str(navire.id if navire.has_method("get") else "N/A"))
 	
 	return navire
 
@@ -160,8 +160,8 @@ func _on_map_generated():
 	await get_tree().process_frame
 	
 	if not _try_get_players_manager():
-		push_error(">>> ERREUR : PlayersManager introuvable dans l'arbre de scène !")
-		push_error(">>> Assurez-vous que le nœud PlayerManager existe et est ajouté à un groupe")
+		DEBUG.log("PlayersManager introuvable dans l'arbre de scène !",DEBUG.ERROR)
+		DEBUG.log("Assurez-vous que le nœud PlayerManager existe et est ajouté à un groupe",DEBUG.ERROR)
 		return
 	
 	# Créer les joueurs via le PlayersManager
@@ -169,10 +169,10 @@ func _on_map_generated():
 	player2 = players_manager.create_player(2, "IA", false)
 	
 	if not player1 or not player2:
-		push_error(">>> ERREUR : Échec de la création des joueurs !")
+		DEBUG.log("Échec de la création des joueurs !",DEBUG.ERROR)
 		return
 	
-	print(">>> Joueurs créés avec succès")
+	DEBUG.log("Joueurs créés avec succès")
 	
 	# Créer 2 navires pour le joueur 1
 	var ship1 = spawn_navire_random(player1, true)
@@ -180,17 +180,17 @@ func _on_map_generated():
 	
 	if ship1:
 		ship1.id = 1
-		print(">>> Ship1 créé avec succès")
+		DEBUG.log("Ship1 créé avec succès")
 	if ship2:
 		ship2.id = 2
-		print(">>> Ship2 créé avec succès")
+		DEBUG.log("Ship2 créé avec succès")
 	
 	# Créer 1 navire ennemi
 	var enemy1 = spawn_navire_random(player2, false)
 	
 	if enemy1:
 		enemy1.id = 101
-		print(">>> Enemy1 créé avec succès")
+		DEBUG.log("Enemy1 créé avec succès")
 	
 	players_manager.set_current_player(player1)
 	
@@ -203,10 +203,10 @@ func _on_map_generated():
 	await get_tree().process_frame
 	
 	if fog_manager:
-		print(">>> [GAMEMANAGER] Forcing fog update after ships creation")
+		DEBUG.log("[GAMEMANAGER] Forcing fog update after ships creation")
 		fog_manager.update_fog()
 	else:
-		push_warning(">>> [GAMEMANAGER] FogManager non trouvé, impossible de mettre à jour le fog")
+		DEBUG.log("[GAMEMANAGER] FogManager non trouvé, impossible de mettre à jour le fog",DEBUG.WARNING)
 
 
 func spawn_navire_random(player: Player, is_player_controlled: bool = false) -> Navires:
@@ -269,7 +269,7 @@ func select_ship(ship: Navires) -> void:
 	if selected_ship:
 		selected_ship.set_selected(true)
 		emit_signal("ship_selected", ship)
-		print(">>> Navire sélectionné: ", ship.id if ship.has_method("get") else "N/A")
+		DEBUG.log("Navire sélectionné: "+ str(ship.id if ship.has_method("get") else "N/A"))
 		
 		# NOUVEAU : Mettre à jour le fog quand un navire est sélectionné
 		if fog_manager:
@@ -278,7 +278,7 @@ func select_ship(ship: Navires) -> void:
 
 func deselect_ship() -> void:
 	if selected_ship:
-		print(">>> Désélection du navire: ", selected_ship.id if selected_ship.has_method("get") else "N/A")
+		DEBUG.log("Désélection du navire: "+str(selected_ship.id if selected_ship.has_method("get") else "N/A"))
 		selected_ship.set_selected(false)
 		selected_ship = null
 		emit_signal("ship_deselected")
@@ -294,21 +294,21 @@ func _on_ship_clicked(ship: Navires) -> void:
 
 
 func _on_ship_destroyed(ship: Navires) -> void:
-	print(">>> Navire détruit détecté: ", ship.id if ship.has_method("get") else "N/A")
+	DEBUG.log("Navire détruit détecté: "+str( ship.id if ship.has_method("get") else "N/A"))
 	
 	if selected_ship == ship:
-		print(">>> Le navire sélectionné a été détruit, désélection...")
+		DEBUG.log("Le navire sélectionné a été détruit, désélection...")
 		deselect_ship()
 		
 		if player1:
 			var remaining_ships = player1.get_navires()
-			print(">>> Navires restants: ", remaining_ships.size())
+			DEBUG.log("Navires restants: " +str(remaining_ships.size()))
 			
 			if remaining_ships.size() > 0:
-				print(">>> Sélection automatique du navire suivant")
+				DEBUG.log("Sélection automatique du navire suivant")
 				select_ship(remaining_ships[0])
 			else:
-				print(">>> Aucun navire restant pour le joueur")
+				DEBUG.log("Aucun navire restant pour le joueur")
 
 
 func select_next_ship() -> void:

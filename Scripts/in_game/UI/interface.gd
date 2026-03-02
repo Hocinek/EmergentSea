@@ -91,7 +91,7 @@ func build_ui():
 
 	self.add_child(stats_panel)
 	
-	print(">>> UI Stats créée pour navire ", "JOUEUR" if navire.is_player_ship else "ENNEMI")
+	DEBUG.log("UI Stats créée pour navire " +str("JOUEUR" if navire.is_player_ship else "ENNEMI"))
 
 func _init_fish_feedback() -> void:
 	fish_feedback_label = Label.new()

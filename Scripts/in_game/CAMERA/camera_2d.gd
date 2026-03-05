@@ -13,7 +13,8 @@ extends Camera2D
 @export var min_zoom := 0.1
 @export var max_zoom := 2.0
 @export var zoom_step := 0.15
-@export var border_margin := 300.0  #La marge de dépassement de la carte
+@export var border_margin_height := Map_data.TILE_HEIGHT * 1.5  #La marge de dépassement de la carte
+@export var border_margin_width := Map_data.TILE_WIDTH * 1.5
 
 var target_zoom := Vector2.ONE
 var follow_target: Node2D
@@ -62,10 +63,10 @@ func _get_min_zoom_for_map() -> float:
 func _clamp_camera_to_map():
 	var viewport_size = get_viewport_rect().size
 	var half_view = viewport_size * 0.5 / zoom
-	var min_x = map_rect.position.x + half_view.x - border_margin
-	var max_x = map_rect.end.x      - half_view.x + border_margin
-	var min_y = map_rect.position.y + half_view.y - border_margin
-	var max_y = map_rect.end.y      - half_view.y + border_margin
+	var min_x = map_rect.position.x + half_view.x - border_margin_width*1.75
+	var max_x = map_rect.end.x      - half_view.x + border_margin_width
+	var min_y = map_rect.position.y + half_view.y - border_margin_height*2
+	var max_y = map_rect.end.y      - half_view.y + border_margin_height
 
 	# Si la map est plus petite que la vue, on centre
 	if min_x > max_x:

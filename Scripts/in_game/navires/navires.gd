@@ -600,9 +600,6 @@ func _update_visibility_in_fog() -> void:
 # DRAW
 # =========================
 
-# Récuperation du zoom
-
-
 func _draw():
 	var cam_zoom = _get_camera_zoom()
 	var scale_factor = sqrt(1.0 / cam_zoom)

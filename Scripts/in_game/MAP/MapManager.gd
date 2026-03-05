@@ -76,36 +76,3 @@ func spawn_tile_object(cell: HexCell):
 	# cell.visual_node = s 
 	
 	add_child(s)
-
-# =========================
-# Rendering
-# =========================
-func render_map():
-	
-	for y in range(Map_data.map_height):
-		for x in range(Map_data.map_width):
-			spawn_tile(Map_data.tiles[y][x], x, y)
-
-func spawn_tile(t: String, col: int, row: int):
-	var s := Sprite2D.new()
-	match t:
-		"deepwater": s.texture = Map_data.TileDeepWater
-		"water": s.texture = Map_data.TileWater
-		"sand": s.texture = Map_data.TileSand
-		"earth": s.texture = Map_data.TileEarth
-		"forest": s.texture = Map_data.TileForest
-		"mountain": s.texture = Map_data.TileMountain
-		"port": 
-			# Vérifier si TilePort existe dans Map_data
-			if "TilePort" in Map_data:
-				s.texture = Map_data.TilePort
-			else:
-				# Fallback: utiliser une texture de sable si TilePort n'existe pas
-				s.texture = Map_data.TileSand
-				DEBUG.log("TilePort non trouvé, utilisation de TileSand",DEBUG.WARNING)
-	
-	s.position = Map_utils.hex_to_pixel_iso(col, row)
-	var scale_x = Map_data.hex_width / s.texture.get_width()
-	var scale_y = Map_data.hex_height / s.texture.get_height()
-	s.scale = Vector2(scale_x, scale_y)
-	add_child(s)

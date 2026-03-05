@@ -422,7 +422,7 @@ func shoot_at(target: Navires) -> void:
 	if target == null or not target.is_alive():
 		return
 	
-	DEBUG.log(">>> Tir sur navire [%d]" % target.id)
+	DEBUG.log("Tir sur navire [%d]" % target.id)
 	target.take_damage(dgt_tir)
 	
 	# Effets visuels / son (à implémenter)
@@ -506,13 +506,10 @@ func _process_movement(delta: float) -> void:
 	var next_pos: Vector2 = Map_utils.case_vers_monde(next_case)
 	var direction := next_pos - global_position
 	var distance = direction.length()
-	
-	#print("Navire [%d] - Distance: %.1f - Prochaine case: %s - Cases restantes: %d" % [
-		#id, distance, next_case, path.size()
-	#])
+
 
 	if distance < 10:
-		# AJOUT : Sauvegarder l'ancienne position pour détecter le changement
+		# Sauvegarder l'ancienne position pour détecter le changement
 		var old_case = case_actuelle
 		
 		global_position = next_pos
@@ -520,7 +517,7 @@ func _process_movement(delta: float) -> void:
 		case_actuelle = next_case
 		energie = max(energie - 1, 0)
 		
-		DEBUG.log(">>> Navire [%d] arrivé à %s - Cases restantes: %d" % [id, case_actuelle, path.size()])
+		DEBUG.log("Navire [%d] arrivé à %s - Cases restantes: %d" % [id, case_actuelle, path.size()])
 		
 		# DEBUG COMPLET
 		DEBUG.log("old_case: %s, case_actuelle: %s, changé: %s" % [old_case, case_actuelle, old_case != case_actuelle])
@@ -529,7 +526,7 @@ func _process_movement(delta: float) -> void:
 		else:
 			DEBUG.log("player_owner est NULL !")
 		
-		# AJOUT : Actualiser le fog si c'est un navire du joueur humain et qu'il a changé de case
+		# Actualiser le fog si c'est un navire du joueur humain et qu'il a changé de case
 		if old_case != case_actuelle and player_owner and player_owner.is_human:
 			DEBUG.log("✓ CONDITIONS OK - Appel de _update_fog_of_war()")
 			_update_fog_of_war()
@@ -542,7 +539,7 @@ func _process_movement(delta: float) -> void:
 			if player_owner and not player_owner.is_human:
 				DEBUG.log("    Raison: player_owner n'est pas humain")
 		
-		# AJOUT : Mise à jour de la visibilité pour navires ennemis
+		# Mise à jour de la visibilité pour navires ennemis
 		if player_owner and not player_owner.is_human:
 			_update_visibility_in_fog()
 		

@@ -2,14 +2,6 @@ class_name Map_utils
 extends Node
 
 
-# Les 6 directions constantes en coordonnées axiales (q, r)
-# Cela ne change JAMAIS, peu importe la parité de la ligne.
-static var _axial_directions = [
-	Vector2i(1, 0), Vector2i(1, -1), Vector2i(0, -1),
-	Vector2i(-1, 0), Vector2i(-1, 1), Vector2i(0, 1)
-]
-
-
 
 func _init():
 	# permet de rajouter l'objet dans le groupe avant le passage du GameManager
@@ -128,11 +120,11 @@ static func get_hex_distance(a: Vector2i, b: Vector2i) -> int:
 	# 1. Conversion Offset -> Axial (Version Pointy Top / Odd-Q)
 	# On doit utiliser la même logique que HexGrid.offset_to_axial
 	var aq = a.x
-	var ar = a.y - (a.x - (a.x & 1)) / 2
+	var ar = a.y - (a.x - (a.x & 1)) / 2.
 	var as_coord = -aq - ar
 	
 	var bq = b.x
-	var br = b.y - (b.x - (b.x & 1)) / 2
+	var br = b.y - (b.x - (b.x & 1)) / 2.
 	var bs_coord = -bq - br
 	
 	# 2. Distance Manhattan cubique

@@ -46,13 +46,13 @@ func get_cell(q: int, r: int, s: int) -> HexCell:
 func offset_to_axial(col: int, row: int) -> Vector2:
 	var q = col
 	# La formule magique pour Odd-Q (Pointy Top)
-	var r = row - (col - (col & 1)) / 2
+	var r = row - (col - (col & 1)) / 2.
 	return Vector2(q, r)
 
 func axial_to_offset(q: int, r: int) -> Vector2:
 	var col = q
 	# Inverse de la formule Odd-Q
-	var row = r + (q - (q & 1)) / 2
+	var row = r + (q - (q & 1)) / 2.
 	return Vector2(col, row)
 
 # Dans generate_hex_grid_rectangular, assure-toi que s est toujours calculé ainsi :

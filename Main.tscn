@@ -1,16 +1,8 @@
-<<<<<<< HEAD
-[gd_scene load_steps=14 format=3 uid="uid://da1yh0j3p2d3l"]
+[gd_scene load_steps=14 format=3 uid="uid://c48fuict5p0vc"]
 
 [ext_resource type="Script" uid="uid://dr8py3hemabaj" path="res://Scripts/in_game/DATA/listes_entités.gd" id="1_20pc6"]
 [ext_resource type="Script" uid="uid://b8oifcgwrg2r" path="res://Scripts/in_game/MAP/MapManager.gd" id="2_5vvyt"]
-[ext_resource type="Script" path="res://Scripts/in_game/MAP/map_gen.gd" id="3_c6i3y"]
-=======
-[gd_scene load_steps=14 format=3 uid="uid://c2q64ag1d8tj4"]
-
-[ext_resource type="Script" uid="uid://dr8py3hemabaj" path="res://Scripts/in_game/DATA/listes_entités.gd" id="1_20pc6"]
-[ext_resource type="Script" uid="uid://b8oifcgwrg2r" path="res://Scripts/in_game/MAP/MapManager.gd" id="2_5vvyt"]
-[ext_resource type="Script" uid="uid://i830ncncgvsu" path="res://Scripts/in_game/MAP/map.gd" id="3_c6i3y"]
->>>>>>> a427bef4107956d66a43263385ccb15b970c7814
+[ext_resource type="Script" uid="uid://i830ncncgvsu" path="res://Scripts/in_game/MAP/map_gen.gd" id="3_c6i3y"]
 [ext_resource type="Script" uid="uid://rf6kb04x4h4v" path="res://Scripts/in_game/CAMERA/camera_2d.gd" id="8_kjvhd"]
 [ext_resource type="PackedScene" uid="uid://dbayx8jjgjey2" path="res://Scenes/in_game/GameManager.tscn" id="9_5tuhn"]
 [ext_resource type="PackedScene" uid="uid://cfhs5uyx5g4go" path="res://Scenes/in_game/Navires.tscn" id="10_2gh4u"]

@@ -306,14 +306,14 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	
 	# Toggle stats
-	if Input.is_action_just_pressed("toggle_stats"):
+	if Input.is_action_just_pressed("input_toggle_stats"):
 		#envoie un signal qui est récupéré par l'UI_stats_navires associé à ce navire
 		if(self.is_selected):
 			#sig_show_stats.emit()
 			emit_signal("sig_show_stats")
 	
 	# Pêche
-	if event.is_action_pressed("fish"):
+	if event.is_action_pressed("input_fish"):
 		try_start_fishing()
 		return
 

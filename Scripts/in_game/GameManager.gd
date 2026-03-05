@@ -27,6 +27,10 @@ var selected_ship: Navires = null
 signal ship_selected(ship: Navires)
 signal ship_deselected()
 
+# Gestion de la sélection des ports
+var selected_port: Ports = null
+signal port_selected(port: Ports)
+signal port_deselected()
 var turn_manager: TurnManager = null
 
 # Ce qui sera dans cette fonction sera exécuté en premier (avant que le reste soit prêt)

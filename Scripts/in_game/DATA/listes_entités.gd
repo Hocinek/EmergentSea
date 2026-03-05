@@ -3,6 +3,9 @@ extends Node2D
 # Liste des navires créés
 @export var liste_navires : Dictionary[int, Navires] = {}
 
+# Liste des ports créés
+@export var liste_ports : Dictionary[int, Ports] = {}
+
 # Liste des joueurs
 @export var liste_joueurs : Dictionary = {
 	1: { "nom": "Joueur 1", "couleur": Color.BLUE, "is_player": true },   # Joueur humain
@@ -99,3 +102,75 @@ func cleanup_invalid_ships() -> void:
 	
 	if to_remove.size() > 0:
 		DEBUG.log("%d navire(s) invalide(s) nettoyé(s)" % to_remove.size())
+
+
+# permet de récupérer le port d'une case précise
+func getPortByPosition(pos: Vector2i) -> Array:
+	# liste des ports trouvés
+	var found : Array = []
+	
+	if not liste_ports.is_empty():
+		# Créer une liste des UUIDs à supprimer
+		var to_remove : Array = []
+		
+		for uuid in liste_ports.keys():
+			var port = liste_ports[uuid]
+			
+			# Vérifier que le port existe toujours
+			if not is_instance_valid(port):
+				to_remove.append(uuid)
+				continue
+			
+			# Vérifier la position
+			if port.getPosition() == pos:
+				found.append(port)
+		
+		# Nettoyer les ports invalides
+		for uuid in to_remove:
+			liste_ports.erase(uuid)
+			DEBUG.log("Port avec UUID %d supprimé de la liste (invalide)" % uuid)
+	
+	return found
+
+func addPortToData(port: Ports) -> bool:
+	# Vérifier que le port a un propriétaire
+	if not port.player_owner:
+		DEBUG.log("Le port n'a pas de propriétaire (player_owner est null) !",DEBUG.ERROR)
+		return false
+	
+	# Utiliser l'ID du joueur propriétaire
+	var player_id = port.player_owner.player_id if port.player_owner else 0
+	
+	# Générer un UUID simple : utiliser la taille actuelle + ID du port
+	var uuid = liste_ports.size() + (player_id * 1000) + port.id
+	
+	# S'assurer que l'UUID est unique
+	var attempts = 0
+	while liste_ports.has(uuid) and attempts < 100:
+		uuid += 1
+		attempts += 1
+	
+	if attempts >= 100:
+		DEBUG.log("Impossible de générer un UUID unique pour le port !",DEBUG.ERROR)
+		return false
+	
+	# Ajouter le port à la liste
+	liste_ports[uuid] = port
+	
+	DEBUG.log("Port ajouté à la liste avec UUID: %d (Joueur: %s, ID: %d)" % [uuid, port.player_owner.player_name, port.id])
+	return true
+
+# Fonction utilitaire pour nettoyer tous les ports invalides
+func cleanup_invalid_ports() -> void:
+	var to_remove : Array = []
+	
+	for uuid in liste_ports.keys():
+		var port = liste_ports[uuid]
+		if not is_instance_valid(port):
+			to_remove.append(uuid)
+	
+	for uuid in to_remove:
+		liste_ports.erase(uuid)
+	
+	if to_remove.size() > 0:
+		DEBUG.log("%d port(s) invalide(s) nettoyé(s)" % to_remove.size())

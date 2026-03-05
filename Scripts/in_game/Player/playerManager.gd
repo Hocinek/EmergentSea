@@ -29,7 +29,7 @@ func create_player(
 	is_human: bool = true
 ) -> Player:
 	
-	var player_scene := preload("res://Scenes/in_game/Player.tscn")
+	var player_scene := preload("res://Scenes/in_game/ENTITIES/Player.tscn")
 	var player: Player = player_scene.instantiate()
 	
 	player.player_id = player_id

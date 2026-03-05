@@ -1,0 +1,162 @@
+extends Node
+class_name TurnManager
+
+signal turn_started(player: Player)
+signal turn_ended(player: Player)
+signal active_player_changed(player: Player)
+signal game_over(winner: Player)
+
+var players: Array[Player] = []
+var current_player_index: int = 0
+var current_player: Player = null
+
+var state: TurnState.State = TurnState.State.IDLE
+
+# Durée "freeze" simulée pour l'IA (tant que tu n'as pas le vrai code IA)
+@export var ai_turn_delay_sec: float = 1.5
+
+
+func _enter_tree() -> void:
+	add_to_group("turn_manager")
+
+
+# =========================================================
+# Public API
+# =========================================================
+
+func start_game(players_list: Array[Player]) -> void:
+	players = _filter_alive_players(players_list)
+	current_player_index = 0
+
+	if players.is_empty():
+		state = TurnState.State.GAME_OVER
+		game_over.emit(null)
+		return
+
+	current_player = players[current_player_index]
+	_start_turn()
+
+
+func end_turn() -> void:
+	# On n'accepte le clic que si c'est un tour jouable
+	if state != TurnState.State.PLAYER_ACTION:
+		return
+
+	# 1) Fin du tour du joueur courant
+	state = TurnState.State.ENDING_TURN
+	turn_ended.emit(current_player)
+
+	# 2) Passer au joueur suivant
+	_advance_to_next_player()
+
+	if current_player == null:
+		state = TurnState.State.GAME_OVER
+		game_over.emit(null)
+		return
+
+	# 3) Démarrer son tour
+	_start_turn()
+
+	# 4) SI c'est une IA, on joue automatiquement son tour,
+	#    puis on boucle jusqu'à retomber sur un humain.
+	await _auto_run_non_human_turns_until_human()
+
+
+func can_navire_act(navire: Navires) -> bool:
+	if state != TurnState.State.PLAYER_ACTION:
+		return false
+	if navire == null or not is_instance_valid(navire):
+		return false
+	if not navire.is_alive():
+		return false
+	if navire.player_owner == null:
+		return false
+
+	return navire.player_owner == current_player
+
+
+# =========================================================
+# Internals
+# =========================================================
+
+func _start_turn() -> void:
+	state = TurnState.State.STARTING_TURN
+
+	# Reset énergie des navires du joueur actif
+	for n in current_player.get_navires():
+		if is_instance_valid(n) and n.is_alive():
+			n.reset_energie()
+
+	state = TurnState.State.PLAYER_ACTION
+	active_player_changed.emit(current_player)
+	turn_started.emit(current_player)
+
+
+func _auto_run_non_human_turns_until_human() -> void:
+	# Si tu n'as pas de propriété is_human sur Player, c'est ici que ça plantera.
+	# Dans ton projet, tu l'utilises déjà (Navires / GameManager), donc c'est OK.
+	while current_player != null and state == TurnState.State.PLAYER_ACTION and (not current_player.is_human):
+		# "Freeze" : le joueur humain ne doit rien pouvoir faire pendant ce temps
+		# -> on met l'état à ENDING_TURN pour bloquer can_navire_act / inputs
+		state = TurnState.State.ENDING_TURN
+
+		# Simuler le tour IA (remplacer par ton vrai code IA plus tard)
+		await _simulate_ai_turn(current_player)
+
+		# Fin du tour IA
+		turn_ended.emit(current_player)
+
+		# Joueur suivant
+		_advance_to_next_player()
+
+		if current_player == null:
+			state = TurnState.State.GAME_OVER
+			game_over.emit(null)
+			return
+
+		# Démarrer le tour suivant (peut être humain ou IA)
+		_start_turn()
+
+
+func _simulate_ai_turn(ai_player: Player) -> void:
+	# Tant que tu n'as pas les fichiers IA, on fait juste une pause.
+	# Plus tard : appeler la vraie routine IA ici.
+	# Exemple futur: await ai_controller.play_turn(ai_player)
+
+	# Récupérer le label qui affiche "Tour de l'IA..."
+	var label = get_tree().get_first_node_in_group("ai_turn_label")
+
+	# Afficher le message à l'écran
+	if label:
+		label.visible = true
+
+	# Simuler la durée du tour de l'IA
+	await get_tree().create_timer(ai_turn_delay_sec).timeout
+
+	# Masquer le message une fois le tour terminé
+	if label:
+		label.visible = false
+
+
+func _advance_to_next_player() -> void:
+	players = _filter_alive_players(players)
+
+	if players.is_empty():
+		current_player = null
+		return
+
+	# Sécurité : si l’index dépasse après filtrage
+	if current_player_index >= players.size():
+		current_player_index = 0
+
+	# next
+	current_player_index = (current_player_index + 1) % players.size()
+	current_player = players[current_player_index]
+
+
+func _filter_alive_players(list_in: Array[Player]) -> Array[Player]:
+	var out: Array[Player] = []
+	for p in list_in:
+		if p != null and is_instance_valid(p) and p.has_alive_navires():
+			out.append(p)
+	return out

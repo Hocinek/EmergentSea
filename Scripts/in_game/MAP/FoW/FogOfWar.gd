@@ -42,7 +42,7 @@ func _ready():
 	add_to_group("fog_of_war")
 	
 	# Z-index très haut pour être au-dessus de tout
-	z_index = 10000
+	z_index = RenderingServer.CANVAS_ITEM_Z_MAX
 	z_as_relative = false
 	
 	DEBUG.log("[FOG] FogOfWar _ready() - Système Civ6 à 3 états")

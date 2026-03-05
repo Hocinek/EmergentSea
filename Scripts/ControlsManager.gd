@@ -1,63 +1,72 @@
 extends Node
 
-func _enter_tree():
-	load_user_config()
+const SAVE_PATH := "user://controls.cfg"
 
-func rebind_action(action_name: String, new_keycode: int):
-	# On supprime les anciens bindings pour cette action
-	InputMap.action_erase_events(action_name)
+func _ready() -> void:
+	# On charge la configuration directement
+	#TranslationServer.set_locale("fr")
+	load_all_binds()
 
-	# On crée un nouvel InputEventKey
-	var ev :InputEventKey= InputEventKey.new()
-	ev.keycode = new_keycode
-
-	# On l’ajoute à l’action
-	InputMap.action_add_event(action_name, ev)
-
-func save_user_config(path := "user://input.cfg"):
-	var config := ConfigFile.new()
-
-	for action in InputMap.get_actions():
-		var events := InputMap.action_get_events(action)
-		var serialized := []
-
-		for ev in events:
-			if ev is InputEventKey:
-				serialized.append({
-					"type": "key",
-					"keycode": ev.keycode
-				})
-			elif ev is InputEventMouseButton:
-				serialized.append({
-					"type": "mouse",
-					"button": ev.button_index
-				})
-			# Tu peux ajouter d'autres types si tu veux (manette, etc.)
-
-		config.set_value("input", action, serialized)
-
-	config.save(path)
-
-func load_user_config(path := "user://input.cfg"):
-	var config := ConfigFile.new()
-	if config.load(path) != OK:
+func load_all_binds() -> void:
+	var cfg := ConfigFile.new()
+	
+	# Vérifie que la config existe, si elle n'existe pas, on ne va pas tenter de la charger
+	if cfg.load(SAVE_PATH) != OK:
 		return
 
-	# On itère seulement sur les actions présentes dans le fichier de config.
-	for action in config.get_section_keys("input"):
-		# On vérifie si l'action existe dans le projet avant d'essayer de la modifier
-		if InputMap.has_action(action):
-			InputMap.action_erase_events(action) # On nettoie seulement cette action
-			
-			var serialized = config.get_value("input", action, [])
-			
-			for data in serialized:
-				match data["type"]:
-					"key":
-						var ev := InputEventKey.new()
-						ev.keycode = data["keycode"]
-						InputMap.action_add_event(action, ev)
-					"mouse":
-						var ev := InputEventMouseButton.new()
-						ev.button_index = data["button"]
-						InputMap.action_add_event(action, ev)
+	# On vérifie que la section "binds" existe bien dans le fichier
+	if not cfg.has_section("binds"):
+		return
+
+	# On récupère automatiquement tous les noms d'actions sauvegardées
+	for action_name in cfg.get_section_keys("binds"):
+		if not InputMap.has_action(action_name):
+			continue
+
+		var saved: Dictionary = cfg.get_value("binds", action_name, {})
+		if saved.is_empty():
+			continue
+
+		# On nettoie SEULEMENT les événements claviers existants pour cette action
+		for e in InputMap.action_get_events(action_name):
+			if e is InputEventKey:
+				InputMap.action_erase_event(action_name, e)
+
+		# On crée la nouvelle touche (avec "as Key" pour éviter le fameux warning)
+		var ev := InputEventKey.new()
+		ev.keycode = saved.get("keycode", 0) as Key
+		ev.physical_keycode = saved.get("physical_keycode", 0) as Key
+		ev.ctrl_pressed = bool(saved.get("ctrl", false))
+		ev.alt_pressed = bool(saved.get("alt", false))
+		ev.shift_pressed = bool(saved.get("shift", false))
+		ev.meta_pressed = bool(saved.get("meta", false))
+
+		InputMap.action_add_event(action_name, ev)
+
+func save_binds(actions_to_save: Array[StringName]) -> void:
+	var cfg := ConfigFile.new()
+
+	for a in actions_to_save:
+		if not InputMap.has_action(a):
+			continue
+
+		for e in InputMap.action_get_events(a):
+			if e is InputEventKey:
+				var k := e as InputEventKey
+				cfg.set_value("binds", String(a), {
+					"keycode": int(k.keycode),
+					"physical_keycode": int(k.physical_keycode),
+					"ctrl": k.ctrl_pressed,
+					"alt": k.alt_pressed,
+					"shift": k.shift_pressed,
+					"meta": k.meta_pressed
+				})
+				break
+
+	cfg.save(SAVE_PATH)
+
+func reset_to_defaults(actions_to_reset: Array[StringName]) -> void:
+		
+	# On vide l'InputMap actuelle pour remettre les touches par défaut du projet
+	InputMap.load_from_project_settings()
+	save_binds(actions_to_reset)

@@ -2,14 +2,6 @@ class_name Map_utils
 extends Node
 
 
-# Les 6 directions constantes en coordonnées axiales (q, r)
-# Cela ne change JAMAIS, peu importe la parité de la ligne.
-static var _axial_directions = [
-	Vector2i(1, 0), Vector2i(1, -1), Vector2i(0, -1),
-	Vector2i(-1, 0), Vector2i(-1, 1), Vector2i(0, 1)
-]
-
-
 
 func _init():
 	# permet de rajouter l'objet dans le groupe avant le passage du GameManager
@@ -128,11 +120,11 @@ static func get_hex_distance(a: Vector2i, b: Vector2i) -> int:
 	# 1. Conversion Offset -> Axial (Version Pointy Top / Odd-Q)
 	# On doit utiliser la même logique que HexGrid.offset_to_axial
 	var aq = a.x
-	var ar = a.y - (a.x - (a.x & 1)) / 2
+	var ar = a.y - (a.x - (a.x & 1)) / 2.
 	var as_coord = -aq - ar
 	
 	var bq = b.x
-	var br = b.y - (b.x - (b.x & 1)) / 2
+	var br = b.y - (b.x - (b.x & 1)) / 2.
 	var bs_coord = -bq - br
 	
 	# 2. Distance Manhattan cubique
@@ -184,41 +176,6 @@ static func get_movement_cost(c: Vector2i) -> float:
 		"deepwater": return 1.0 # Autoroute maritime
 		"water": return 1.0     # Eau côtière (plus lent, on préfère le large)
 		_: return 1.0
-#static func get_neighbors(c: Vector2i) -> Array:
-	#var res := []
-	#
-	## Directions pour les lignes PAIRES (y % 2 == 0)
-	#var dirs_even = [
-		#Vector2i(1, 0), Vector2i(-1, 0),  # Droite, Gauche
-		#Vector2i(0, -1), Vector2i(-1, -1), # Haut-Droit, Haut-Gauche
-		#Vector2i(0, 1), Vector2i(-1, 1)    # Bas-Droit, Bas-Gauche
-	#]
-	#
-	## Directions pour les lignes IMPAIRES (y % 2 == 1)
-	#var dirs_odd = [
-		#Vector2i(1, 0), Vector2i(-1, 0),  # Droite, Gauche
-		#Vector2i(1, -1), Vector2i(0, -1),  # Haut-Droit, Haut-Gauche
-		#Vector2i(1, 1), Vector2i(0, 1)     # Bas-Droit, Bas-Gauche
-	#]
-	#
-	#var directions = dirs_even if c.y % 2 == 0 else dirs_odd
-#
-	#for d in directions:
-		#var n = c + d
-		#
-		## 1. Vérifier les limites de la carte
-		#if not Map_utils.is_case_valid(n):
-			#continue
-			#
-		## 2. Vérifier si c'est navigable (Eau)
-		## J'utilise ta fonction statique existante, c'est plus performant
-		## que de convertir en world pos puis re-convertir en case
-		#if not Map_utils.is_case_navigable(n): 
-			#continue
-			#
-		#res.append(n)
-		#
-	#return res
 
 
 # Pour la génération uniquement : on veut savoir si on peut "étendre" l'océan

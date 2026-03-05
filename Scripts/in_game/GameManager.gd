@@ -7,7 +7,7 @@ extends Node
 
 
 # Scène du navire
-var navire_scene := preload("res://Scenes/in_game/Navires.tscn")
+var navire_scene := preload("res://Scenes/in_game/ENTITIES/Navires.tscn")
 
 @onready var map
 @onready var data
@@ -219,7 +219,7 @@ func _attach_ai(navire_ennemi: Navires) -> void:
 	DEBUG.log("[ATTACH_AI] Début")
 	
 	# Teste plusieurs chemins possibles
-	var ai_script = load("res://Scripts/in_game/navires/EnemyAI.gd")
+	var ai_script = load("res://Scripts/in_game/navires/IA/EnemyAI.gd")
 	if ai_script == null:
 		DEBUG.log("[ATTACH_AI] ERREUR : EnemyAI.gd introuvable dans aucun chemin !",DEBUG.ERROR)
 		return
@@ -282,7 +282,7 @@ func select_ship(ship: Navires) -> void:
 	if selected_ship:
 		selected_ship.set_selected(true)
 		emit_signal("ship_selected", ship)
-		DEBUG.log("Navire sélectionné: "+ str(ship.id if ship.has_method("get") else "N/A"))
+		DEBUG.log("Navire sélectionné : %s" % str(ship.id) if ship.has_method("get") else "N/A")
 		
 		# NOUVEAU : Mettre à jour le fog quand un navire est sélectionné
 		if fog_manager:
@@ -291,7 +291,7 @@ func select_ship(ship: Navires) -> void:
 
 func deselect_ship() -> void:
 	if selected_ship:
-		DEBUG.log("Désélection du navire: "+str(selected_ship.id if selected_ship.has_method("get") else "N/A"))
+		DEBUG.log("Désélection du navire : %s" % str(selected_ship.id) if selected_ship.has_method("get") else "N/A")
 		selected_ship.set_selected(false)
 		selected_ship = null
 		emit_signal("ship_deselected")
@@ -307,7 +307,7 @@ func _on_ship_clicked(ship: Navires) -> void:
 
 
 func _on_ship_destroyed(ship: Navires) -> void:
-	DEBUG.log("Navire détruit détecté: "+str( ship.id if ship.has_method("get") else "N/A"))
+	DEBUG.log("Navire détruit détecté : %s" % str( ship.id) if ship.has_method("get") else "N/A")
 	
 	if selected_ship == ship:
 		DEBUG.log("Le navire sélectionné a été détruit, désélection...")

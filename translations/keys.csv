@@ -1,0 +1,7 @@
+id,en,fr
+UI_UP,Move Up,Monter
+UI_DOWN,Move Down,Descendre
+UI_LEFT,Move Left,Gauche
+UI_RIGHT,Move Right,Droite
+FISH,Fish,Pêcher
+TOGGLE_STATS,Show Stats,Afficher les stats

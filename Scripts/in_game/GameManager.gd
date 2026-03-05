@@ -7,7 +7,7 @@ extends Node
 
 
 # Scène du navire
-var navire_scene := preload("res://Scenes/in_game/Navires.tscn")
+var navire_scene := preload("res://Scenes/in_game/ENTITIES/Navires.tscn")
 
 @onready var map
 @onready var data

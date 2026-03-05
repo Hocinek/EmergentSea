@@ -4,7 +4,7 @@
 [ext_resource type="Script" uid="uid://b8oifcgwrg2r" path="res://Scripts/in_game/MAP/MapManager.gd" id="2_ivtco"]
 [ext_resource type="Script" uid="uid://rf6kb04x4h4v" path="res://Scripts/in_game/CAMERA/camera_2d.gd" id="4_hrypm"]
 [ext_resource type="PackedScene" uid="uid://dbayx8jjgjey2" path="res://Scenes/in_game/GameManager.tscn" id="5_354s7"]
-[ext_resource type="Script" uid="uid://b3bmrl2qirwbo" path="res://Scripts/in_game/UI/UI_end_turn.gd" id="6_rj005"]
+[ext_resource type="Script" uid="uid://b3bmrl2qirwbo" path="res://Scripts/in_game/UI/button/UI_end_turn.gd" id="6_rj005"]
 [ext_resource type="Script" uid="uid://blqnyothi6036" path="res://Scripts/in_game/TURN/TurnManager.gd" id="6_vl8yy"]
 [ext_resource type="Script" uid="uid://ddrseokeg42dh" path="res://Scripts/in_game/UI/canvas_layer.gd" id="7_de4m1"]
 

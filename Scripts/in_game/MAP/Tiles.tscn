@@ -1,5 +1,0 @@
-[gd_scene load_steps=0 format=3 uid="uid://ck87cs4auy8o8"]
-
-[node name="Tiles" type="Node2D"]
-
-[node name="TileMapLayer" type="TileMapLayer" parent="."]

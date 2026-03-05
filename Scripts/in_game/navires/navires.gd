@@ -30,17 +30,6 @@ var fog_of_war_ref: FogOfWar = null
 
 
 # =========================
-# TEXTURES
-# =========================
-@export var rendu0: Texture2D
-@export var rendu60: Texture2D
-@export var rendu120: Texture2D
-@export var rendu180: Texture2D
-@export var rendu240: Texture2D
-@export var rendu300: Texture2D
-
-
-# =========================
 # STATS
 # =========================
 var stats_panel : UI_stats_navire
@@ -328,6 +317,10 @@ func _init_stats_ui():
 func _unhandled_input(event: InputEvent) -> void:
 	# Vérifier que ce navire appartient au joueur humain
 	if not player_owner or not player_owner.is_human:
+		return
+		
+	var turn_manager = get_tree().get_first_node_in_group("turn_manager")
+	if turn_manager and not turn_manager.can_navire_act(self):
 		return
 	
 	# Détecter le clic sur ce navire pour le sélectionner
@@ -639,21 +632,20 @@ func _update_visibility_in_fog() -> void:
 # DRAW
 # =========================
 func _draw():
-	# Indicateur de sélection (cercle vert) - UNIQUEMENT si sélectionné
 	if is_selected and player_owner and player_owner.is_human:
-		# Animation de pulsation
 		var pulse = sin(Time.get_ticks_msec() * 0.003) * 5.0
 		var current_radius = selection_radius + pulse
-		
-		# Cercle extérieur (contour noir)
 		draw_arc(Vector2.ZERO, current_radius, 0, TAU, 32, Color.BLACK, selection_thickness + 2)
-		# Cercle intérieur (couleur de sélection)
 		draw_arc(Vector2.ZERO, current_radius, 0, TAU, 32, selection_color, selection_thickness)
-		
-		# Halo lumineux
 		var glow_alpha = (sin(Time.get_ticks_msec() * 0.004) * 0.15) + 0.2
 		var glow_color = Color(selection_color.r, selection_color.g, selection_color.b, glow_alpha)
-		draw_arc(Vector2.ZERO, current_radius + 8, 0, TAU, 32, glow_color, 2.0)
+		var glow_layers = 1
+		var base_offset = 125.0
+		var base_thickness =75
+		for i in glow_layers:
+			var t = float(i) / glow_layers
+			draw_arc(Vector2.ZERO, current_radius + base_offset + t * base_offset * 4.0, 0, TAU, 32, glow_color, base_thickness)
+
 	
 	# Flèche de déplacement (seulement pour le navire sélectionné)
 	if not show_arrow or not is_selected:
@@ -852,6 +844,18 @@ func on_a_ship(cible: Vector2i) -> bool :
 				# si le bateau n'est pas celui du joueur, alors on peut tirer
 				result = true
 	return result
+	
+func move_to_hex(hex: Vector2i) -> void:
+	"""Déplace ce navire vers une case hex (utilisé par l'IA)"""
+	if not Map_utils.is_case_navigable(hex):
+		return
+	var world_pos := Map_utils.case_vers_monde(hex)
+	# Réutilise la même logique que ton déplacement joueur
+	path = calculer_chemin(case_actuelle, hex)
+	if path.is_empty():
+		return
+	case_actuelle = hex
+	global_position = world_pos         # si la méthode existe chez toi
 
 
 # =========================

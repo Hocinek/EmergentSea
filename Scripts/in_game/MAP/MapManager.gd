@@ -56,6 +56,7 @@ func spawn_tile_object(cell: HexCell):
 		"forest": s.texture = Map_data.TileForest
 		"mountain": s.texture = Map_data.TileMountain
 		"port": 
+			#cell.set_script(load("res://Scripts/in_game/ports/port.gd"))
 			# Vérifier si TilePort existe dans Map_data
 			if "TilePort" in Map_data:
 				s.texture = Map_data.TilePort

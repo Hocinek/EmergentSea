@@ -1,7 +1,7 @@
-class_name UI_stats_navire
+class_name UI_stats_port
 extends Node
 
-var navire : Navires
+var port: Ports
 var ui_layer: CanvasLayer
 
 var stats_visible := false
@@ -9,12 +9,12 @@ var stats_visible := false
 # =========================
 # UI STATS - DEUX PANNEAUX
 # =========================
-# Panneau pour navire allié (à droite)
-var stats_panel_ally: PanelContainer
+# Panneau pour port allié (à droite)
+var stats_panel_ally: Panel
 var label_list_ally:Dictionary
 
-# Panneau pour navire ennemi (à gauche)
-var stats_panel_enemy: PanelContainer
+# Panneau pour port ennemi (à gauche)
+var stats_panel_enemy: Panel
 var label_list_enemy:Dictionary
 
 # timer pour faire disparaître les panels
@@ -30,10 +30,10 @@ const color_bg_enemy : Color = Color(0.4, 0, 0, 0.8)  # Rouge pour l'ennemi
 const color_txt_enemy : Color = Color(1, 0.5, 0.5)
 
 
-func _init(ship : Navires) -> void:
-	self.navire = ship
-	navire.add_child(self)
-	navire.sig_show_stats.connect(handler)
+func _init(port : Ports) -> void:
+	self.port = port
+	port.add_child(self)
+	port.sig_show_stats.connect(handler)
 	
 	build_ui()
 
@@ -67,7 +67,7 @@ func build_ui():
 	_create_enemy_stats_panel()
 
 func _create_ally_stats_panel():
-	"""Crée le panneau de stats pour les navires alliés (à droite)"""
+	"""Crée le panneau de stats pour les ports alliés (à droite)"""
 	stats_panel_ally=build_base()
 	attach_panel_to_right(stats_panel_ally)
 	attach_panel_to_top(stats_panel_ally)
@@ -83,7 +83,7 @@ func _create_ally_stats_panel():
 	ui_layer.add_child(stats_panel_ally)
 
 func _create_enemy_stats_panel():
-	"""Crée le panneau de stats pour les navires ennemis (à gauche)"""
+	"""Crée le panneau de stats pour les ports ennemis (à gauche)"""
 	stats_panel_enemy=build_base()
 	attach_panel_to_left(stats_panel_enemy)
 	attach_panel_to_top(stats_panel_enemy)
@@ -100,24 +100,24 @@ func _create_enemy_stats_panel():
 #endregion crafting
 
 #region build panel tools
-func build_base()->PanelContainer:
-	var panel = PanelContainer.new()
+func build_base()->Panel:
+	var panel = Panel.new()
 	panel.visible = false
 	return panel
 
-func attach_panel_to_left(panel:PanelContainer):
+func attach_panel_to_left(panel:Panel):
 	panel.anchor_left = 0
 	panel.anchor_right = 0
 	panel.offset_left = 20
 	panel.offset_right = 180
 
-func attach_panel_to_right(panel:PanelContainer):
+func attach_panel_to_right(panel:Panel):
 	panel.anchor_left = 1
 	panel.anchor_right = 1
 	panel.offset_left = -180
 	panel.offset_right = -20
 
-func attach_panel_to_top(panel:PanelContainer):
+func attach_panel_to_top(panel:Panel):
 	panel.anchor_top = 0
 	panel.anchor_bottom = 0
 	panel.offset_top = 20
@@ -142,7 +142,7 @@ func build_vbox()->VBoxContainer:
 
 func add_stats_to_vbox(vbox:VBoxContainer) -> Dictionary:
 	# Labels de stats
-	var labels_names = ["vie", "energie", "nourriture", "equipage"]
+	var labels_names = ["Nom du port"]
 	var labels : Dictionary = create_labels(labels_names)
 	for label:Label in labels.values():
 		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -159,7 +159,7 @@ func create_labels(names: Array) -> Dictionary:
 func create_vbox_title(vbox:VBoxContainer,color:Color):
 	var title_label := Label.new()
 	title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	var owner_name = navire.player_owner.player_name if navire.player_owner else "???"
+	var owner_name = port.player_owner.player_name if port.player_owner else "???"
 	var text = ""
 	if(color == color_txt_enemy):
 		text += "☠️ "
@@ -192,11 +192,11 @@ func hide_ally():
 	stats_visible=false
 
 func show_stats():
-	"""Affiche les stats du navire dans le bon panneau"""
+	"""Affiche les stats du port dans le bon panneau"""
 	stats_timer = stats_duration
 	
-	# Déterminer si ce navire est allié ou ennemi
-	var is_ally = (navire.player_owner and navire.player_owner.is_human)
+	# Déterminer si ce port est allié ou ennemi
+	var is_ally = (port.player_owner and port.player_owner.is_human)
 	
 	if is_ally:
 		# Afficher dans le panneau allié (droite)
@@ -210,7 +210,7 @@ func show_stats():
 			update_stats(label_list_enemy)
 
 func hide_all_stats():
-	"""Masque tous les panneaux de stats de ce navire"""
+	"""Masque tous les panneaux de stats de ce port"""
 	stats_visible = false
 	
 	if stats_panel_ally:
@@ -220,6 +220,7 @@ func hide_all_stats():
 		hide_enemy()
 #endregion show/hide
 
+
 #region updates
 func update():
 	update_stats(label_list_ally)
@@ -228,12 +229,6 @@ func update():
 func update_stats(label_list:Dictionary):
 	"""Met à jour l'affichage des stats"""	
 	if label_list:
-		if(label_list.has("vie")):
-			label_list["vie"].text = "❤️ %d / %d" % [navire.vie, navire.maxvie]
-		if(label_list.has("energie")):
-			label_list["energie"].text = "⚡ %d / %d" % [navire.energie, navire.maxenergie]
-		if(label_list.has("equipage")):
-			label_list["equipage"].text = "👥 %d" % navire.nrbequipage
-		if(label_list.has("nourriture")):
-			label_list["nourriture"].text = "🐟 %d" % navire.nourriture
+		if(label_list.has("Nom du Port")):
+			label_list["Nom du Port"].text = "%d" [port.Nom_Port]
 #endregion updates

@@ -4,7 +4,7 @@
 # VERSION CORRIGÉE avec support Fog of War							#
 ###===================================================================###
 extends Node
- 
+
 
 # Scène du navire
 var navire_scene := preload("res://Scenes/in_game/Navires.tscn")
@@ -27,6 +27,11 @@ var selected_ship: Navires = null
 signal ship_selected(ship: Navires)
 signal ship_deselected()
 
+# Gestion de la sélection des ports
+var selected_port: Ports = null
+signal port_selected(port: Ports)
+signal port_deselected()
+var turn_manager: TurnManager = null
 
 # Ce qui sera dans cette fonction sera exécuté en premier (avant que le reste soit prêt)
 func _enter_tree():
@@ -38,28 +43,31 @@ func _enter_tree():
 	if not map_manager:
 		DEBUG.log("Aucune carte trouvée dans le groupe 'Map_manager' !",DEBUG.ERROR)
 		return
+	# Connecter le signal de génération de map
+	map_manager.map_generated.connect(_on_map_generated)
 	
 	if not data:
 		DEBUG.log("Aucune donnée partagée n'est accessible !",DEBUG.ERROR)
-	
-	# Connecter le signal de génération de map
-	map_manager.map_generated.connect(_on_map_generated)
 
 
 func _ready():
 	# Attendre un frame pour que tout soit bien initialisé
 	await get_tree().process_frame
 	
-	# NOUVEAU : Créer le système de fog of war
+	turn_manager = get_tree().get_first_node_in_group("turn_manager")
+	if not turn_manager:
+		DEBUG.log("TurnManager introuvable !",DEBUG.ERROR)
+	
+	# Créer le système de fog of war
 	_setup_fog_of_war()
 	
 	# Récupérer le PlayersManager
 	_try_get_players_manager()
 
-
-# NOUVELLE FONCTION : Setup du fog of war
+#region fonctions d'initialisation
+## Setup du fog of war
 func _setup_fog_of_war():
-	"""Crée et configure le système de fog of war"""
+	"""Créé et configure le système de fog of war"""
 	DEBUG.log("[GAMEMANAGER] Setup Fog of War...")
 	
 	# Vérifier si le fog existe déjà dans la scène
@@ -85,44 +93,86 @@ func _setup_fog_of_war():
 	
 	DEBUG.log("[GAMEMANAGER] Fog of War configuré")
 
-
 # Fonction utilitaire pour récupérer le PlayersManager
-func _try_get_players_manager() -> bool:
+func _try_get_players_manager() -> void:
 	if players_manager:
-		return true
+		return
 	
-	var possible_groups = ["players_manager", "playersManager", "PlayersManager", "playerManager", "PlayerManager"]
+	players_manager = get_tree().get_first_node_in_group("players_manager")
+	if not players_manager:
+		DEBUG.log("[GAMEMANAGER] Players_manager introuvable !",DEBUG.ERROR)
+	return
+
+#endregion fonctions d'initialisation
+
+# Cette fonction se déclenche à la réception d'un signal
+func _on_map_generated():
+	await get_tree().process_frame
 	
-	for group_name in possible_groups:
-		players_manager = get_tree().get_first_node_in_group(group_name)
-		if players_manager:
-			DEBUG.log("PlayersManager trouvé dans le groupe: " +str(group_name))
-			return true
+	if not players_manager:
+		DEBUG.log("PlayersManager introuvable dans l'arbre de scène !",DEBUG.ERROR)
+		DEBUG.log("Assurez-vous que le nœud PlayerManager existe et est ajouté à un groupe",DEBUG.ERROR)
+		return
 	
-	var all_nodes = get_tree().get_nodes_in_group("players_manager")
-	if all_nodes.size() == 0:
-		var root = get_tree().root
-		players_manager = _find_players_manager_recursive(root)
+	player1 = players_manager.create_player(1, "Joueur 1", true)
+	player2 = players_manager.create_player(2, "IA", false)
+	
+	if not player1 or not player2:
+		DEBUG.log("Échec de la création des joueurs !",DEBUG.ERROR)
+		return
+	
+	DEBUG.log("Joueurs créés avec succès")
+	
+	var ship1 = spawn_navire_random(player1, true)
+	var ship2 = spawn_navire_random(player1, true)
+	
+	if ship1:
+		ship1.id = 1
+		DEBUG.log("Ship1 créé avec succès")
+	if ship2:
+		ship2.id = 2
+		DEBUG.log("Ship2 créé avec succès")
+	
+	var enemy1 = spawn_navire_random(player2, false)
+	if enemy1:
+		enemy1.id = 101
+		DEBUG.log("Enemy1 créé avec succès avec l'id "+str(enemy1.id))
+	
+	players_manager.set_current_player(player1)
+	
+	# Fog update
+	await get_tree().process_frame
+	await get_tree().process_frame
+	if fog_manager:
+		DEBUG.log("[GAMEMANAGER] Forcing fog update after ships creation")
+		fog_manager.update_fog()
+	else:
+		DEBUG.log("[GAMEMANAGER] FogManager non trouvé, impossible de mettre à jour le fog",DEBUG.WARNING)
+	
+	# Sélection
+	if ship1:
+		select_ship(ship1)
+	
+	# Attacher l'IA EN DERNIER, hors de tout bloc if avec await
+	await get_tree().process_frame
+	await get_tree().process_frame
+	if enemy1 and is_instance_valid(enemy1):
+		# À la toute fin de _on_map_generated() :
+		DEBUG.log("[GAMEMANAGER] Avant _attach_ai, enemy1 valide: "+ str(is_instance_valid(enemy1)))
+		await get_tree().process_frame
+		await get_tree().process_frame
+		DEBUG.log("[GAMEMANAGER] Après await, appel _attach_ai...")
+		if enemy1 and is_instance_valid(enemy1):
+			_attach_ai(enemy1)
+		else:
+			DEBUG.log("[GAMEMANAGER] enemy1 invalide ou null !")
+			_attach_ai(enemy1)
+	
 		
-		if players_manager:
-			DEBUG.log("PlayersManager trouvé par recherche récursive")
-			return true
-	
-	return false
+	turn_manager.start_game([player1, player2])
 
 
-func _find_players_manager_recursive(node: Node) -> Node:
-	if node is PlayersManager:
-		return node
-	
-	for child in node.get_children():
-		var result = _find_players_manager_recursive(child)
-		if result:
-			return result
-	
-	return null
-
-
+#region gestion des navires
 # Faire apparaître un bateau sur la carte
 func spawn_navire(player: Player, position: Vector2, is_player_controlled: bool = false) -> Navires:
 	if player == null:
@@ -150,63 +200,9 @@ func spawn_navire(player: Player, position: Vector2, is_player_controlled: bool 
 	if data and data.has_method("addNavireToData"):
 		data.addNavireToData(navire)
 	
-	DEBUG.log("Navire créé avec ID: "+ str(navire.id if navire.has_method("get") else "N/A"))
+	DEBUG.log("Navire créé avec ID : %d" % navire.id if navire.has_method("get") else "N/A")
 	
 	return navire
-
-
-# Cette fonction se déclenche à la réception d'un signal
-func _on_map_generated():
-	await get_tree().process_frame
-	
-	if not _try_get_players_manager():
-		DEBUG.log("PlayersManager introuvable dans l'arbre de scène !",DEBUG.ERROR)
-		DEBUG.log("Assurez-vous que le nœud PlayerManager existe et est ajouté à un groupe",DEBUG.ERROR)
-		return
-	
-	# Créer les joueurs via le PlayersManager
-	player1 = players_manager.create_player(1, "Joueur 1", true)
-	player2 = players_manager.create_player(2, "IA", false)
-	
-	if not player1 or not player2:
-		DEBUG.log("Échec de la création des joueurs !",DEBUG.ERROR)
-		return
-	
-	DEBUG.log("Joueurs créés avec succès")
-	
-	# Créer 2 navires pour le joueur 1
-	var ship1 = spawn_navire_random(player1, true)
-	var ship2 = spawn_navire_random(player1, true)
-	
-	if ship1:
-		ship1.id = 1
-		DEBUG.log("Ship1 créé avec succès")
-	if ship2:
-		ship2.id = 2
-		DEBUG.log("Ship2 créé avec succès")
-	
-	# Créer 1 navire ennemi
-	var enemy1 = spawn_navire_random(player2, false)
-	
-	if enemy1:
-		enemy1.id = 101
-		DEBUG.log("Enemy1 créé avec succès")
-	
-	players_manager.set_current_player(player1)
-	
-	# Sélectionner automatiquement le premier navire du joueur
-	if ship1:
-		select_ship(ship1)
-	
-	# NOUVEAU : Forcer la mise à jour du fog après création des navires
-	await get_tree().process_frame
-	await get_tree().process_frame
-	
-	if fog_manager:
-		DEBUG.log("[GAMEMANAGER] Forcing fog update after ships creation")
-		fog_manager.update_fog()
-	else:
-		DEBUG.log("[GAMEMANAGER] FogManager non trouvé, impossible de mettre à jour le fog",DEBUG.WARNING)
 
 
 func spawn_navire_random(player: Player, is_player_controlled: bool = false) -> Navires:
@@ -217,6 +213,23 @@ func spawn_navire_random(player: Player, is_player_controlled: bool = false) -> 
 func spawn_navire_at(player: Player, case_pos: Vector2i, is_player_controlled: bool = false) -> Navires:
 	var world_pos = Map_utils.case_vers_monde(case_pos)
 	return spawn_navire(player, world_pos, is_player_controlled)
+#endregion gestion des navires
+
+func _attach_ai(navire_ennemi: Navires) -> void:
+	DEBUG.log("[ATTACH_AI] Début")
+	
+	# Teste plusieurs chemins possibles
+	var ai_script = load("res://Scripts/in_game/navires/EnemyAI.gd")
+	if ai_script == null:
+		DEBUG.log("[ATTACH_AI] ERREUR : EnemyAI.gd introuvable dans aucun chemin !",DEBUG.ERROR)
+		return
+	
+	DEBUG.log("[ATTACH_AI] Création du nœud IA...")
+	var ai = Node.new()
+	ai.set_script(ai_script)
+	ai.name = "IA"
+	navire_ennemi.add_child(ai)
+	DEBUG.log("[ATTACH_AI] IA attachée à navire id=%d" % navire_ennemi.id)
 
 
 # ===============================
@@ -257,7 +270,7 @@ func _select_ship_by_index(index: int) -> void:
 # ===============================
 # GESTION DE LA SÉLECTION
 # ===============================
-
+#region gestion de la selection
 func select_ship(ship: Navires) -> void:
 	if selected_ship == ship:
 		return
@@ -341,7 +354,7 @@ func select_previous_ship() -> void:
 	
 	var prev_index = (current_index - 1) if current_index > 0 else (player_ships.size() - 1)
 	select_ship(player_ships[prev_index])
-
+#endregion gestion de la selection
 
 # ===============================
 # FONCTIONS UTILITAIRES
@@ -367,7 +380,7 @@ func get_enemy_ships() -> Array[Navires]:
 	if not player1:
 		return enemies
 
-	if not _try_get_players_manager():
+	if not players_manager:
 		return enemies
 	
 	var enemy_players = players_manager.get_enemy_players(player1)
@@ -385,6 +398,6 @@ func get_player_ships(player: Player) -> Array[Navires]:
 
 
 func get_player_by_id(player_id: int) -> Player:
-	if _try_get_players_manager():
+	if players_manager:
 		return players_manager.get_player_by_id(player_id)
 	return null

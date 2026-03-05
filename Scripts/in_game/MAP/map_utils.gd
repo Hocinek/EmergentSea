@@ -176,41 +176,6 @@ static func get_movement_cost(c: Vector2i) -> float:
 		"deepwater": return 1.0 # Autoroute maritime
 		"water": return 1.0     # Eau côtière (plus lent, on préfère le large)
 		_: return 1.0
-#static func get_neighbors(c: Vector2i) -> Array:
-	#var res := []
-	#
-	## Directions pour les lignes PAIRES (y % 2 == 0)
-	#var dirs_even = [
-		#Vector2i(1, 0), Vector2i(-1, 0),  # Droite, Gauche
-		#Vector2i(0, -1), Vector2i(-1, -1), # Haut-Droit, Haut-Gauche
-		#Vector2i(0, 1), Vector2i(-1, 1)    # Bas-Droit, Bas-Gauche
-	#]
-	#
-	## Directions pour les lignes IMPAIRES (y % 2 == 1)
-	#var dirs_odd = [
-		#Vector2i(1, 0), Vector2i(-1, 0),  # Droite, Gauche
-		#Vector2i(1, -1), Vector2i(0, -1),  # Haut-Droit, Haut-Gauche
-		#Vector2i(1, 1), Vector2i(0, 1)     # Bas-Droit, Bas-Gauche
-	#]
-	#
-	#var directions = dirs_even if c.y % 2 == 0 else dirs_odd
-#
-	#for d in directions:
-		#var n = c + d
-		#
-		## 1. Vérifier les limites de la carte
-		#if not Map_utils.is_case_valid(n):
-			#continue
-			#
-		## 2. Vérifier si c'est navigable (Eau)
-		## J'utilise ta fonction statique existante, c'est plus performant
-		## que de convertir en world pos puis re-convertir en case
-		#if not Map_utils.is_case_navigable(n): 
-			#continue
-			#
-		#res.append(n)
-		#
-	#return res
 
 
 # Pour la génération uniquement : on veut savoir si on peut "étendre" l'océan

@@ -219,7 +219,7 @@ func _attach_ai(navire_ennemi: Navires) -> void:
 	DEBUG.log("[ATTACH_AI] Début")
 	
 	# Teste plusieurs chemins possibles
-	var ai_script = load("res://Scripts/in_game/navires/EnemyAI.gd")
+	var ai_script = load("res://Scripts/in_game/navires/IA/EnemyAI.gd")
 	if ai_script == null:
 		DEBUG.log("[ATTACH_AI] ERREUR : EnemyAI.gd introuvable dans aucun chemin !",DEBUG.ERROR)
 		return

@@ -13,13 +13,13 @@ static var ports := []  # liste des positions des ports (Vector2i)
 # =========================
 # Textures
 # =========================
-static var TileWater: Texture2D = preload("res://textures/tiles/TileWater.png")
-static var TileDeepWater: Texture2D = preload("res://textures/tiles/TileDeepWater.png")
-static var TileSand: Texture2D = preload("res://textures/tiles/TileSand.png")
-static var TileEarth: Texture2D = preload("res://textures/tiles/TileEarth.png")
-static var TileForest: Texture2D = preload("res://textures/tiles/TileForest.png")
-static var TileMountain: Texture2D = preload("res://textures/tiles/TileMountain.png")
-static var TilePort: Texture2D = preload("res://textures/tiles/TilePort.png")
+static var TileWater: Texture2D = preload("res://Assets/textures/tiles/TileWater.png")
+static var TileDeepWater: Texture2D = preload("res://Assets/textures/tiles/TileDeepWater.png")
+static var TileSand: Texture2D = preload("res://Assets/textures/tiles/TileSand.png")
+static var TileEarth: Texture2D = preload("res://Assets/textures/tiles/TileEarth.png")
+static var TileForest: Texture2D = preload("res://Assets/textures/tiles/TileForest.png")
+static var TileMountain: Texture2D = preload("res://Assets/textures/tiles/TileMountain.png")
+static var TilePort: Texture2D = preload("res://Assets/textures/tiles/TilePort.png")
 
 
 # =========================

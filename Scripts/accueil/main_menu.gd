@@ -1,15 +1,14 @@
 extends Control
 
 const SOLO_SCENE_PATH := "res://Scenes/in_game/Main.tscn"
-const SAVE_PATH := "user://controls.cfg"
 
-# Actions rebindables
-var rebind_actions: Array[StringName] = [
+# Configuration : seules les actions commençant par ceci seront affichées
+@export var action_prefix := "input_"
+@export var allowed_actions: Array[StringName] = [
 	&"ui_up",
 	&"ui_down",
 	&"ui_left",
-	&"ui_right",
-	&"fish"
+	&"ui_right"
 ]
 
 # UI state
@@ -31,7 +30,6 @@ var actions_box: VBoxContainer
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	_load_binds()
 	_build_ui()
 	_show_main()
 
@@ -151,9 +149,15 @@ func _make_controls_screen() -> Control:
 	hint_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	v.add_child(hint_label)
 
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.custom_minimum_size = Vector2(0, 300)
+	v.add_child(scroll)
+
 	actions_box = VBoxContainer.new()
 	actions_box.add_theme_constant_override("separation", 10)
-	v.add_child(actions_box)
+	actions_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(actions_box)
 
 	var h := HBoxContainer.new()
 	h.add_theme_constant_override("separation", 10)
@@ -212,14 +216,24 @@ func _on_solo_pressed() -> void:
 
 
 func _on_reset_pressed() -> void:
-	if FileAccess.file_exists(SAVE_PATH):
-		DirAccess.remove_absolute(ProjectSettings.globalize_path(SAVE_PATH))
-	get_tree().reload_current_scene()
+	key_config_manager.reset_to_defaults(_get_rebindable_actions())
+	_rebuild_actions_ui()
 
 
 # =========================================================
 # REBIND UI
 # =========================================================
+
+## Récupère dynamiquement les actions depuis l'InputMap du projet
+func _get_rebindable_actions() -> Array[StringName]:
+	var list: Array[StringName] = []
+	for action in allowed_actions:
+		if InputMap.has_action(action):
+			list.append(action)
+	for action in InputMap.get_actions():
+		if String(action).begins_with(action_prefix):
+			list.append(action)
+	return list
 
 func _rebuild_actions_ui() -> void:
 	if actions_box == null:
@@ -228,7 +242,7 @@ func _rebuild_actions_ui() -> void:
 	for c in actions_box.get_children():
 		c.queue_free()
 
-	for a in rebind_actions:
+	for a in _get_rebindable_actions():
 		if not InputMap.has_action(a):
 			continue
 
@@ -243,7 +257,7 @@ func _rebuild_actions_ui() -> void:
 		key_lbl.text = _keys_text(a)
 		key_lbl.custom_minimum_size = Vector2(220, 0)
 
-		var btn := _make_button("Changer")
+		var btn := _make_button(tr("BTN_REBIND") if tr("BTN_REBIND") != "BTN_REBIND" else "Changer")
 		btn.pressed.connect(func():
 			waiting_action = a
 			hint_label.text = "Appuie sur une touche pour : %s (Échap = annuler)" % _pretty_action(a)
@@ -260,104 +274,64 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 
 	if event is InputEventKey and event.pressed and not event.echo:
-		var k := event as InputEventKey
-
-		if k.keycode == KEY_ESCAPE:
-			waiting_action = &""
-			hint_label.text = "Clique sur “Changer”, puis appuie sur une touche. (Échap = annuler)"
+		if event.keycode == KEY_ESCAPE:
+			_cancel_waiting()
 			return
 
-		_set_action_key(waiting_action, k)
-		_save_binds()
-
-		waiting_action = &""
-		hint_label.text = "Clique sur “Changer”, puis appuie sur une touche. (Échap = annuler)"
+		_apply_new_bind(waiting_action, event)
+		key_config_manager.save_binds(_get_rebindable_actions())
+		
+		_cancel_waiting()
 		_rebuild_actions_ui()
 
-
-func _set_action_key(action_name: StringName, key_event: InputEventKey) -> void:
+func _apply_new_bind(action_name: StringName, event: InputEventKey) -> void:
+	# Supprimer l'ancienne touche
 	for e in InputMap.action_get_events(action_name):
 		if e is InputEventKey:
 			InputMap.action_erase_event(action_name, e)
+	
+	# Créer le nouvel événement
+	var new_ev := InputEventKey.new()
+	new_ev.keycode = event.keycode
+	new_ev.physical_keycode = event.physical_keycode
+	new_ev.ctrl_pressed = event.ctrl_pressed
+	new_ev.alt_pressed = event.alt_pressed
+	new_ev.shift_pressed = event.shift_pressed
+	new_ev.meta_pressed = event.meta_pressed # utile pour Mac
+	
+	InputMap.action_add_event(action_name, new_ev)
 
-	var ev := InputEventKey.new()
-	ev.keycode = key_event.keycode
-	ev.physical_keycode = key_event.physical_keycode
-	ev.ctrl_pressed = key_event.ctrl_pressed
-	ev.alt_pressed = key_event.alt_pressed
-	ev.shift_pressed = key_event.shift_pressed
-	ev.meta_pressed = key_event.meta_pressed
-	InputMap.action_add_event(action_name, ev)
 
+func _cancel_waiting() -> void:
+	waiting_action = &""
+	hint_label.text = "Clique sur “Changer”, puis appuie sur une touche. (Échap = annuler)"
+
+## Traduction et formatage dynamique
+func _pretty_action(a: StringName) -> String:
+	var key_str = String(a).to_upper()
+	var translated = tr(key_str)
+	var clean_str : String
+	
+	if translated == key_str:
+		clean_str = String(a).trim_prefix(action_prefix)
+		var tmp = tr(clean_str.to_upper())
+		if(tmp!=translated):
+			translated = tmp
+		else :
+			if clean_str.begins_with("ui_"):
+				clean_str = clean_str.trim_prefix("ui_")
+			# Fallback si pas de traduction : "input_fish" -> "Fish" ou "ui_up" -> "Ui Up"
+			translated = clean_str.replace("_", " ").capitalize()
+		
+	return translated
 
 func _keys_text(action_name: StringName) -> String:
 	var keys: Array[String] = []
 	for e in InputMap.action_get_events(action_name):
 		if e is InputEventKey:
-			keys.append(OS.get_keycode_string((e as InputEventKey).keycode))
+			var k := e as InputEventKey
+			# On récupère le code non-nul (priorité au physique si le logique est à 0)
+			var code = k.keycode if k.keycode != 0 else k.physical_keycode
+			if code != 0:
+				keys.append(OS.get_keycode_string(code))
 	return "-" if keys.is_empty() else ", ".join(keys)
-
-
-func _pretty_action(a: StringName) -> String:
-	match String(a):
-		"ui_up": return "Monter"
-		"ui_down": return "Descendre"
-		"ui_left": return "Gauche"
-		"ui_right": return "Droite"
-		"fish": return "Pêcher"
-		_: return String(a)
-
-
-# =========================================================
-# SAVE / LOAD BINDS
-# =========================================================
-
-func _save_binds() -> void:
-	var cfg := ConfigFile.new()
-
-	for a in rebind_actions:
-		if not InputMap.has_action(a):
-			continue
-
-		for e in InputMap.action_get_events(a):
-			if e is InputEventKey:
-				var k := e as InputEventKey
-				cfg.set_value("binds", String(a), {
-					"keycode": int(k.keycode),
-					"physical_keycode": int(k.physical_keycode),
-					"ctrl": k.ctrl_pressed,
-					"alt": k.alt_pressed,
-					"shift": k.shift_pressed,
-					"meta": k.meta_pressed
-				})
-				break
-
-	cfg.save(SAVE_PATH)
-
-
-func _load_binds() -> void:
-	var cfg := ConfigFile.new()
-	if cfg.load(SAVE_PATH) != OK:
-		return
-
-	for a in rebind_actions:
-		if not InputMap.has_action(a):
-			continue
-
-		var saved: Dictionary = cfg.get_value("binds", String(a), {})
-		if saved.is_empty():
-			continue
-
-		for e in InputMap.action_get_events(a):
-			if e is InputEventKey:
-				InputMap.action_erase_event(a, e)
-
-		var ev := InputEventKey.new()
-		ev.keycode = int(saved.get("keycode", 0))
-		ev.physical_keycode = int(saved.get("physical_keycode", 0))
-		ev.ctrl_pressed = bool(saved.get("ctrl", false))
-		ev.alt_pressed = bool(saved.get("alt", false))
-		ev.shift_pressed = bool(saved.get("shift", false))
-		ev.meta_pressed = bool(saved.get("meta", false))
-
-		InputMap.action_add_event(a, ev)

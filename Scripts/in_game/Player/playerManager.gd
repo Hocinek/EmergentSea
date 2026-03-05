@@ -17,7 +17,7 @@ func _ready():
 	add_to_group("players_manager")
 	
 	players.clear()
-	print(">>> PlayersManager initialisé")
+	DEBUG.log("PlayersManager initialisé")
 
 
 # ===============================

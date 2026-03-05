@@ -12,8 +12,8 @@ func generate_hex_grid_rectangular():
 	var width = Map_data.map_width
 	var height = Map_data.map_height
 
-	print("dimensions : ")
-	print(offset_to_axial(width, height))
+	DEBUG.log("dimensions : ")
+	DEBUG.log(str(offset_to_axial(width, height)))
 	# Pour Pointy-Top, on boucle classiquement ligne par ligne
 	for row in range(height):
 		for col in range(width):

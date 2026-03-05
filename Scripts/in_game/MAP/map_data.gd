@@ -42,9 +42,9 @@ static var gen_seed := 0
 # =========================
 # Island counts 
 # =========================
-static var small_island_count := 20
-static var medium_island_count := 30
-static var large_island_count := 40
+static var small_island_count := 60
+static var medium_island_count := 40
+static var large_island_count := 20
 
 # =========================
 # Island size ranges 

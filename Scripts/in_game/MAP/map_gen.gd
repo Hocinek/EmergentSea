@@ -197,10 +197,10 @@ func generate_ports() -> void:
 				coastal_tiles.append(Vector2i(x, y))
 	
 	if coastal_tiles.is_empty():
-		print("Aucune case côtière trouvée pour placer des ports")
+		DEBUG.log("Aucune case côtière trouvée pour placer des ports",DEBUG.WARNING)
 		return
 	
-	print("Cases côtières trouvées: ", coastal_tiles.size())
+	DEBUG.log("Cases côtières trouvées: "+str( coastal_tiles.size()))
 	
 	# 2. Placer les ports avec distance minimale
 	var attempts: int = 0
@@ -217,9 +217,9 @@ func generate_ports() -> void:
 		if is_valid_port_location(candidate):
 			ports.append(candidate)
 			Map_data.tiles[candidate.y][candidate.x] = "port"
-			print("Port placé à: ", candidate)
+			DEBUG.log("Port placé à : "+str(candidate))
 	
-	print("Ports générés: ", ports.size(), "/", port_count)
+	DEBUG.log("Ports générés : "+str(ports.size(), "/", port_count))
 
 
 ## Synchronise les ports avec Map_data (appelé après generate_ports)

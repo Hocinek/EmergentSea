@@ -111,13 +111,13 @@ static func clamp_world_position(world_pos: Vector2) -> Vector2:
 ## Returns a random world position on ocean water (never lakes).
 static func get_random_ocean_position() -> Vector2:
 	if Map_data.ocean_cases.is_empty():
-		push_warning("Ocean case list is empty. Did you call compute_ocean_cases()?")
+		DEBUG.log("Ocean case list is empty. Did you call compute_ocean_cases()?",DEBUG.WARNING)
 		return Vector2.ZERO
 
 	var c: Vector2i = Map_data.ocean_cases[randi() % Map_data.ocean_cases.size()]
 	var pos = case_vers_monde(c)
 	if pos.x < 0 or pos.y < 0:
-		push_error("WORLD POS OUTSIDE MAP: " + str(pos) + " from case " + str(c))
+		DEBUG.log("WORLD POS OUTSIDE MAP: " + str(pos) + " from case " + str(c),DEBUG.ERROR)
 	return pos
 
 # Calcule la distance réelle en cases entre deux hexagones (offset coords)

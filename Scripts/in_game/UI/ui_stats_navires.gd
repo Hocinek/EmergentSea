@@ -10,11 +10,11 @@ var stats_visible := false
 # UI STATS - DEUX PANNEAUX
 # =========================
 # Panneau pour navire allié (à droite)
-var stats_panel_ally: Panel
+var stats_panel_ally: PanelContainer
 var label_list_ally:Dictionary
 
 # Panneau pour navire ennemi (à gauche)
-var stats_panel_enemy: Panel
+var stats_panel_enemy: PanelContainer
 var label_list_enemy:Dictionary
 
 # timer pour faire disparaître les panels
@@ -100,24 +100,24 @@ func _create_enemy_stats_panel():
 #endregion crafting
 
 #region build panel tools
-func build_base()->Panel:
-	var panel = Panel.new()
+func build_base()->PanelContainer:
+	var panel = PanelContainer.new()
 	panel.visible = false
 	return panel
 
-func attach_panel_to_left(panel:Panel):
+func attach_panel_to_left(panel:PanelContainer):
 	panel.anchor_left = 0
 	panel.anchor_right = 0
 	panel.offset_left = 20
 	panel.offset_right = 180
 
-func attach_panel_to_right(panel:Panel):
+func attach_panel_to_right(panel:PanelContainer):
 	panel.anchor_left = 1
 	panel.anchor_right = 1
 	panel.offset_left = -180
 	panel.offset_right = -20
 
-func attach_panel_to_top(panel:Panel):
+func attach_panel_to_top(panel:PanelContainer):
 	panel.anchor_top = 0
 	panel.anchor_bottom = 0
 	panel.offset_top = 20

@@ -39,31 +39,31 @@ func _ready() -> void:
 			break
 		p = p.get_parent()
 	if navire == null:
-		push_error(">>> [IA] ERREUR CRITIQUE - Aucun Navires trouvé dans les parents !")
+		DEBUG.log("[IA] ERREUR CRITIQUE - Aucun Navires trouvé dans les parents !",DEBUG.ERROR)
 		return
-	print(">>> [IA] OK - attachée au navire id=", navire.id)
-	# Premier cycle de décision après 2 secondes
-	await get_tree().create_timer(2.0).timeout
-	_think()
-	
+	DEBUG.log("[IA] OK - attachée au navire id=%d" % navire.id)
+
 # =========================
 # BOUCLE PRINCIPALE
 # =========================
-func _process(delta: float) -> void:
-	if navire == null or not is_instance_valid(navire):
-		return
-	# Pas de décision pendant le déplacement
-	if navire.is_moving:
-		return
-	# Détecter si la cible courante vient de mourir → reciblement immédiat
-	if _target_just_died():
-		print(">>> [IA %d] Cible éliminée ! Recherche d'une nouvelle cible..." % navire.id)
-		_invalidate_target()
-		think_timer = 0.0  # Force un nouveau cycle immédiatement
-	think_timer -= delta
-	if think_timer > 0.0:
-		return
-	think_timer = think_interval
+#func _process(delta: float) -> void:
+	#if navire == null or not is_instance_valid(navire):
+		#return
+	## Pas de décision pendant le déplacement
+	#if navire.is_moving:
+		#return
+	## Détecter si la cible courante vient de mourir → reciblement immédiat
+	#if _target_just_died():
+		#DEBUG.log("[IA %d] Cible éliminée ! Recherche d'une nouvelle cible..." % navire.id)
+		#_invalidate_target()
+		#think_timer = 0.0  # Force un nouveau cycle immédiatement
+	#think_timer -= delta
+	#if think_timer > 0.0:
+		#return
+	#think_timer = think_interval
+	#_think()
+
+func jouer_tour():
 	_think()
 
 # =========================
@@ -81,7 +81,7 @@ func _think() -> void:
 	var nearest = _find_nearest_enemy()
 	if nearest != current_target:
 		if nearest != null:
-			print(">>> [IA %d] Nouvelle cible plus proche : navire id=%d" % [navire.id, nearest.id])
+			DEBUG.log("[IA %d] Nouvelle cible plus proche : navire id=%d" % [navire.id, nearest.id])
 		_disconnect_target_death_signal()
 		current_target = nearest
 	if current_target != null:
@@ -102,7 +102,8 @@ func _think() -> void:
 		return
 	# 6. IDLE - rien à faire
 	current_state = IAState.IDLE
-	print(">>> [IA %d] En attente..." % navire.id)
+	DEBUG.log("[IA %d] En attente..." % navire.id)
+
 # =========================
 # ACTIONS
 # =========================
@@ -117,7 +118,7 @@ func _do_chase(cible: Navires) -> void:
 		return
 	var chemin = Pathfinder.calculer_chemin(depart, arrivee)
 	if chemin.is_empty():
-		print(">>> [IA %d] Aucun chemin vers la cible !" % navire.id)
+		DEBUG.log("[IA %d] Aucun chemin vers la cible !" % navire.id)
 		return
 	# Se déplace de quelques cases seulement pour rester réactif
 	var steps = mini(chemin.size(), max_chase_steps)
@@ -129,7 +130,7 @@ func _do_chase(cible: Navires) -> void:
 	_connect_target_death_signal(cible)
 	current_state = IAState.CHASING
 	target_was_alive = cible.is_alive()
-	print(">>> [IA %d] Poursuite du navire id=%d - %d cases" % [navire.id, cible.id, steps])
+	DEBUG.log("[IA %d] Poursuite du navire id=%d - %d cases" % [navire.id, cible.id, steps])
 
 ## TIR SUR UNE CIBLE
 func _do_attack(cible: Navires) -> void:
@@ -137,7 +138,7 @@ func _do_attack(cible: Navires) -> void:
 		_invalidate_target()
 		return
 	if navire.energie < 20:
-		print(">>> [IA %d] Pas assez d'énergie pour tirer !" % navire.id)
+		DEBUG.log("[IA %d] Pas assez d'énergie pour tirer !" % navire.id)
 		return
 	var target_case = cible.getPosition()
 	if not navire.is_in_range(target_case):
@@ -151,15 +152,15 @@ func _do_attack(cible: Navires) -> void:
 	navire.energie = max(navire.energie - 20, 0)
 	target_was_alive = cible.is_alive()
 	current_state = IAState.ATTACKING
-	print(">>> [IA %d] TIR sur navire id=%d ! (vie restante: %d)" % [navire.id, cible.id, cible.vie])
-## RETRAITE VERS UNE CASE SÛRE (loin des ennemis)
+	DEBUG.log("[IA %d] TIR sur navire id=%d ! (vie restante: %d)" % [navire.id, cible.id, cible.vie])
 
+## RETRAITE VERS UNE CASE SÛRE (loin des ennemis)
 func _do_retreat() -> void:
 	if navire.is_moving:
 		return
 	var safe_case = _find_safe_case()
 	if safe_case == Vector2i(-1, -1):
-		print(">>> [IA %d] Aucune case sûre trouvée..." % navire.id)
+		DEBUG.log("[IA %d] Aucune case sûre trouvée..." % navire.id)
 		return
 	var chemin = Pathfinder.calculer_chemin(navire.getPosition(), safe_case)
 	if chemin.is_empty():
@@ -169,7 +170,7 @@ func _do_retreat() -> void:
 	navire.is_moving = true
 	navire.show_arrow = false
 	current_state = IAState.RETREATING
-	print(">>> [IA %d] RETRAITE vers %s" % [navire.id, safe_case])
+	DEBUG.log("[IA %d] RETRAITE vers %s" % [navire.id, safe_case])
 
 ## PÊCHE
 func _do_fish() -> void:
@@ -177,7 +178,7 @@ func _do_fish() -> void:
 		return
 	navire.try_start_fishing()
 	current_state = IAState.FISHING
-	print(">>> [IA %d] Pêche en cours..." % navire.id)
+	DEBUG.log("[IA %d] Pêche en cours..." % navire.id)
 
 # =========================
 # CONDITIONS / HELPERS
@@ -250,7 +251,7 @@ func _connect_target_death_signal(cible: Navires) -> void:
 	# Éviter les connexions en double
 	if not cible.ship_destroyed.is_connected(_on_target_destroyed):
 		cible.ship_destroyed.connect(_on_target_destroyed)
-		print(">>> [IA %d] Signal mort connecté sur navire id=%d" % [navire.id, cible.id])
+		DEBUG.log("[IA %d] Signal mort connecté sur navire id=%d" % [navire.id, cible.id])
 
 func _disconnect_target_death_signal() -> void:
 	"""Se déconnecte du signal de mort de l'ancienne cible"""
@@ -261,7 +262,7 @@ func _disconnect_target_death_signal() -> void:
 
 func _on_target_destroyed(_destroyed_ship: Navires) -> void:
 	"""Callback appelé dès qu'une cible suivie est détruite"""
-	print(">>> [IA %d] Signal reçu : cible détruite ! Reciblement immédiat." % navire.id)
+	DEBUG.log("[IA %d] Signal reçu : cible détruite ! Reciblement immédiat." % navire.id)
 	_invalidate_target()
 	think_timer = 0.0  # Déclenche un nouveau _think() au prochain frame
 

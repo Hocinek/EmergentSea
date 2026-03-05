@@ -86,6 +86,8 @@ func _start_turn() -> void:
 	for n in current_player.get_navires():
 		if is_instance_valid(n) and n.is_alive():
 			n.reset_energie()
+	
+	DEBUG.log("[TURNMANAGER] Tour du joueur %s" % current_player.player_name)
 
 	state = TurnState.State.PLAYER_ACTION
 	active_player_changed.emit(current_player)
@@ -119,19 +121,29 @@ func _auto_run_non_human_turns_until_human() -> void:
 
 
 func _simulate_ai_turn(ai_player: Player) -> void:
-	# Tant que tu n'as pas les fichiers IA, on fait juste une pause.
-	# Plus tard : appeler la vraie routine IA ici.
-	# Exemple futur: await ai_controller.play_turn(ai_player)
-
 	# Récupérer le label qui affiche "Tour de l'IA..."
 	var label = get_tree().get_first_node_in_group("ai_turn_label")
 
 	# Afficher le message à l'écran
 	if label:
 		label.visible = true
-
-	# Simuler la durée du tour de l'IA
-	await get_tree().create_timer(ai_turn_delay_sec).timeout
+	var navires_ia = ai_player.get_navires()
+	
+	for navire in navires_ia:
+		if is_instance_valid(navire) and navire.is_alive():
+			# On cherche le noeud IA enfant du navire (adapte le nom selon ton arbre)
+			var noeud_ia = navire.get_node_or_null("IA") 
+			if noeud_ia:
+				if noeud_ia.has_method("jouer_tour"):
+					noeud_ia.jouer_tour()
+					
+					# Attendre un tout petit peu entre chaque action de navire 
+					# pour que le joueur humain ait le temps de voir ce qu'il se passe
+					await get_tree().create_timer(1.0).timeout
+				else:
+					DEBUG.log("[TURNMANAGER] Seems like the IA's script is missing a method, please fix it (missing (jouer_tour())",DEBUG.ERROR)
+			else:
+				DEBUG.log("[TURNMANAGER] Can't find AI node attached to the ship",DEBUG.ERROR)
 
 	# Masquer le message une fois le tour terminé
 	if label:

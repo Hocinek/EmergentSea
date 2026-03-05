@@ -99,9 +99,6 @@ var show_arrow: bool = false
 @onready var camera: Camera2D = get_node_or_null("Camera2D")
 
 
-# =========================
-# INITIALIZATION
-# =========================
 #region initialisation
 func _init() -> void:
 	add_to_group("ships")
@@ -155,6 +152,7 @@ func _init_stats_ui():
 	DEBUG.log("UI Stats créée pour navire [%d]" % id)
 #endregion initialisation
 
+#region camera
 func _setup_camera() -> void:
 	"""Configure la caméra pour suivre le navire si c'est celui du joueur"""
 	if not is_selected:
@@ -163,14 +161,8 @@ func _setup_camera() -> void:
 	var cam = get_tree().get_first_node_in_group("camera_controller")
 	if cam and cam.has_method("set_target"):
 		cam.set_target(self)
+#endregion camera
 
-
-
-
-
-# =========================
-# GESTION DU PROPRIÉTAIRE
-# =========================
 #region gestion proprietaire
 func set_owner_player(player: Player) -> void:
 	"""Définit le joueur propriétaire de ce navire"""
@@ -201,9 +193,6 @@ func is_enemy_of(other_navire: Navires) -> bool:
 	return player_owner != other_navire.player_owner
 #endregion gestion proprietaire
 
-# =========================
-# SÉLECTION
-# =========================
 #region gestion selection
 func set_selected(selected: bool) -> void:
 	"""Définit si ce navire est sélectionné"""
@@ -222,9 +211,6 @@ func set_selected(selected: bool) -> void:
 	DEBUG.log("Navire %d %s" % [id, "SÉLECTIONNÉ" if selected else "désélectionné"])
 #endregion gestion selection
 
-# =========================
-# ÉTAT DU NAVIRE
-# =========================
 #region gestion etat navire
 func is_alive() -> bool:
 	"""Vérifie si le navire est encore en vie"""
@@ -284,10 +270,6 @@ func reset_energie() -> void:
 	energie = maxenergie
 #endregion gestion etat navire
 
-
-# =========================
-# INPUT
-# =========================
 #region gestion input
 func _setup_input_handling() -> void:
 	"""Configure la gestion des inputs selon le type de navire"""
@@ -368,9 +350,6 @@ func _unhandled_input(event: InputEvent) -> void:
 
 #endregion gestion input
 
-# =========================
-# COMBAT
-# =========================
 #region gestion combat
 func attempt_shoot(target_case: Vector2i) -> void:
 	"""Tente de tirer sur une case cible"""
@@ -414,11 +393,15 @@ func shoot_at(target: Navires) -> void:
 	# Effets visuels / son (à implémenter)
 	# ...
 
+#endregion gestion combat
+
+#region utils
 func is_in_range(target_case: Vector2i) -> bool:
 	"""Vérifie si une case est à portée de tir"""
 	var chemin := Pathfinder.calculer_chemin(case_actuelle, target_case)
 	return chemin.size() <= tir
 
+#utilisé pour l'attaque
 func get_ships_at_position(target_case: Vector2i) -> Array[Navires]:
 	"""Récupère tous les navires présents sur une case"""
 	var ships: Array[Navires] = []
@@ -432,11 +415,7 @@ func get_ships_at_position(target_case: Vector2i) -> Array[Navires]:
 	
 	return ships
 
-#endregion gestion combat
-
-# =========================
-# HELPER FUNCTIONS
-# =========================
+# utilisé pour le déplacement
 func get_ship_at_position(pos: Vector2) -> Navires:
 	"""Récupère le navire à une position donnée (dans le rayon d'interaction)"""
 	var all_ships = get_tree().get_nodes_in_group("ships")
@@ -447,12 +426,12 @@ func get_ship_at_position(pos: Vector2) -> Navires:
 			if distance <= ship.interaction_radius:
 				return ship
 	return null
+	
+func getPosition() -> Vector2i:
+	"""Retourne la position du navire en coordonnées de case"""
+	return case_actuelle
+#endregion utils
 
-
-
-# =========================
-# PROCESS
-# =========================
 #region process
 func _process(delta):
 	# Animation de la sélection et de la flèche
@@ -527,7 +506,6 @@ func _process_movement(delta: float) -> void:
 	else:
 		global_position += direction.normalized() * vitesse * delta
 #endregion process
-
 
 #region UI
 func hide_all_ships_stats():
@@ -631,9 +609,6 @@ func _draw():
 
 #endregion UI
 
-# =========================
-# PÊCHE
-# =========================
 #region peche
 func _update_fishing(delta: float) -> void:
 	if not is_fishing:

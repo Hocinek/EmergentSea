@@ -14,6 +14,8 @@ class_name Player
 ## Liste des navires appartenant à ce joueur
 var navires: Array[Navires] = []
 
+## Liste des ports appartenant à ce joueur
+var ports: Array[Ports] = []
 
 # ===============================
 # NAVIRES
@@ -43,6 +45,36 @@ func owns_navire(navire: Navires) -> bool:
 
 func get_navires() -> Array[Navires]:
 	return navires
+
+
+# ===============================
+# PORTS
+# ===============================
+func add_port(port: Ports) -> void:
+	if port == null:
+		return
+	if ports.has(port):
+		return
+	
+	ports.append(port)
+	# Utiliser player_owner au lieu de owner
+	port.player_owner = self
+
+
+func remove_port(port: Ports) -> void:
+	if port == null:
+		return
+	if ports.has(port):
+		ports.erase(port)
+		port.player_owner = null
+
+
+func owns_port(port: Ports) -> bool:
+	return ports.has(port)
+
+
+func get_ports() -> Array[Ports]:
+	return ports
 
 
 # ===============================

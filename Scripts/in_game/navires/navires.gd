@@ -30,17 +30,6 @@ var fog_of_war_ref: FogOfWar = null
 
 
 # =========================
-# TEXTURES
-# =========================
-@export var rendu0: Texture2D
-@export var rendu60: Texture2D
-@export var rendu120: Texture2D
-@export var rendu180: Texture2D
-@export var rendu240: Texture2D
-@export var rendu300: Texture2D
-
-
-# =========================
 # STATS
 # =========================
 var stats_panel : UI_stats_navire

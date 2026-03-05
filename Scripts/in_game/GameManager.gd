@@ -27,6 +27,7 @@ var selected_ship: Navires = null
 signal ship_selected(ship: Navires)
 signal ship_deselected()
 
+var turn_manager: TurnManager = null
 
 # Ce qui sera dans cette fonction sera exécuté en premier (avant que le reste soit prêt)
 func _enter_tree():
@@ -49,6 +50,10 @@ func _enter_tree():
 func _ready():
 	# Attendre un frame pour que tout soit bien initialisé
 	await get_tree().process_frame
+	
+	turn_manager = get_tree().get_first_node_in_group("turn_manager")
+	if not turn_manager:
+		push_error("TurnManager introuvable !")
 	
 	# NOUVEAU : Créer le système de fog of war
 	_setup_fog_of_war()
@@ -207,6 +212,8 @@ func _on_map_generated():
 		fog_manager.update_fog()
 	else:
 		DEBUG.log("[GAMEMANAGER] FogManager non trouvé, impossible de mettre à jour le fog",DEBUG.WARNING)
+		
+	turn_manager.start_game([player1, player2])
 
 
 func spawn_navire_random(player: Player, is_player_controlled: bool = false) -> Navires:

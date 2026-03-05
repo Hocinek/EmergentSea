@@ -329,6 +329,10 @@ func _unhandled_input(event: InputEvent) -> void:
 	# Vérifier que ce navire appartient au joueur humain
 	if not player_owner or not player_owner.is_human:
 		return
+		
+	var turn_manager = get_tree().get_first_node_in_group("turn_manager")
+	if turn_manager and not turn_manager.can_navire_act(self):
+		return
 	
 	# Détecter le clic sur ce navire pour le sélectionner
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:

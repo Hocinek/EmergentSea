@@ -39,11 +39,12 @@ func _init(ship : Navires) -> void:
 
 func _process(delta):
 	if isVisible():
-		stats_timer -= delta
+		if stats_timer != INF:
+			stats_timer -= delta
+			if stats_timer <= 0:
+				hide_all_stats()
 		update()
-		if stats_timer <= 0:
-			hide_all_stats()
-
+		
 func handler():
 	if isVisible():
 		hide_all_stats()
@@ -176,7 +177,19 @@ func create_vbox_title(vbox:VBoxContainer,color:Color):
 #region show/hide
 func show_enemy():
 	update_stats(label_list_enemy)
-	stats_panel_enemy.visible=true
+	if stats_panel_enemy:
+		stats_panel_enemy.visible = true
+		stats_visible = true          # permet à _process de décompter le timer
+		stats_timer = stats_duration
+
+func show_ally_persistent() -> void:
+	"""Affiche les stats alliées SANS timer — restent jusqu'à hide_all_stats()"""
+	update_stats(label_list_ally)
+	if stats_panel_ally:
+		stats_panel_ally.visible = true
+		stats_visible = true
+		stats_timer = INF  # Désactive le countdown
+
 
 func show_ally():
 	update_stats(label_list_ally)
@@ -185,8 +198,12 @@ func show_ally():
 		stats_visible=true
 
 func hide_enemy():
-	stats_panel_enemy.visible=false
-
+	if stats_panel_enemy:
+		stats_panel_enemy.visible = false
+	# Remettre stats_visible à false seulement si le panel allié est aussi caché
+	if not (stats_panel_ally and stats_panel_ally.visible):
+		stats_visible = false
+		
 func hide_ally():
 	stats_panel_ally.visible=false
 	stats_visible=false

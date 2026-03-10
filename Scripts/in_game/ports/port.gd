@@ -36,10 +36,11 @@ var stats_panel : UI_stats_port
 
 @onready var ui_layer: CanvasLayer = get_tree().get_first_node_in_group("ui_layer")
 @onready var data := get_tree().get_first_node_in_group("shared_entities")
-@onready var players_manager: PlayersManager = get_tree().get_first_node_in_group("players_manager")
+@onready var players_manager = get_tree().get_first_node_in_group("players_manager")
 
 # AJOUT : Référence au fog manager pour mise à jour en temps réel
 var fog_manager: FogManager = null
+var match_context: MatchContext = null
 
 # Case du port
 var case_actuelle: Vector2i
@@ -69,7 +70,7 @@ func _init() -> void:
 func _ready():
 	await get_tree().process_frame
 	
-	
+	match_context = get_tree().get_first_node_in_group("match_context")
 	case_actuelle = Map_utils.monde_vers_case(global_position)
 
 	# Configuration de la caméra pour le port contrôlé par le joueur
@@ -111,8 +112,8 @@ func _setup_camera() -> void:
 
 func _setup_input_handling() -> void:
 	"""Configure la gestion des inputs selon le type de port"""
-	# Tous les ports du joueur peuvent recevoir des inputs pour être sélectionnés
-	if player_owner and player_owner.is_human:
+	# Tous les ports du joueur local humain peuvent recevoir des inputs pour être sélectionnés
+	if _is_local_human_owner():
 		set_process_input(true)
 		set_process_unhandled_input(true)
 	else:
@@ -141,6 +142,25 @@ func get_owner_player() -> Player:
 	return player_owner
 
 
+func _is_local_human_owner() -> bool:
+	if player_owner == null:
+		return false
+	
+	if not player_owner.is_human:
+		return false
+	
+	if match_context == null:
+		match_context = get_tree().get_first_node_in_group("match_context")
+	
+	if match_context == null:
+		return true
+	
+	if match_context.mode == MatchContext.MatchMode.MULTI:
+		return player_owner.is_local
+	
+	return true
+
+
 func is_owned_by(player: Player) -> bool:
 	"""Vérifie si ce port appartient au joueur spécifié"""
 	return player_owner == player
@@ -155,7 +175,7 @@ func set_selected(selected: bool) -> void:
 	queue_redraw()
 	
 	# Activer/désactiver la caméra selon la sélection
-	if selected and player_owner and player_owner.is_human:
+	if selected and _is_local_human_owner():
 		_setup_camera()
 		# Afficher les stats du port sélectionné
 		if(stats_panel):
@@ -185,8 +205,8 @@ func _init_stats_ui():
 # INPUT
 # =========================
 func _unhandled_input(event: InputEvent) -> void:
-	# Vérifier que ce port appartient au joueur humain
-	if not player_owner or not player_owner.is_human:
+	# Vérifier que ce port appartient au joueur local humain
+	if not _is_local_human_owner():
 		return
 	
 	# Détecter le clic sur ce port pour le sélectionner
@@ -196,7 +216,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		
 		# Si on clique sur ce port
 		if distance <= interaction_radius:
-			emit_signal("ship_clicked", self)
+			emit_signal("port_clicked", self)
 			get_viewport().set_input_as_handled()
 			return
 	
@@ -208,10 +228,8 @@ func _unhandled_input(event: InputEvent) -> void:
 	if Input.is_action_just_pressed("input_toggle_stats"):
 		#envoie un signal qui est récupéré par l'UI_stats_ports associé à ce port
 		if(self.is_selected):
-			#sig_show_stats.emit()
-			emit_signal("sig_show_stats")
+			emit_signal("sig_show_port")
 	
-
 
 
 # =========================
@@ -235,8 +253,6 @@ func hide_all_ports_stats():
 # =========================
 # UTILS
 # =========================
-
-
 func getPosition() -> Vector2i:
 	"""Retourne la position du navire en coordonnées de case"""
 	return case_actuelle

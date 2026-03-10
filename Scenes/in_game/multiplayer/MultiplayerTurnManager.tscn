@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://di48b1vywpbl0"]
+
+[ext_resource type="Script" uid="uid://cd6kghbrn07t3" path="res://Scripts/in_game/multiplayer/turn/MultiplayerTurnManager.gd" id="1_5urew"]
+
+[node name="MultiplayerTurnManager" type="Node2D"]
+script = ExtResource("1_5urew")

@@ -1,6 +1,9 @@
 extends Control
 
 const SOLO_SCENE_PATH := "res://Scenes/in_game/Main.tscn"
+const MULTI_SCENE_PATH := "res://Scenes/in_game/MainMulti.tscn"
+const DEFAULT_HOST_IP := "127.0.0.1"
+const DEFAULT_PORT := "7777"
 
 # Configuration : seules les actions commençant par ceci seront affichées
 @export var action_prefix := "input_"
@@ -13,15 +16,22 @@ const SOLO_SCENE_PATH := "res://Scenes/in_game/Main.tscn"
 
 # UI state
 var waiting_action: StringName = &""
+var multi_join_in_progress := false
 
 # Screens
 var screen_main: Control
+var screen_multi: Control
 var screen_options: Control
 var screen_controls: Control
 
 # Controls screen refs
 var hint_label: Label
 var actions_box: VBoxContainer
+
+# Multi screen refs
+var multi_status_label: Label
+var multi_ip_input: LineEdit
+var multi_port_input: LineEdit
 
 
 # =========================================================
@@ -30,8 +40,17 @@ var actions_box: VBoxContainer
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_connect_network_signals()
 	_build_ui()
 	_show_main()
+
+
+func _connect_network_signals() -> void:
+	if not network_manager.join_succeeded.is_connected(_on_join_succeeded):
+		network_manager.join_succeeded.connect(_on_join_succeeded)
+
+	if not network_manager.join_failed.is_connected(_on_join_failed):
+		network_manager.join_failed.connect(_on_join_failed)
 
 
 # =========================================================
@@ -49,10 +68,12 @@ func _build_ui() -> void:
 	add_child(bg)
 
 	screen_main = _make_main_screen()
+	screen_multi = _make_multi_screen()
 	screen_options = _make_options_screen()
 	screen_controls = _make_controls_screen()
 
 	add_child(screen_main)
+	add_child(screen_multi)
 	add_child(screen_options)
 	add_child(screen_controls)
 
@@ -62,7 +83,7 @@ func _make_panel(title_text: String) -> Dictionary:
 	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
 	var panel := PanelContainer.new()
-	panel.custom_minimum_size = Vector2(520, 0)
+	panel.custom_minimum_size = Vector2(560, 0)
 
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 14)
@@ -87,6 +108,14 @@ func _make_button(text: String) -> Button:
 	return b
 
 
+func _make_line_edit(placeholder: String, default_text: String = "") -> LineEdit:
+	var e := LineEdit.new()
+	e.placeholder_text = placeholder
+	e.text = default_text
+	e.custom_minimum_size = Vector2(0, 40)
+	return e
+
+
 # =========================================================
 # SCREENS
 # =========================================================
@@ -101,13 +130,9 @@ func _make_main_screen() -> Control:
 	var btn_quit := _make_button("Quitter")
 
 	btn_solo.pressed.connect(_on_solo_pressed)
+	btn_multi.pressed.connect(_show_multi)
 	btn_options.pressed.connect(_show_options)
 	btn_quit.pressed.connect(func(): get_tree().quit())
-
-	btn_multi.pressed.connect(func():
-		btn_multi.text = "Multijoueur (bientôt)"
-		btn_multi.disabled = true
-	)
 
 	v.add_child(btn_solo)
 	v.add_child(btn_multi)
@@ -116,6 +141,49 @@ func _make_main_screen() -> Control:
 
 	var wrapper := Control.new()
 	wrapper.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	wrapper.add_child(d["root"])
+	return wrapper
+
+
+func _make_multi_screen() -> Control:
+	var d := _make_panel("Multijoueur")
+	var v: VBoxContainer = d["vbox"]
+
+	var ip_label := Label.new()
+	ip_label.text = "IP de connexion"
+	v.add_child(ip_label)
+
+	multi_ip_input = _make_line_edit("Ex: 127.0.0.1 ou IP publique / locale du host", DEFAULT_HOST_IP)
+	v.add_child(multi_ip_input)
+
+	var port_label := Label.new()
+	port_label.text = "Port"
+	v.add_child(port_label)
+
+	multi_port_input = _make_line_edit("Ex: 7777", DEFAULT_PORT)
+	v.add_child(multi_port_input)
+
+	multi_status_label = Label.new()
+	multi_status_label.text = "Host = créer une partie. Client = rejoindre une partie."
+	multi_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	multi_status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	v.add_child(multi_status_label)
+
+	var btn_host := _make_button("Créer une partie (Host)")
+	var btn_client := _make_button("Rejoindre une partie (Client)")
+	var btn_back := _make_button("Retour")
+
+	btn_host.pressed.connect(_on_multi_host_pressed)
+	btn_client.pressed.connect(_on_multi_client_pressed)
+	btn_back.pressed.connect(_show_main)
+
+	v.add_child(btn_host)
+	v.add_child(btn_client)
+	v.add_child(btn_back)
+
+	var wrapper := Control.new()
+	wrapper.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	wrapper.visible = false
 	wrapper.add_child(d["root"])
 	return wrapper
 
@@ -187,13 +255,23 @@ func _make_controls_screen() -> Control:
 
 func _set_visible_screen(active: Control) -> void:
 	screen_main.visible = active == screen_main
+	screen_multi.visible = active == screen_multi
 	screen_options.visible = active == screen_options
 	screen_controls.visible = active == screen_controls
 
 
 func _show_main() -> void:
 	waiting_action = &""
+	multi_join_in_progress = false
 	_set_visible_screen(screen_main)
+
+
+func _show_multi() -> void:
+	waiting_action = &""
+	multi_join_in_progress = false
+	if multi_status_label:
+		multi_status_label.text = "Host = créer une partie. Client = rejoindre une partie."
+	_set_visible_screen(screen_multi)
 
 
 func _show_options() -> void:
@@ -212,7 +290,64 @@ func _show_controls() -> void:
 # =========================================================
 
 func _on_solo_pressed() -> void:
+	network_manager.shutdown()
 	get_tree().change_scene_to_file(SOLO_SCENE_PATH)
+
+
+func _on_multi_host_pressed() -> void:
+	var port := _parse_port()
+	if port == -1:
+		if multi_status_label:
+			multi_status_label.text = "Port invalide."
+		return
+
+	multi_join_in_progress = false
+	if multi_status_label:
+		multi_status_label.text = "Création de la partie sur le port %d..." % port
+
+	network_manager.shutdown()
+	network_manager.host_game(port)
+	await get_tree().process_frame
+	get_tree().change_scene_to_file(MULTI_SCENE_PATH)
+
+
+func _on_multi_client_pressed() -> void:
+	var ip := multi_ip_input.text.strip_edges()
+	var port := _parse_port()
+
+	if ip.is_empty():
+		if multi_status_label:
+			multi_status_label.text = "IP invalide."
+		return
+
+	if port == -1:
+		if multi_status_label:
+			multi_status_label.text = "Port invalide."
+		return
+
+	multi_join_in_progress = true
+	if multi_status_label:
+		multi_status_label.text = "Connexion à %s:%d..." % [ip, port]
+
+	network_manager.shutdown()
+	network_manager.join_game(ip, port)
+
+
+func _on_join_succeeded() -> void:
+	if not multi_join_in_progress:
+		return
+
+	multi_join_in_progress = false
+	get_tree().change_scene_to_file(MULTI_SCENE_PATH)
+
+
+func _on_join_failed() -> void:
+	if not multi_join_in_progress:
+		return
+
+	multi_join_in_progress = false
+	if multi_status_label:
+		multi_status_label.text = "Connexion échouée. Vérifie l'IP, le port et que le host est lancé."
 
 
 func _on_reset_pressed() -> void:
@@ -220,11 +355,25 @@ func _on_reset_pressed() -> void:
 	_rebuild_actions_ui()
 
 
+func _parse_port() -> int:
+	var raw_port := multi_port_input.text.strip_edges()
+	if raw_port.is_empty():
+		return -1
+
+	if not raw_port.is_valid_int():
+		return -1
+
+	var port := int(raw_port)
+	if port < 1 or port > 65535:
+		return -1
+
+	return port
+
+
 # =========================================================
 # REBIND UI
 # =========================================================
 
-## Récupère dynamiquement les actions depuis l'InputMap du projet
 func _get_rebindable_actions() -> Array[StringName]:
 	var list: Array[StringName] = []
 	for action in allowed_actions:
@@ -234,6 +383,7 @@ func _get_rebindable_actions() -> Array[StringName]:
 		if String(action).begins_with(action_prefix):
 			list.append(action)
 	return list
+
 
 func _rebuild_actions_ui() -> void:
 	if actions_box == null:
@@ -280,25 +430,24 @@ func _unhandled_input(event: InputEvent) -> void:
 
 		_apply_new_bind(waiting_action, event)
 		key_config_manager.save_binds(_get_rebindable_actions())
-		
+
 		_cancel_waiting()
 		_rebuild_actions_ui()
 
+
 func _apply_new_bind(action_name: StringName, event: InputEventKey) -> void:
-	# Supprimer l'ancienne touche
 	for e in InputMap.action_get_events(action_name):
 		if e is InputEventKey:
 			InputMap.action_erase_event(action_name, e)
-	
-	# Créer le nouvel événement
+
 	var new_ev := InputEventKey.new()
 	new_ev.keycode = event.keycode
 	new_ev.physical_keycode = event.physical_keycode
 	new_ev.ctrl_pressed = event.ctrl_pressed
 	new_ev.alt_pressed = event.alt_pressed
 	new_ev.shift_pressed = event.shift_pressed
-	new_ev.meta_pressed = event.meta_pressed # utile pour Mac
-	
+	new_ev.meta_pressed = event.meta_pressed
+
 	InputMap.action_add_event(action_name, new_ev)
 
 
@@ -306,31 +455,30 @@ func _cancel_waiting() -> void:
 	waiting_action = &""
 	hint_label.text = "Clique sur “Changer”, puis appuie sur une touche. (Échap = annuler)"
 
-## Traduction et formatage dynamique
+
 func _pretty_action(a: StringName) -> String:
 	var key_str = String(a).to_upper()
 	var translated = tr(key_str)
-	var clean_str : String
-	
+	var clean_str: String
+
 	if translated == key_str:
 		clean_str = String(a).trim_prefix(action_prefix)
 		var tmp = tr(clean_str.to_upper())
-		if(tmp!=translated):
+		if tmp != translated:
 			translated = tmp
-		else :
+		else:
 			if clean_str.begins_with("ui_"):
 				clean_str = clean_str.trim_prefix("ui_")
-			# Fallback si pas de traduction : "input_fish" -> "Fish" ou "ui_up" -> "Ui Up"
 			translated = clean_str.replace("_", " ").capitalize()
-		
+
 	return translated
+
 
 func _keys_text(action_name: StringName) -> String:
 	var keys: Array[String] = []
 	for e in InputMap.action_get_events(action_name):
 		if e is InputEventKey:
 			var k := e as InputEventKey
-			# On récupère le code non-nul (priorité au physique si le logique est à 0)
 			var code = k.keycode if k.keycode != 0 else k.physical_keycode
 			if code != 0:
 				keys.append(OS.get_keycode_string(code))

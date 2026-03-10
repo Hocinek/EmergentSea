@@ -46,10 +46,11 @@ var stats_panel : UI_stats_navire
 
 @onready var ui_layer: CanvasLayer = get_tree().get_first_node_in_group("ui_layer")
 @onready var data := get_tree().get_first_node_in_group("shared_entities")
-@onready var players_manager: PlayersManager = get_tree().get_first_node_in_group("players_manager")
+@onready var players_manager = get_tree().get_first_node_in_group("players_manager")
 
 # Référence au fog manager pour mise à jour en temps réel
 var fog_manager: FogManager = null
+var match_context: MatchContext = null
 
 var drawable : Drawable
 
@@ -107,6 +108,7 @@ func _init() -> void:
 func _ready():
 	await get_tree().process_frame
 	
+	match_context = get_tree().get_first_node_in_group("match_context")
 	case_actuelle = Map_utils.monde_vers_case(global_position)
 
 	# Configuration de la caméra pour le navire contrôlé par le joueur
@@ -188,6 +190,24 @@ func get_owner_player() -> Player:
 	"""Retourne le joueur propriétaire"""
 	return player_owner
 
+func _is_local_human_owner() -> bool:
+	if player_owner == null:
+		return false
+	
+	if not player_owner.is_human:
+		return false
+	
+	if match_context == null:
+		match_context = get_tree().get_first_node_in_group("match_context")
+	
+	if match_context == null:
+		return true
+	
+	if match_context.mode == MatchContext.MatchMode.MULTI:
+		return player_owner.is_local
+	
+	return true
+
 func is_owned_by(player: Player) -> bool:
 	"""Vérifie si ce navire appartient au joueur spécifié"""
 	return player_owner == player
@@ -206,7 +226,7 @@ func set_selected(selected: bool) -> void:
 	queue_redraw()
 	
 	# Activer/désactiver la caméra selon la sélection
-	if selected and player_owner and player_owner.is_human:
+	if selected and _is_local_human_owner():
 		_setup_camera()
 		# Afficher les stats du navire sélectionné
 		if(stats_panel):
@@ -279,8 +299,8 @@ func reset_energie() -> void:
 #region gestion input
 func _setup_input_handling() -> void:
 	"""Configure la gestion des inputs selon le type de navire"""
-	# Tous les navires du joueur peuvent recevoir des inputs pour être sélectionnés
-	if player_owner and player_owner.is_human:
+	# Tous les navires du joueur local humain peuvent recevoir des inputs pour être sélectionnés
+	if _is_local_human_owner():
 		set_process_input(true)
 		set_process_unhandled_input(true)
 	else:
@@ -288,8 +308,8 @@ func _setup_input_handling() -> void:
 		set_process_unhandled_input(false)
 
 func _unhandled_input(event: InputEvent) -> void:
-	# Vérifier que ce navire appartient au joueur humain
-	if not player_owner or not player_owner.is_human:
+	# Vérifier que ce navire appartient au joueur local humain
+	if not _is_local_human_owner():
 		return
 		
 	var turn_manager = get_tree().get_first_node_in_group("turn_manager")
@@ -451,8 +471,8 @@ func _process(delta):
 	if is_moving and not path.is_empty():
 		_process_movement(delta)
 	
-	# AJOUT : Mettre à jour la visibilité dans le fog (pour navires ennemis)
-	if player_owner and not player_owner.is_human:
+	# AJOUT : Mettre à jour la visibilité dans le fog (pour navires non locaux)
+	if player_owner and not _is_local_human_owner():
 		_update_visibility_in_fog()
 
 func _process_movement(delta: float) -> void:
@@ -483,12 +503,12 @@ func _process_movement(delta: float) -> void:
 		# DEBUG COMPLET
 		DEBUG.log("old_case: %s, case_actuelle: %s, changé: %s" % [old_case, case_actuelle, old_case != case_actuelle])
 		if player_owner:
-			DEBUG.log("player_owner existe: %s, is_human: %s" % [player_owner.player_name, player_owner.is_human])
+			DEBUG.log("player_owner existe: %s, is_human: %s, is_local: %s" % [player_owner.player_name, player_owner.is_human, player_owner.is_local])
 		else:
 			DEBUG.log("player_owner est NULL !")
 		
-		# Actualiser le fog si c'est un navire du joueur humain et qu'il a changé de case
-		if old_case != case_actuelle and player_owner and player_owner.is_human:
+		# Actualiser le fog si c'est un navire du joueur local humain et qu'il a changé de case
+		if old_case != case_actuelle and _is_local_human_owner():
 			DEBUG.log("✓ CONDITIONS OK - Appel de _update_fog_of_war()")
 			_update_fog_of_war()
 		else:
@@ -497,11 +517,11 @@ func _process_movement(delta: float) -> void:
 				DEBUG.log("    Raison: case n'a pas changé")
 			if not player_owner:
 				DEBUG.log("    Raison: pas de player_owner")
-			if player_owner and not player_owner.is_human:
-				DEBUG.log("    Raison: player_owner n'est pas humain")
+			elif not _is_local_human_owner():
+				DEBUG.log("    Raison: propriétaire non humain local")
 		
-		# Mise à jour de la visibilité pour navires ennemis
-		if player_owner and not player_owner.is_human:
+		# Mise à jour de la visibilité pour navires non locaux
+		if player_owner and not _is_local_human_owner():
 			_update_visibility_in_fog()
 		
 		if path.is_empty():
@@ -527,11 +547,11 @@ func hide_all_ships_stats():
 # FOG OF WAR UPDATE
 # =========================
 func _update_fog_of_war() -> void:
-	"""Met à jour le fog of war autour de ce navire (pour joueur humain uniquement)"""
+	"""Met à jour le fog of war autour de ce navire (pour joueur local humain uniquement)"""
 	DEBUG.log("[NAVIRE %d] _update_fog_of_war() APPELÉE !" % id)
 	
-	if not player_owner or not player_owner.is_human:
-		DEBUG.log("[NAVIRE %d] SKIP - pas de player_owner ou pas humain" % id)
+	if not _is_local_human_owner():
+		DEBUG.log("[NAVIRE %d] SKIP - pas de propriétaire local humain" % id)
 		return
 	
 	DEBUG.log("[NAVIRE %d] Actualisation du fog à la position %s" % [id, case_actuelle])
@@ -575,8 +595,8 @@ func _update_fog_of_war() -> void:
 func _update_visibility_in_fog() -> void:
 	"""Met à jour la visibilité de ce navire basée sur le fog of war"""
 	
-	# Les navires du joueur humain sont toujours visibles
-	if player_owner and player_owner.is_human:
+	# Les navires du joueur local humain sont toujours visibles
+	if _is_local_human_owner():
 		is_visible_to_human = true
 		visible = true
 		return
@@ -603,7 +623,7 @@ func _update_visibility_in_fog() -> void:
 func _draw():
 	var cam_zoom = _get_camera_zoom()
 	var scale_factor = sqrt(1.0 / cam_zoom)
-	if is_selected and player_owner and player_owner.is_human:
+	if is_selected and _is_local_human_owner():
 		drawable.selection_circle(scale_factor)
 
 	# Flèche de déplacement (seulement pour le navire sélectionné)

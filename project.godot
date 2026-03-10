@@ -18,6 +18,7 @@ config/icon="res://Assets/icon.svg"
 [autoload]
 
 key_config_manager="*res://Scripts/ControlsManager.gd"
+network_manager="*res://Scripts/network/NetworkManager.gd"
 
 [editor]
 

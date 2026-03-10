@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://fnl7350vsfpu"]
+
+[ext_resource type="Script" uid="uid://clgx1a757yatt" path="res://Scripts/in_game/multiplayer/MultiplayerGameManager.gd" id="1_eptis"]
+
+[node name="MultiplayerGameManager" type="Node2D"]
+script = ExtResource("1_eptis")

@@ -1,0 +1,70 @@
+[gd_scene load_steps=12 format=3 uid="uid://dpvmth5bxljsc"]
+
+[ext_resource type="Script" uid="uid://dr8py3hemabaj" path="res://Scripts/in_game/DATA/listes_entités.gd" id="1_pj8xl"]
+[ext_resource type="Script" uid="uid://b8oifcgwrg2r" path="res://Scripts/in_game/MAP/MapManager.gd" id="2_d2rdf"]
+[ext_resource type="Script" uid="uid://rf6kb04x4h4v" path="res://Scripts/in_game/CAMERA/camera_2d.gd" id="3_wakam"]
+[ext_resource type="Script" uid="uid://ddrseokeg42dh" path="res://Scripts/in_game/UI/canvas_layer.gd" id="5_y758w"]
+[ext_resource type="PackedScene" uid="uid://fnl7350vsfpu" path="res://Scenes/in_game/multiplayer/MultiplayerGameManager.tscn" id="6_d2rdf"]
+[ext_resource type="Script" uid="uid://b3bmrl2qirwbo" path="res://Scripts/in_game/UI/button/UI_end_turn.gd" id="6_oj36m"]
+[ext_resource type="PackedScene" uid="uid://ou6b2xdikhx8" path="res://Scenes/in_game/multiplayer/MultiplayerPlayerManager.tscn" id="7_wakam"]
+[ext_resource type="PackedScene" uid="uid://di48b1vywpbl0" path="res://Scenes/in_game/multiplayer/MultiplayerTurnManager.tscn" id="8_2j4li"]
+[ext_resource type="Script" uid="uid://bwhshsl7a0qa0" path="res://Scripts/network/MatchContext.gd" id="9_wakam"]
+[ext_resource type="Script" uid="uid://duj5gtxe4sip2" path="res://Scripts/network/CommandRouter.gd" id="11_oj36m"]
+[ext_resource type="Script" uid="uid://c7ro651pwscq0" path="res://Scripts/in_game/multiplayer/bootstrap/MultiplayerMatchBootstrap.gd" id="12_kg3yb"]
+
+[node name="Main" type="Node2D"]
+y_sort_enabled = true
+
+[node name="shared_entities" type="Node2D" parent="." node_paths=PackedStringArray("liste_navires")]
+script = ExtResource("1_pj8xl")
+liste_navires = {
+1000: null,
+1001: null,
+2002: null
+}
+
+[node name="Map" type="Node2D" parent="."]
+script = ExtResource("2_d2rdf")
+
+[node name="Camera2D" type="Camera2D" parent="."]
+position = Vector2(2304, 3859)
+zoom = Vector2(0.10000002, 0.10000002)
+script = ExtResource("3_wakam")
+
+[node name="CanvasLayer" type="CanvasLayer" parent="."]
+script = ExtResource("5_y758w")
+
+[node name="EndTurnButton" type="Button" parent="CanvasLayer"]
+anchors_preset = 3
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -8.0
+offset_top = -8.0
+grow_horizontal = 0
+grow_vertical = 0
+script = ExtResource("6_oj36m")
+
+[node name="AITurnLabel" type="Label" parent="CanvasLayer" groups=["ai_turn_label"]]
+visible = false
+offset_right = 40.0
+offset_bottom = 23.0
+text = "Tour de l'IA..."
+
+[node name="Naviresenemie" type="Node2D" parent="."]
+
+[node name="GameManager" parent="." instance=ExtResource("6_d2rdf")]
+
+[node name="PlayerManager" parent="." instance=ExtResource("7_wakam")]
+
+[node name="TurnManager" parent="." instance=ExtResource("8_2j4li")]
+
+[node name="MatchContext" type="Node" parent="."]
+script = ExtResource("9_wakam")
+
+[node name="CommandRouter" type="Node" parent="."]
+script = ExtResource("11_oj36m")
+
+[node name="MultiplayerMatchBootstrap" type="Node" parent="."]
+script = ExtResource("12_kg3yb")

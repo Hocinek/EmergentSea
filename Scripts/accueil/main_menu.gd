@@ -21,6 +21,7 @@ var multi_join_in_progress := false
 # Screens
 var screen_main: Control
 var screen_multi: Control
+var screen_lobby: Control
 var screen_options: Control
 var screen_controls: Control
 
@@ -32,6 +33,13 @@ var actions_box: VBoxContainer
 var multi_status_label: Label
 var multi_ip_input: LineEdit
 var multi_port_input: LineEdit
+
+# Lobby screen refs
+var lobby_title_label: Label
+var lobby_players_label: Label
+var lobby_status_label: Label
+var lobby_start_button: Button
+var lobby_cancel_button: Button
 
 
 # =========================================================
@@ -52,6 +60,12 @@ func _connect_network_signals() -> void:
 	if not network_manager.join_failed.is_connected(_on_join_failed):
 		network_manager.join_failed.connect(_on_join_failed)
 
+	if not network_manager.peer_joined.is_connected(_on_peer_joined):
+		network_manager.peer_joined.connect(_on_peer_joined)
+
+	if not network_manager.peer_left.is_connected(_on_peer_left):
+		network_manager.peer_left.connect(_on_peer_left)
+
 
 # =========================================================
 # UI BUILD
@@ -69,11 +83,13 @@ func _build_ui() -> void:
 
 	screen_main = _make_main_screen()
 	screen_multi = _make_multi_screen()
+	screen_lobby = _make_lobby_screen()
 	screen_options = _make_options_screen()
 	screen_controls = _make_controls_screen()
 
 	add_child(screen_main)
 	add_child(screen_multi)
+	add_child(screen_lobby)
 	add_child(screen_options)
 	add_child(screen_controls)
 
@@ -188,6 +204,43 @@ func _make_multi_screen() -> Control:
 	return wrapper
 
 
+func _make_lobby_screen() -> Control:
+	var d := _make_panel("Salon d'attente")
+	var v: VBoxContainer = d["vbox"]
+
+	lobby_title_label = Label.new()
+	lobby_title_label.text = ""
+	lobby_title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lobby_title_label.add_theme_font_size_override("font_size", 18)
+	v.add_child(lobby_title_label)
+
+	lobby_players_label = Label.new()
+	lobby_players_label.text = "Joueurs connectés : 1"
+	lobby_players_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	v.add_child(lobby_players_label)
+
+	lobby_status_label = Label.new()
+	lobby_status_label.text = ""
+	lobby_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	lobby_status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	v.add_child(lobby_status_label)
+
+	lobby_start_button = _make_button("Lancer la partie")
+	lobby_start_button.disabled = true
+	lobby_start_button.pressed.connect(_on_lobby_start_pressed)
+	v.add_child(lobby_start_button)
+
+	lobby_cancel_button = _make_button("Annuler")
+	lobby_cancel_button.pressed.connect(_on_lobby_cancel_pressed)
+	v.add_child(lobby_cancel_button)
+
+	var wrapper := Control.new()
+	wrapper.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	wrapper.visible = false
+	wrapper.add_child(d["root"])
+	return wrapper
+
+
 func _make_options_screen() -> Control:
 	var d := _make_panel("Options")
 	var v: VBoxContainer = d["vbox"]
@@ -213,7 +266,7 @@ func _make_controls_screen() -> Control:
 	var v: VBoxContainer = d["vbox"]
 
 	hint_label = Label.new()
-	hint_label.text = "Clique sur “Changer”, puis appuie sur une touche. (Échap = annuler)"
+	hint_label.text = "Clique sur « Changer », puis appuie sur une touche. (Échap = annuler)"
 	hint_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	v.add_child(hint_label)
 
@@ -256,6 +309,7 @@ func _make_controls_screen() -> Control:
 func _set_visible_screen(active: Control) -> void:
 	screen_main.visible = active == screen_main
 	screen_multi.visible = active == screen_multi
+	screen_lobby.visible = active == screen_lobby
 	screen_options.visible = active == screen_options
 	screen_controls.visible = active == screen_controls
 
@@ -274,6 +328,24 @@ func _show_multi() -> void:
 	_set_visible_screen(screen_multi)
 
 
+func _show_lobby_host() -> void:
+	lobby_title_label.text = "En attente de joueurs... (vous êtes l'hôte)"
+	lobby_status_label.text = "Le bouton « Lancer » sera disponible dès qu'au moins un joueur vous aura rejoint."
+	lobby_start_button.disabled = true
+	lobby_cancel_button.visible = true
+	_update_lobby_player_count()
+	_set_visible_screen(screen_lobby)
+
+
+func _show_lobby_client() -> void:
+	lobby_title_label.text = "Connecté ! En attente du lancement par l'hôte..."
+	lobby_status_label.text = "L'hôte va bientôt lancer la partie."
+	lobby_start_button.visible = false
+	lobby_cancel_button.visible = true
+	_update_lobby_player_count()
+	_set_visible_screen(screen_lobby)
+
+
 func _show_options() -> void:
 	waiting_action = &""
 	_set_visible_screen(screen_options)
@@ -283,6 +355,24 @@ func _show_controls() -> void:
 	waiting_action = &""
 	_rebuild_actions_ui()
 	_set_visible_screen(screen_controls)
+
+
+# =========================================================
+# LOBBY HELPERS
+# =========================================================
+
+func _update_lobby_player_count() -> void:
+	if lobby_players_label == null:
+		return
+	# L'hôte compte dans les peers : get_peers() retourne les clients uniquement,
+	# donc on ajoute 1 pour l'hôte lui-même.
+	var peer_count := multiplayer.get_peers().size()
+	var total := peer_count + 1
+	lobby_players_label.text = "Joueurs connectés : %d" % total
+
+	# Le bouton lancer n'est actif que si au moins 1 client est connecté
+	if network_manager.is_host() and lobby_start_button != null:
+		lobby_start_button.disabled = peer_count < 1
 
 
 # =========================================================
@@ -307,8 +397,10 @@ func _on_multi_host_pressed() -> void:
 
 	network_manager.shutdown()
 	network_manager.host_game(port)
+
 	await get_tree().process_frame
-	get_tree().change_scene_to_file(MULTI_SCENE_PATH)
+	# On va dans le lobby, PAS dans la scène de jeu
+	_show_lobby_host()
 
 
 func _on_multi_client_pressed() -> void:
@@ -338,7 +430,8 @@ func _on_join_succeeded() -> void:
 		return
 
 	multi_join_in_progress = false
-	get_tree().change_scene_to_file(MULTI_SCENE_PATH)
+	# Le client va dans le lobby et attend que l'hôte lance
+	_show_lobby_client()
 
 
 func _on_join_failed() -> void:
@@ -348,6 +441,42 @@ func _on_join_failed() -> void:
 	multi_join_in_progress = false
 	if multi_status_label:
 		multi_status_label.text = "Connexion échouée. Vérifie l'IP, le port et que le host est lancé."
+
+
+func _on_peer_joined(_peer_id: int) -> void:
+	# Mise à jour du compteur dans le lobby si on y est
+	if screen_lobby.visible:
+		_update_lobby_player_count()
+		if lobby_status_label and network_manager.is_host():
+			lobby_status_label.text = "Un joueur a rejoint ! Vous pouvez lancer la partie."
+
+
+func _on_peer_left(_peer_id: int) -> void:
+	if screen_lobby.visible:
+		_update_lobby_player_count()
+		if lobby_status_label and network_manager.is_host():
+			var peer_count := multiplayer.get_peers().size()
+			if peer_count < 1:
+				lobby_status_label.text = "Plus aucun joueur connecté. En attente..."
+
+
+func _on_lobby_start_pressed() -> void:
+	# Seul l'hôte peut appuyer sur ce bouton
+	if not network_manager.is_host():
+		return
+	# On ordonne à tout le monde (y compris soi-même) de charger la scène de jeu
+	_rpc_start_game.rpc()
+
+
+func _on_lobby_cancel_pressed() -> void:
+	network_manager.shutdown()
+	_show_multi()
+
+
+# RPC appelé sur tous les peers par l'hôte pour lancer la partie simultanément
+@rpc("authority", "call_local", "reliable")
+func _rpc_start_game() -> void:
+	get_tree().change_scene_to_file(MULTI_SCENE_PATH)
 
 
 func _on_reset_pressed() -> void:
@@ -453,7 +582,7 @@ func _apply_new_bind(action_name: StringName, event: InputEventKey) -> void:
 
 func _cancel_waiting() -> void:
 	waiting_action = &""
-	hint_label.text = "Clique sur “Changer”, puis appuie sur une touche. (Échap = annuler)"
+	hint_label.text = "Clique sur « Changer », puis appuie sur une touche. (Échap = annuler)"
 
 
 func _pretty_action(a: StringName) -> String:

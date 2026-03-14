@@ -76,12 +76,26 @@ func _on_map_generated() -> void:
 
 	if network_manager.is_host():
 		bootstrap.configure_host_lobby()
-		await _initialize_host_debug_match()
+		await _initialize_host_match()
 	else:
-		bootstrap.configure_client_lobby()
+		_ensure_client_match_context()
 
 
-func _initialize_host_debug_match() -> void:
+func _ensure_client_match_context() -> void:
+	if network_manager == null:
+		network_manager = get_tree().get_first_node_in_group("network_manager")
+	if match_context == null:
+		match_context = get_tree().get_first_node_in_group("match_context")
+
+	if network_manager != null and network_manager.local_player_id != -1:
+		match_context.configure_multi(network_manager.local_player_id)
+	else:
+		push_warning("[MULTI GM] local_player_id pas encore assigné, on patiente...")
+		await get_tree().create_timer(0.2).timeout
+		_ensure_client_match_context()
+
+
+func _initialize_host_match() -> void:
 	if host_match_initialized:
 		return
 
@@ -124,6 +138,92 @@ func _initialize_host_debug_match() -> void:
 		fog_manager.update_fog()
 
 	select_ship(ship1)
+	_sync_initial_state_to_clients()
+
+
+func _sync_initial_state_to_clients() -> void:
+	var players_data: Array = []
+	for p in players_manager.get_all_players():
+		players_data.append({
+			"player_id": p.player_id,
+			"player_name": p.player_name,
+			"is_human": p.is_human
+		})
+
+	var ships_data: Array = []
+	for ship in get_tree().get_nodes_in_group("ships"):
+		if ship is Navires and ship.player_owner != null:
+			ships_data.append({
+				"ship_id": ship.id,
+				"player_id": ship.player_owner.player_id,
+				"pos_x": ship.global_position.x,
+				"pos_y": ship.global_position.y
+			})
+
+	var turn_order: Array = []
+	for p in players_manager.get_all_players():
+		turn_order.append(p.player_id)
+
+	_rpc_receive_initial_state.rpc(players_data, ships_data, turn_order)
+
+
+@rpc("authority", "call_remote", "reliable")
+func _rpc_receive_initial_state(players_data: Array, ships_data: Array, turn_order: Array) -> void:
+	_refresh_refs()
+
+	if players_manager == null or turn_manager == null or match_context == null:
+		push_error("[MULTI GM CLIENT] Refs introuvables à la réception de l'état initial")
+		return
+
+	# CRITIQUE : forcer la bonne configuration du MatchContext avant tout spawn
+	if network_manager != null and network_manager.local_player_id != -1:
+		match_context.configure_multi(network_manager.local_player_id)
+	else:
+		push_error("[MULTI GM CLIENT] local_player_id toujours -1 à la réception de l'état initial !")
+		return
+
+	var created_players: Array = []
+	for pd in players_data:
+		var p = players_manager.create_player(pd["player_id"], pd["player_name"], pd["is_human"])
+		if p != null:
+			created_players.append(p)
+
+	if created_players.is_empty():
+		push_error("[MULTI GM CLIENT] Aucun joueur créé")
+		return
+
+	var local_ship = null
+	for sd in ships_data:
+		var owner_player = players_manager.get_player_by_id(sd["player_id"])
+		if owner_player == null:
+			push_error("[MULTI GM CLIENT] Joueur introuvable pour player_id=%d" % sd["player_id"])
+			continue
+
+		var pos = Vector2(sd["pos_x"], sd["pos_y"])
+		var is_local_controlled = match_context.is_local_player(sd["player_id"])
+		var ship = spawn_navire(owner_player, pos, is_local_controlled, sd["ship_id"])
+
+		if ship != null and is_local_controlled:
+			local_ship = ship
+
+	var ordered_players: Array = []
+	for pid in turn_order:
+		var p = players_manager.get_player_by_id(pid)
+		if p != null:
+			ordered_players.append(p)
+
+	if not ordered_players.is_empty():
+		players_manager.set_current_player(ordered_players[0])
+		turn_manager.start_game(ordered_players)
+
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+	if fog_manager and fog_manager.has_method("update_fog"):
+		fog_manager.update_fog()
+
+	if local_ship != null:
+		select_ship(local_ship)
 
 
 func spawn_navire(player, position: Vector2, is_player_controlled: bool = false, ship_id: int = 0):

@@ -12,6 +12,13 @@ static var ports := []  # liste des positions des ports (Vector2i)
 static var fish_cases: Array = []   # liste des cases de pêche (Vector2i)
 
 # =========================
+# RESSOURCES DE PÊCHE
+# Dictionnaire {Vector2i: int} — nombre de poissons par case de pêche
+# Rempli par le MapGenerator lors de la génération
+# =========================
+static var fish_counts: Dictionary = {}
+
+# =========================
 # Textures
 # =========================
 static var TileWater: Texture2D = preload("res://Assets/textures/tiles/TileWater.png")

@@ -9,6 +9,7 @@ signal map_generated
 @export var map_utils : Map_utils
 
 var grid : HexGrid
+var fish_manager : FishManager
 
 func _enter_tree():
 	add_to_group("Map_manager")
@@ -18,6 +19,9 @@ func _enter_tree():
 	map_gen = Map_gen.new()
 	map_utils = Map_utils.new()
 	add_child(map_gen)
+	# Instancier le FishManager ici pour qu'il soit disponible dès la scène
+	fish_manager = FishManager.new()
+	add_child(fish_manager)
 	
 func _ready():
 	await get_tree().process_frame
@@ -27,10 +31,11 @@ func _ready():
 		grid.generate_hex_grid_rectangular()
 		grid.import_from_map_data()
 		render_map_from_grid()
-		#grid.spawn_all_tiles(self)
-		#render_map()
 		DEBUG.log("Rendu de la map effectué")
-		#permet de signaler au moteur que la map est générée
+		# Initialiser les stocks de pêche MAINTENANT que fish_cases est rempli
+		fish_manager.initialize_fish_tiles()
+		DEBUG.log("FishManager initialisé (%d cases)" % Map_data.fish_cases.size())
+		# Signaler que la map est générée
 		await get_tree().process_frame
 		emit_signal("map_generated")
 	pass
@@ -55,6 +60,12 @@ func spawn_tile_object(cell: HexCell):
 		"earth": s.texture = Map_data.TileEarth
 		"forest": s.texture = Map_data.TileForest
 		"mountain": s.texture = Map_data.TileMountain
+		"fish":
+			if "TileFish" in Map_data:
+				s.texture = Map_data.TileFish
+			else:
+				s.texture = Map_data.TileWater
+				DEBUG.log("TileFish non trouvé, utilisation de TileWater", DEBUG.WARNING)
 		"port": 
 			#cell.set_script(load("res://Scripts/in_game/ports/port.gd"))
 			# Vérifier si TilePort existe dans Map_data

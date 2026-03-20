@@ -615,6 +615,19 @@ func _draw():
 #endregion UI
 
 #region peche
+func _get_fish_manager() -> FishManager:
+	"""Cherche le FishManager : d'abord par groupe, puis comme enfant du MapManager."""
+	var fm = get_tree().get_first_node_in_group("fish_manager")
+	if fm:
+		return fm
+	# Fallback : enfant du MapManager
+	var map_manager = get_tree().get_first_node_in_group("Map_manager")
+	if map_manager:
+		for child in map_manager.get_children():
+			if child is FishManager:
+				return child
+	return null
+
 func _update_fishing(delta: float) -> void:
 	if not is_fishing:
 		return
@@ -628,9 +641,28 @@ func try_start_fishing() -> void:
 		return
 
 	if energie < fish_energy_cost:
+		DEBUG.log("Navire [%d] - Pas assez d'énergie pour pêcher" % id)
 		return
 
-	if not Map_utils.is_on_water(global_position):
+	# Vérifier que la case actuelle est bien une case de pêche
+	var fish_manager: FishManager = _get_fish_manager()
+	if not fish_manager:
+		DEBUG.log("Navire [%d] - FishManager introuvable !" % id, DEBUG.ERROR)
+		return
+
+	if not fish_manager.is_fish_tile(case_actuelle):
+		DEBUG.log("Navire [%d] - Cette case n'est pas une zone de pêche" % id)
+		DEBUG.log("  → case_actuelle = %s" % str(case_actuelle))
+		DEBUG.log("  → Map_data.tiles[%d][%d] = '%s'" % [case_actuelle.y, case_actuelle.x, Map_data.tiles[case_actuelle.y][case_actuelle.x]])
+		DEBUG.log("  → Map_data.fish_cases (%d cases) = %s" % [Map_data.fish_cases.size(), str(Map_data.fish_cases)])
+		DEBUG.log("  → fish_manager.fish_stocks keys (%d) = %s" % [fish_manager.fish_stocks.size(), str(fish_manager.fish_stocks.keys())])
+		return
+
+	if not fish_manager.can_fish_at(case_actuelle):
+		DEBUG.log("Navire [%d] - Cette zone de pêche est épuisée !" % id)
+		# Feedback visuel "épuisé" si disponible
+		if fish_feedback_label:
+			fish_feedback_label.finished_fishing(0)
 		return
 
 	# Déclenchement
@@ -640,17 +672,28 @@ func try_start_fishing() -> void:
 	energie = max(energie - fish_energy_cost, 0)
 
 	stats_panel.show_ally()
+	DEBUG.log("Navire [%d] - Début de pêche sur case %s" % [id, case_actuelle])
 
 func finish_fishing() -> void:
 	is_fishing = false
 
-	var gain := randi_range(fish_yield_min, fish_yield_max)
+	var fish_manager: FishManager = _get_fish_manager()
+	if not fish_manager:
+		return
+
+	# Calculer la quantité voulue
+	var wanted := randi_range(fish_yield_min, fish_yield_max)
 	if nrbequipage >= 6:
-		gain += 1
+		wanted += 1
+
+	# Prélever sur le stock réel de la case
+	var gain := fish_manager.harvest_fish(case_actuelle, wanted)
 
 	nourriture += gain
+
 	if fish_feedback_label:
 		fish_feedback_label.finished_fishing(gain)
 		sig_show_stats.emit()
-		DEBUG.log("fishing finished")
+
+	DEBUG.log("Navire [%d] - Pêche terminée : +%d poissons (case %s)" % [id, gain, case_actuelle])
 #endregion peche

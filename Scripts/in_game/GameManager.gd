@@ -17,7 +17,7 @@ var players_manager: PlayersManager = null
 # NOUVEAU : Références fog of war
 var fog_of_war: FogOfWar = null
 var fog_manager: FogManager = null
-
+var hex_menu: HexContextMenu = null
 # Stockage des joueurs créés
 var player1: Player = null
 var player2: Player = null
@@ -60,20 +60,19 @@ func _ready():
 	
 	# Créer le système de fog of war
 	_setup_fog_of_war()
-	
+	# Créer le HexContextMenu 
+	_setup_hex_menu()
 	# Récupérer le PlayersManager
 	_try_get_players_manager()
-
+	
 #region fonctions d'initialisation
 ## Setup du fog of war
 func _setup_fog_of_war():
 	"""Créé et configure le système de fog of war"""
 	DEBUG.log("[GAMEMANAGER] Setup Fog of War...")
-	
 	# Vérifier si le fog existe déjà dans la scène
 	fog_of_war = get_tree().get_first_node_in_group("fog_of_war")
 	fog_manager = get_tree().get_first_node_in_group("fog_manager")
-	
 	# Si pas trouvé, créer dynamiquement
 	if not fog_of_war:
 		DEBUG.log("[GAMEMANAGER] Création dynamique de FogOfWar...")
@@ -97,12 +96,26 @@ func _setup_fog_of_war():
 func _try_get_players_manager() -> void:
 	if players_manager:
 		return
-	
 	players_manager = get_tree().get_first_node_in_group("players_manager")
 	if not players_manager:
 		DEBUG.log("[GAMEMANAGER] Players_manager introuvable !",DEBUG.ERROR)
 	return
+	
+	
+func _setup_hex_menu() -> void:
+	"""Crée le menu contextuel hexagonal sur un CanvasLayer dédié"""
+	var canvas := CanvasLayer.new()
+	canvas.layer = 10
+	canvas.name = "HexMenuLayer"
+	add_child(canvas)
 
+	hex_menu = HexContextMenu.new()
+	hex_menu.name = "HexContextMenu"
+	hex_menu.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	canvas.add_child(hex_menu)
+
+	hex_menu.action_selected.connect(_on_hex_menu_action)
+	DEBUG.log("[GAMEMANAGER] HexContextMenu créé")
 #endregion fonctions d'initialisation
 
 # Cette fonction se déclenche à la réception d'un signal
@@ -139,7 +152,6 @@ func _on_map_generated():
 		DEBUG.log("Enemy1 créé avec succès avec l'id "+str(enemy1.id))
 	
 	players_manager.set_current_player(player1)
-	
 	# Fog update
 	await get_tree().process_frame
 	await get_tree().process_frame
@@ -147,12 +159,11 @@ func _on_map_generated():
 		DEBUG.log("[GAMEMANAGER] Forcing fog update after ships creation")
 		fog_manager.update_fog()
 	else:
+		# Sélection
 		DEBUG.log("[GAMEMANAGER] FogManager non trouvé, impossible de mettre à jour le fog",DEBUG.WARNING)
 	
-	# Sélection
 	if ship1:
 		select_ship(ship1)
-	
 	# Attacher l'IA EN DERNIER, hors de tout bloc if avec await
 	await get_tree().process_frame
 	await get_tree().process_frame
@@ -168,7 +179,6 @@ func _on_map_generated():
 			DEBUG.log("[GAMEMANAGER] enemy1 invalide ou null !")
 			_attach_ai(enemy1)
 	
-		
 	turn_manager.start_game([player1, player2])
 
 
@@ -176,32 +186,38 @@ func _on_map_generated():
 # Faire apparaître un bateau sur la carte
 func spawn_navire(player: Player, position: Vector2, is_player_controlled: bool = false) -> Navires:
 	if player == null:
-		DEBUG.log("Impossible de créer un navire sans joueur propriétaire !",DEBUG.ERROR)
+		DEBUG.log("Impossible de créer un navire sans joueur propriétaire !", DEBUG.ERROR)
 		return null
-	
+
 	var navire: Navires = navire_scene.instantiate()
-	
 	navire.global_position = position
 	navire.is_player_controlled = is_player_controlled
-	
 	add_child(navire)
-	
 	navire.set_owner_player(player)
-	
+
 	if not navire.is_in_group("ships"):
 		navire.add_to_group("ships")
-	
+
 	if navire.has_signal("ship_clicked"):
 		navire.ship_clicked.connect(_on_ship_clicked)
-	
+
 	if navire.has_signal("ship_destroyed"):
 		navire.ship_destroyed.connect(_on_ship_destroyed)
-	
+
+	if navire.has_signal("sig_open_hex_menu"):
+		navire.sig_open_hex_menu.connect(_on_open_hex_menu)
+
+	# CORRECTION switch : même chemin que TAB 
+	if navire.has_signal("sig_switch_ship"):
+		navire.sig_switch_ship.connect(select_next_ship)
+
+	# Inspection de case 
+	if navire.has_signal("sig_inspect_case"):
+		navire.sig_inspect_case.connect(_on_inspect_case)
+
 	if data and data.has_method("addNavireToData"):
 		data.addNavireToData(navire)
-	
 	DEBUG.log("Navire créé avec ID : %d" % navire.id if navire.has_method("get") else "N/A")
-	
 	return navire
 
 
@@ -214,6 +230,7 @@ func spawn_navire_at(player: Player, case_pos: Vector2i, is_player_controlled: b
 	var world_pos = Map_utils.case_vers_monde(case_pos)
 	return spawn_navire(player, world_pos, is_player_controlled)
 #endregion gestion des navires
+
 
 func _attach_ai(navire_ennemi: Navires) -> void:
 	DEBUG.log("[ATTACH_AI] Début")
@@ -261,7 +278,6 @@ func _input(event: InputEvent) -> void:
 func _select_ship_by_index(index: int) -> void:
 	if not player1:
 		return
-	
 	var player_ships = player1.get_navires()
 	if index >= 0 and index < player_ships.size():
 		select_ship(player_ships[index])
@@ -284,7 +300,6 @@ func select_ship(ship: Navires) -> void:
 		emit_signal("ship_selected", ship)
 		DEBUG.log("Navire sélectionné : %s" % str(ship.id) if ship.has_method("get") else "N/A")
 		
-		# NOUVEAU : Mettre à jour le fog quand un navire est sélectionné
 		if fog_manager:
 			fog_manager.update_fog()
 
@@ -307,7 +322,7 @@ func _on_ship_clicked(ship: Navires) -> void:
 
 
 func _on_ship_destroyed(ship: Navires) -> void:
-	DEBUG.log("Navire détruit détecté : %s" % str( ship.id) if ship.has_method("get") else "N/A")
+	DEBUG.log("Navire détruit détecté : %s" % str(ship.id) if ship.has_method("get") else "N/A")
 	
 	if selected_ship == ship:
 		DEBUG.log("Le navire sélectionné a été détruit, désélection...")
@@ -327,15 +342,12 @@ func _on_ship_destroyed(ship: Navires) -> void:
 func select_next_ship() -> void:
 	if not player1:
 		return
-	
 	var player_ships = player1.get_navires()
 	if player_ships.is_empty():
 		return
-	
 	var current_index = -1
 	if selected_ship:
 		current_index = player_ships.find(selected_ship)
-	
 	var next_index = (current_index + 1) % player_ships.size()
 	select_ship(player_ships[next_index])
 
@@ -343,18 +355,16 @@ func select_next_ship() -> void:
 func select_previous_ship() -> void:
 	if not player1:
 		return
-	
 	var player_ships = player1.get_navires()
 	if player_ships.is_empty():
 		return
-	
 	var current_index = -1
 	if selected_ship:
 		current_index = player_ships.find(selected_ship)
-	
 	var prev_index = (current_index - 1) if current_index > 0 else (player_ships.size() - 1)
 	select_ship(player_ships[prev_index])
 #endregion gestion de la selection
+
 
 # ===============================
 # FONCTIONS UTILITAIRES
@@ -365,29 +375,22 @@ func get_player_ship() -> Navires:
 		var navires = player1.get_navires()
 		if navires.size() > 0:
 			return navires[0]
-	
 	var all_ships = get_tree().get_nodes_in_group("ships")
 	for navire in all_ships:
 		if navire is Navires and navire.is_player_controlled:
 			return navire
-	
 	return null
 
 
 func get_enemy_ships() -> Array[Navires]:
 	var enemies: Array[Navires] = []
-	
 	if not player1:
 		return enemies
-
 	if not players_manager:
 		return enemies
-	
 	var enemy_players = players_manager.get_enemy_players(player1)
-	
 	for enemy_player in enemy_players:
 		enemies.append_array(enemy_player.get_navires())
-	
 	return enemies
 
 
@@ -401,3 +404,54 @@ func get_player_by_id(player_id: int) -> Player:
 	if players_manager:
 		return players_manager.get_player_by_id(player_id)
 	return null
+
+
+func _on_open_hex_menu(navire: Navires, screen_pos: Vector2) -> void:
+	"""Ouvre le menu contextuel pour le navire donné"""
+	if hex_menu:
+		hex_menu.show_for(navire, screen_pos)
+
+
+func _on_hex_menu_action(action: String, navire: Navires) -> void:
+	if not navire or not is_instance_valid(navire):
+		return
+
+	DEBUG.log("[GAMEMANAGER] Action menu : '%s' sur navire %d" % [action, navire.id])
+
+	match action:
+		"move":
+			select_ship(navire)
+			navire.set_input_mode(Navires.InputMode.MOVE)
+
+		"attack":
+			select_ship(navire)
+			navire.set_input_mode(Navires.InputMode.ATTACK)
+
+		"inspect":
+			select_ship(navire)
+			navire.set_input_mode(Navires.InputMode.INSPECT)
+
+		# toggle_stats() appelle show_ally_persistent() → timer = INF → stats permanentes
+		"stats":
+			navire.toggle_stats()
+
+		# Appel direct identique à la touche TAB dans _input()
+		"switch":
+			select_next_ship()
+
+		"fish":
+			navire.try_start_fishing()
+
+
+func _on_inspect_case(case_pos: Vector2i) -> void:
+	DEBUG.log("[GAMEMANAGER] Inspection de la case %s" % str(case_pos))
+	var ships_on_case: Array = []
+	if data and data.has_method("getNavireByPosition"):
+		ships_on_case = data.getNavireByPosition(case_pos)
+	if ships_on_case.is_empty():
+		DEBUG.log("Case %s — aucun navire présent" % str(case_pos))
+	else:
+		var target: Navires = ships_on_case[0]
+		if target and is_instance_valid(target) and target.stats_panel:
+			target.stats_panel.show_stats()
+			DEBUG.log("Inspection — navire %d trouvé sur la case" % target.id)

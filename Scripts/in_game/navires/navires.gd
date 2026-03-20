@@ -8,6 +8,15 @@ signal sig_navire_damaged(navire: Navires, damage: int)
 signal ship_clicked(ship: Navires)
 signal ship_destroyed(ship: Navires)
 signal sig_show_fishing
+signal sig_inspect_case(case_pos: Vector2i)
+signal sig_open_hex_menu(navire: Navires, screen_pos: Vector2)
+signal sig_switch_ship()
+
+# =========================
+# MODE D'INPUT (menu contextuel)
+# =========================
+enum InputMode { NONE, MOVE, ATTACK, INSPECT }
+var current_input_mode: InputMode = InputMode.NONE
 
 # =========================
 # PROPRIÉTAIRE ET IDENTITÉ
@@ -74,9 +83,9 @@ var fish_feedback_label: UI_fish_navires
 var fish_feedback_timer: float = 0.0
 
 
-
-
 var stats_timer := 0.0
+# stats_visible = true signifie que le joueur a VOLONTAIREMENT activé l'affichage
+# Les stats restent visibles même si on change de sélection, jusqu'à désactivation manuelle
 var stats_visible := false
 
 
@@ -88,9 +97,6 @@ var is_moving := false
 var case_actuelle: Vector2i
 var target_position: Vector2 = Vector2.ZERO
 var show_arrow: bool = false
-
-
-
 
 
 # =========================
@@ -137,13 +143,30 @@ func _ready():
 		id, owner_name, control_type, case_actuelle
 	])
 
+
+func set_input_mode(mode: InputMode) -> void:
+	current_input_mode = mode
+	match mode:
+		InputMode.MOVE:
+			Input.set_default_cursor_shape(Input.CURSOR_CROSS)
+			DEBUG.log("Navire [%d] — Mode DÉPLACEMENT actif" % id)
+		InputMode.ATTACK:
+			Input.set_default_cursor_shape(Input.CURSOR_CROSS)
+			DEBUG.log("Navire [%d] — Mode ATTAQUE actif" % id)
+		InputMode.INSPECT:
+			Input.set_default_cursor_shape(Input.CURSOR_HELP)
+			DEBUG.log("Navire [%d] — Mode INSPECTION actif" % id)
+		InputMode.NONE:
+			Input.set_default_cursor_shape(Input.CURSOR_ARROW)
+
+
 func _init_stats_ui():
 	if not ui_layer:
-		DEBUG.log("ui_layer est null, impossible de créer l'UI des stats!",DEBUG.ERROR)
+		DEBUG.log("ui_layer est null, impossible de créer l'UI des stats!", DEBUG.ERROR)
 		return
 	# ---------- UI STATS (pour TOUS les navires) ----------
 	# On vérifie si le panel existe déjà avant d'en créer un nouveau
-	if stats_panel == null: 
+	if stats_panel == null:
 		stats_panel = UI_stats_navire.new(self)
 	# Idem pour le feedback de pêche (même problème potentiel)
 	if fish_feedback_label == null:
@@ -152,12 +175,12 @@ func _init_stats_ui():
 	DEBUG.log("UI Stats créée pour navire [%d]" % id)
 #endregion initialisation
 
+
 #region camera
 func _setup_camera() -> void:
 	"""Configure la caméra pour suivre le navire si c'est celui du joueur"""
 	if not is_selected:
 		return
-		
 	var cam = get_tree().get_first_node_in_group("camera_controller")
 	if cam and cam.has_method("set_target"):
 		cam.set_target(self)
@@ -168,6 +191,7 @@ func _get_camera_zoom() -> float:
 		return cameras[0].zoom.x
 	return 1.0
 #endregion camera
+
 
 #region gestion proprietaire
 func set_owner_player(player: Player) -> void:
@@ -182,7 +206,6 @@ func set_owner_player(player: Player) -> void:
 	
 	# Reconfigurer les inputs
 	_setup_input_handling()
-
 
 func get_owner_player() -> Player:
 	"""Retourne le joueur propriétaire"""
@@ -199,23 +222,35 @@ func is_enemy_of(other_navire: Navires) -> bool:
 	return player_owner != other_navire.player_owner
 #endregion gestion proprietaire
 
+
 #region gestion selection
 func set_selected(selected: bool) -> void:
 	"""Définit si ce navire est sélectionné"""
 	is_selected = selected
 	queue_redraw()
-	
 	# Activer/désactiver la caméra selon la sélection
 	if selected and player_owner and player_owner.is_human:
 		_setup_camera()
-		# Afficher les stats du navire sélectionné
-		if(stats_panel):
+		# Afficher avec timer normal à la sélection.
+		# stats_visible reste FALSE — seul toggle_stats() le met à true.
+		if stats_panel:
 			stats_panel.show_ally()
 	else:
-		stats_panel.hide_all_stats()
+		# Désélection : réinitialiser le flag persistant et cacher
+		stats_visible = false
+		if stats_panel:
+			stats_panel.hide_all_stats()
 	
 	DEBUG.log("Navire %d %s" % [id, "SÉLECTIONNÉ" if selected else "désélectionné"])
+
+
+func toggle_stats() -> void:
+	"""Bascule les stats depuis le menu hex. stats_visible géré UNIQUEMENT ici."""
+	if not stats_panel:
+		return
+	stats_panel.handler_ally_persistent()
 #endregion gestion selection
+
 
 #region gestion etat navire
 func is_alive() -> bool:
@@ -276,6 +311,7 @@ func reset_energie() -> void:
 	energie = maxenergie
 #endregion gestion etat navire
 
+
 #region gestion input
 func _setup_input_handling() -> void:
 	"""Configure la gestion des inputs selon le type de navire"""
@@ -287,74 +323,156 @@ func _setup_input_handling() -> void:
 		set_process_input(false)
 		set_process_unhandled_input(false)
 
+
 func _unhandled_input(event: InputEvent) -> void:
 	# Vérifier que ce navire appartient au joueur humain
 	if not player_owner or not player_owner.is_human:
 		return
-		
+
 	var turn_manager = get_tree().get_first_node_in_group("turn_manager")
 	if turn_manager and not turn_manager.can_navire_act(self):
 		return
-	
-	# Détecter le clic sur ce navire pour le sélectionner
-	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
-		var mouse_pos = get_global_mouse_position()
-		var distance = global_position.distance_to(mouse_pos)
-		
-		# Si on clique sur ce navire
-		if distance <= interaction_radius:
-			emit_signal("ship_clicked", self)
-			get_viewport().set_input_as_handled()
-			return
-	
-	# Le reste des inputs uniquement pour le navire sélectionné
-	if not is_selected:
-		return
-	
-	# Toggle stats
-	if Input.is_action_just_pressed("input_toggle_stats"):
-		#envoie un signal qui est récupéré par l'UI_stats_navires associé à ce navire
-		if(self.is_selected):
-			#sig_show_stats.emit()
-			emit_signal("sig_show_stats")
-	
-	# Pêche
-	if event.is_action_pressed("input_fish"):
-		try_start_fishing()
-		return
 
+	# ══════════════════════════════════════════════════════════════════
+	# CLICS SOURIS
+	# ══════════════════════════════════════════════════════════════════
 	if event is InputEventMouseButton and event.pressed:
-		var mouse_pos := get_global_mouse_position()
+		var mouse_pos: Vector2 = get_global_mouse_position()
+		var distance: float    = global_position.distance_to(mouse_pos)
 
-		# CLIC GAUCHE → DÉPLACEMENT
+		# CLIC GAUCHE -> Déplacement
 		if event.button_index == MOUSE_BUTTON_LEFT:
-			# Vérifier qu'on ne clique pas sur un autre navire
-			var clicked_ship = get_ship_at_position(mouse_pos)
-			if clicked_ship:
-				return  # On a cliqué sur un navire, ne pas se déplacer
-			
-			if energie > 0 and not is_moving and not is_fishing:
-				var target_case = Map_utils.monde_vers_case(mouse_pos)
+
+			# MODE ACTIF 
+			# Seulement le navire sélectionné exécute l'action ET absorbe le clic.
+			# Les navires non-sélectionnés ignorent complètement ce bloc.
+			if is_selected and current_input_mode != InputMode.NONE:
+				match current_input_mode:
+
+					InputMode.MOVE:
+						var clicked_ship := get_ship_at_position(mouse_pos)
+						if not clicked_ship:
+							var target_case: Vector2i = Map_utils.monde_vers_case(mouse_pos)
+							if Map_utils.is_case_navigable(target_case):
+								path = Pathfinder.calculer_chemin(case_actuelle, target_case)
+								if not path.is_empty():
+									DEBUG.log("Chemin: " + str(path))
+									is_moving       = true
+									target_position = mouse_pos
+									show_arrow      = true
+									queue_redraw()
+								else:
+									DEBUG.log("Chemin vide !")
+							else:
+								DEBUG.log("Case non navigable !")
+						set_input_mode(InputMode.NONE)
+						get_viewport().set_input_as_handled()
+						return
+
+					InputMode.ATTACK:
+						var target_case: Vector2i = Map_utils.monde_vers_case(mouse_pos)
+						attempt_shoot(target_case)
+						set_input_mode(InputMode.NONE)
+						get_viewport().set_input_as_handled()
+						return
+
+					InputMode.INSPECT:
+						var target_case: Vector2i = Map_utils.monde_vers_case(mouse_pos)
+						emit_signal("sig_inspect_case", target_case)
+						DEBUG.log("Inspection de la case %s" % str(target_case))
+						set_input_mode(InputMode.NONE)
+						get_viewport().set_input_as_handled()
+						return
+
+			# ── PAS DE MODE ACTIF ─────────────────────────────────────
+			# Si un navire allié a un mode actif, ignorer le clic pour éviter
+			# un changement de sélection accidentel. Mais seul le navire
+			# NON-sélectionné vérifie ça — le sélectionné a déjà return ci-dessus.
+			if not is_selected:
+				for _s in get_tree().get_nodes_in_group("ships"):
+					if _s is Navires and _s.player_owner == player_owner and _s.is_selected:
+						if _s.current_input_mode != InputMode.NONE:
+							# Le navire sélectionné a un mode actif : ignorer ce clic
+							return  # Pas set_input_as_handled : laisser le navire sélectionné traiter
+						break
+
+			# Sélection normale du navire
+			if distance <= interaction_radius:
+				emit_signal("ship_clicked", self)
+				get_viewport().set_input_as_handled()
+				return
+
+			# Comportement original : déplacement libre (clic gauche sans mode)
+			if is_selected and energie > 0 and not is_moving and not is_fishing:
+				var clicked_ship := get_ship_at_position(mouse_pos)
+				if clicked_ship:
+					return
+				var target_case: Vector2i = Map_utils.monde_vers_case(mouse_pos)
 				if Map_utils.is_case_navigable(target_case):
 					path = Pathfinder.calculer_chemin(case_actuelle, target_case)
 					if not path.is_empty():
-						DEBUG.log("Chemin: "+ str(path))
-						is_moving = true
+						DEBUG.log("Chemin: " + str(path))
+						is_moving       = true
 						target_position = mouse_pos
-						show_arrow = true
+						show_arrow      = true
 						queue_redraw()
 						get_viewport().set_input_as_handled()
 					else:
 						DEBUG.log("Chemin vide !")
 				else:
 					DEBUG.log("Case cible NON navigable !")
-		
+
 		# CLIC DROIT → TIR
 		elif event.button_index == MOUSE_BUTTON_RIGHT:
-			var target_case = Map_utils.monde_vers_case(mouse_pos)
-			attempt_shoot(target_case)
 
+			# Seul le navire sélectionné traite le clic droit
+			if not is_selected:
+				return
+
+			# Annuler un mode en cours
+			if current_input_mode != InputMode.NONE:
+				set_input_mode(InputMode.NONE)
+				get_viewport().set_input_as_handled()
+				return
+
+			# Sur le navire → ouvrir le menu hexagonal
+			if distance <= interaction_radius:
+				var canvas_xform := get_canvas_transform()
+				var screen_pos: Vector2 = canvas_xform * global_position
+				emit_signal("sig_open_hex_menu", self, screen_pos)
+				get_viewport().set_input_as_handled()
+				return
+
+			# En dehors → tir direct (clic droit hors menu)
+			var target_case: Vector2i = Map_utils.monde_vers_case(mouse_pos)
+			attempt_shoot(target_case)
+			get_viewport().set_input_as_handled()
+
+	# ══════════════════════════════════════════════════════════════════
+	# CLAVIER — logique originale INTÉGRALEMENT conservée
+	# ══════════════════════════════════════════════════════════════════
+	if not is_selected:
+		return
+
+	# Echap → annuler le mode actif
+	if event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE:
+		if current_input_mode != InputMode.NONE:
+			set_input_mode(InputMode.NONE)
+			get_viewport().set_input_as_handled()
+			return
+
+	# Toggle stats
+	if Input.is_action_just_pressed("input_toggle_stats"):
+		if is_selected:
+			stats_panel.handler_ally_persistent()
+			#emit_signal("sig_show_stats")
+
+	# Pêche
+	if event.is_action_pressed("input_fish"):
+		try_start_fishing()
+		return
 #endregion gestion input
+
 
 #region gestion combat
 func attempt_shoot(target_case: Vector2i) -> void:
@@ -392,22 +510,22 @@ func shoot_at(target: Navires) -> void:
 	"""Tire sur un navire spécifique"""
 	if target == null or not target.is_alive():
 		return
-	
 	DEBUG.log("Tir sur navire [%d]" % target.id)
 	target.take_damage(dgt_tir)
-	
 	# Effets visuels / son (à implémenter)
-	# ...
 
 #endregion gestion combat
 
+
 #region utils
 func is_in_range(target_case: Vector2i) -> bool:
-	"""Vérifie si une case est à portée de tir"""
-	var chemin := Pathfinder.calculer_chemin(case_actuelle, target_case)
-	return chemin.size() <= tir
+	"""Vérifie si une case est à portée de tir (distance hexagonale directe)"""
+	var dx = abs(target_case.x - case_actuelle.x)
+	var dy = abs(target_case.y - case_actuelle.y)
+	var dist := maxi(dx, dy)
+	return dist <= tir
 
-#utilisé pour l'attaque
+# utilisé pour l'attaque
 func get_ships_at_position(target_case: Vector2i) -> Array[Navires]:
 	"""Récupère tous les navires présents sur une case"""
 	var ships: Array[Navires] = []
@@ -432,11 +550,12 @@ func get_ship_at_position(pos: Vector2) -> Navires:
 			if distance <= ship.interaction_radius:
 				return ship
 	return null
-	
+
 func getPosition() -> Vector2i:
 	"""Retourne la position du navire en coordonnées de case"""
 	return case_actuelle
 #endregion utils
+
 
 #region process
 func _process(delta):
@@ -459,7 +578,7 @@ func _process_movement(delta: float) -> void:
 	"""Gère le déplacement du navire"""
 	if path.is_empty():
 		DEBUG.log("Navire [%d] - Chemin vide, arrêt du mouvement" % id)
-		is_moving = false
+		is_moving  = false
 		show_arrow = false
 		queue_redraw()
 		return
@@ -505,13 +624,14 @@ func _process_movement(delta: float) -> void:
 			_update_visibility_in_fog()
 		
 		if path.is_empty():
-			is_moving = false
+			is_moving  = false
 			show_arrow = false  # Cacher la flèche quand on arrive
 			queue_redraw()
 			DEBUG.log("Navire [%d] DESTINATION FINALE atteinte!" % id)
 	else:
 		global_position += direction.normalized() * vitesse * delta
 #endregion process
+
 
 #region UI
 func hide_all_ships_stats():
@@ -599,7 +719,6 @@ func _update_visibility_in_fog() -> void:
 # =========================
 # DRAW
 # =========================
-
 func _draw():
 	var cam_zoom = _get_camera_zoom()
 	var scale_factor = sqrt(1.0 / cam_zoom)
@@ -610,9 +729,9 @@ func _draw():
 	if not show_arrow or not is_selected:
 		return
 	var local_target = target_position - global_position
-	drawable.arrow(local_target,scale_factor)
-
+	drawable.arrow(local_target, scale_factor)
 #endregion UI
+
 
 #region peche
 func _get_fish_manager() -> FishManager:

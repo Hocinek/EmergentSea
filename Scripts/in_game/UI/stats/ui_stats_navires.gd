@@ -52,6 +52,15 @@ func handler():
 		stats_timer = stats_duration
 		show_ally()
 
+func handler_ally_persistent():
+	if isVisible():
+		hide_all_stats()
+		DEBUG.log("Navire [%d] — Stats CACHÉES" % navire.id)
+	else:
+		stats_timer = stats_duration
+		show_ally_persistent()
+		DEBUG.log("Navire [%d] — Stats AFFICHÉES (persistant)" % navire.id)
+
 func isVisible() -> bool:
 	return stats_visible
 

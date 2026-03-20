@@ -248,14 +248,7 @@ func toggle_stats() -> void:
 	"""Bascule les stats depuis le menu hex. stats_visible géré UNIQUEMENT ici."""
 	if not stats_panel:
 		return
-	if stats_visible:
-		stats_visible = false
-		stats_panel.hide_all_stats()
-		DEBUG.log("Navire [%d] — Stats CACHÉES" % id)
-	else:
-		stats_visible = true
-		stats_panel.show_ally_persistent()
-		DEBUG.log("Navire [%d] — Stats AFFICHÉES (persistant)" % id)
+	stats_panel.handler_ally_persistent()
 #endregion gestion selection
 
 
@@ -471,7 +464,8 @@ func _unhandled_input(event: InputEvent) -> void:
 	# Toggle stats
 	if Input.is_action_just_pressed("input_toggle_stats"):
 		if is_selected:
-			emit_signal("sig_show_stats")
+			stats_panel.handler_ally_persistent()
+			#emit_signal("sig_show_stats")
 
 	# Pêche
 	if event.is_action_pressed("input_fish"):

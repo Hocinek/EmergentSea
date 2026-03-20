@@ -45,7 +45,6 @@ grow_vertical = 0
 script = ExtResource("6_rj005")
 
 [node name="AITurnLabel" type="Label" parent="CanvasLayer" groups=["ai_turn_label"]]
-visible = false
 offset_right = 40.0
 offset_bottom = 23.0
 text = "Tour de l'IA..."

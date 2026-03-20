@@ -33,7 +33,7 @@ const color_txt_enemy : Color = Color(1, 0.5, 0.5)
 func _init(port : Ports) -> void:
 	self.port = port
 	port.add_child(self)
-	port.sig_show_stats.connect(handler)
+	port.sig_show_port.connect(handler)
 	
 	build_ui()
 

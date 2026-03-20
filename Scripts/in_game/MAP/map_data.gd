@@ -20,6 +20,7 @@ static var TileEarth: Texture2D = preload("res://Assets/textures/tiles/TileEarth
 static var TileForest: Texture2D = preload("res://Assets/textures/tiles/TileForest.png")
 static var TileMountain: Texture2D = preload("res://Assets/textures/tiles/TileMountain.png")
 static var TilePort: Texture2D = preload("res://Assets/textures/tiles/TilePort.png")
+static var TileMissing : Texture2D = preload("res://Assets/textures/tiles/TileMissing.png")
 
 
 # =========================

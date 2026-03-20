@@ -1,5 +1,5 @@
 class_name MapManager
-extends Node
+extends Node2D
 
 
 # Permettra de signaler la fin de la génération de la map
@@ -48,31 +48,48 @@ func spawn_tile_object(cell: HexCell):
 	
 	s.centered = true
 	# On récupère le type depuis la cellule, plus besoin de Map_data.tiles[y][x]
-	match cell.terrain_type:
-		"deepwater": s.texture = Map_data.TileDeepWater
-		"water": s.texture = Map_data.TileWater
-		"sand": s.texture = Map_data.TileSand
-		"earth": s.texture = Map_data.TileEarth
-		"forest": s.texture = Map_data.TileForest
-		"mountain": s.texture = Map_data.TileMountain
-		"port": 
-			#cell.set_script(load("res://Scripts/in_game/ports/port.gd"))
-			# Vérifier si TilePort existe dans Map_data
-			if "TilePort" in Map_data:
-				s.texture = Map_data.TilePort
-			else:
-				# Fallback: utiliser une texture de sable si TilePort n'existe pas
-				s.texture = Map_data.TileSand
-				DEBUG.log("TilePort non trouvé, utilisation de TileSand",DEBUG.WARNING)
+	s.texture = cell.getTileTexture()
+	if(s.texture == Map_data.TileMissing):
+		DEBUG.log("Texture manquante pour le terrain '%s'" % cell.getTypeTerrain(),DEBUG.WARNING)
+	
 	var scale_x = Map_data.hex_width / s.texture.get_width()
 	var scale_y = Map_data.hex_height / s.texture.get_height()
 	s.scale = Vector2(scale_x, scale_y)
 
 	# Utilisation des coordonnées offset stockées dans la cellule
-	s.position = Map_utils.hex_to_pixel_iso(cell.offset_coords.x, cell.offset_coords.y)
-	#print(cell.offset_coords)
-	
-	# Optionnel : Stocker une référence du sprite dans la cellule pour y accéder plus tard
-	# cell.visual_node = s 
+	var offset_coords = cell.getTabCoordinates()
+	var pixel_pos = Map_utils.hex_to_pixel_iso(offset_coords.x, offset_coords.y)
+	s.position = pixel_pos
 	
 	add_child(s)
+	
+	if cell.getTypeTerrain() == "port":
+		var port_node = Node2D.new()
+		port_node.set_script(load("res://Scripts/in_game/ports/port.gd"))
+		
+		# NOTE : Idéalement, tu devrais charger une Scène complète (.tscn) plutôt qu'un script vide :
+		# var port_node = preload("res://Chemin/Vers/PortScene.tscn").instantiate()
+		
+		port_node.position = pixel_pos
+		add_child(port_node)
+		
+		cell.port_instance = port_node
+
+func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		var mouse_pos = get_global_mouse_position()
+		
+		var clicked_cell = grid.get_cell_from_world(mouse_pos)
+		
+		if clicked_cell != null:
+			# Si c'est un port et qu'il y a bien une instance de port attachée
+			if clicked_cell.getTypeTerrain() == "port" and clicked_cell.port_instance != null:
+				var le_port = clicked_cell.port_instance
+				DEBUG.log("Port cliqué !")
+				
+				# Logique de sélection (assure-toi que les méthodes existent dans port.gd)
+				if le_port.player_owner and le_port.player_owner.is_human:
+					le_port.set_selected(true)
+					le_port.port_clicked.emit(le_port)
+					
+				get_viewport().set_input_as_handled()

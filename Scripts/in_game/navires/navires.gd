@@ -514,6 +514,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	if not is_selected:
 		return
 
+# Echap → annuler le mode actif
 	if event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE:
 		if current_input_mode != InputMode.NONE:
 			set_input_mode(InputMode.NONE)

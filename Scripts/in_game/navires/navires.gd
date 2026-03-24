@@ -495,6 +495,7 @@ func _unhandled_input(event: InputEvent) -> void:
 				get_viewport().set_input_as_handled()
 				return
 
+# Sur le navire → ouvrir le menu hexagonal
 			if distance <= interaction_radius:
 				var canvas_xform := get_canvas_transform()
 				var screen_pos: Vector2 = canvas_xform * global_position

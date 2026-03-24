@@ -503,6 +503,7 @@ func _unhandled_input(event: InputEvent) -> void:
 				get_viewport().set_input_as_handled()
 				return
 
+# En dehors → tir direct (clic droit hors menu)
 			var target_case: Vector2i = Map_utils.monde_vers_case(mouse_pos)
 			attempt_shoot(target_case)
 			get_viewport().set_input_as_handled()

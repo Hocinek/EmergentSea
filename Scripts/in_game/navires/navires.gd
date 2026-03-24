@@ -408,6 +408,9 @@ func _unhandled_input(event: InputEvent) -> void:
 		var distance: float    = global_position.distance_to(mouse_pos)
 
 		if event.button_index == MOUSE_BUTTON_LEFT:
+# MODE ACTIF 
+			# Seulement le navire sélectionné exécute l'action ET absorbe le clic.
+			# Les navires non-sélectionnés ignorent complètement ce bloc.
 			if is_selected and current_input_mode != InputMode.NONE:
 				match current_input_mode:
 					InputMode.MOVE:

@@ -664,6 +664,7 @@ func _process_movement(delta: float) -> void:
 		else:
 			DEBUG.log("player_owner est NULL !")
 
+# Actualiser le fog si c'est un navire du joueur humain et qu'il a changé de case
 		if old_case != case_actuelle and player_owner and player_owner.is_human:
 			DEBUG.log("✓ CONDITIONS OK - Appel de _update_fog_of_war()")
 			_update_fog_of_war()

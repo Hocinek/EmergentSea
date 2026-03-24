@@ -361,6 +361,7 @@ func die() -> void:
 # Masquer le feedback de pêche
 	if fish_feedback_label and is_instance_valid(fish_feedback_label):
 		fish_feedback_label.hide()
+# Notifier le propriétaire
 	if player_owner != null and player_owner.has_method("remove_navire"):
 		player_owner.remove_navire(self)
 	DEBUG.log("Navire [%d] détruit" % id)

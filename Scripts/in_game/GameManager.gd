@@ -80,6 +80,7 @@ func _setup_fog_of_war():
 # Vérifier si le fog existe déjà dans la scène
 	fog_of_war = get_tree().get_first_node_in_group("fog_of_war")
 	fog_manager = get_tree().get_first_node_in_group("fog_manager")
+# Si pas trouvé, créer dynamiquement
 	if not fog_of_war:
 		DEBUG.log("[GAMEMANAGER] Création dynamique de FogOfWar...")
 		fog_of_war = FogOfWar.new()

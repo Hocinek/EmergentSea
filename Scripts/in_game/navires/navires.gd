@@ -747,6 +747,7 @@ func _update_fog_of_war() -> void:
 # =========================
 func _update_visibility_in_fog() -> void:
 	"""Met à jour la visibilité de ce navire basée sur le fog of war"""
+# Les navires du joueur humain sont toujours visibles
 	if player_owner and player_owner.is_human:
 		is_visible_to_human = true
 		visible = true

@@ -457,6 +457,7 @@ func _unhandled_input(event: InputEvent) -> void:
 							return
 						break
 
+# Sélection normale du navire
 			if distance <= interaction_radius:
 				emit_signal("ship_clicked", self)
 				get_viewport().set_input_as_handled()

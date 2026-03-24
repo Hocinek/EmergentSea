@@ -546,6 +546,7 @@ func attempt_shoot(target_case: Vector2i) -> void:
 	if target_ships.is_empty():
 		DEBUG.log("Aucune cible sur cette case!")
 		return
+# Tirer sur tous les navires ennemis présents
 	var hit_count = 0
 	for target_ship in target_ships:
 		if target_ship.is_enemy_of(self):

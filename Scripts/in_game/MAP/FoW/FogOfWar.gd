@@ -138,8 +138,8 @@ func draw_fog_tile(pos: Vector2i, opacity: float, tint: Color):
 	var local_pos = world_pos - global_position
 	
 	# Calculer l'échelle pour couvrir la case
-	var scale_x = Map_data.hex_width / fog_texture.get_width()
-	var scale_y = Map_data.hex_height / fog_texture.get_height()
+	var scale_x : int = Map_data.hex_width / fog_texture.get_width()
+	var scale_y : int = Map_data.hex_height / fog_texture.get_height()
 	var scale_factor = Vector2(scale_x * 1.1, scale_y * 1.1)  # 10% plus grand
 	
 	# Dessiner la texture avec la couleur et l'opacité
@@ -360,9 +360,9 @@ func get_fog_stats() -> Dictionary:
 		"explored": explored,
 		"visible": visible,
 		"total": total,
-		"unexplored_percent": (unexplored * 100.0 / total) if total > 0 else 0,
-		"explored_percent": (explored * 100.0 / total) if total > 0 else 0,
-		"visible_percent": (visible * 100.0 / total) if total > 0 else 0
+		"unexplored_percent": (unexplored * 100.0 / total) if total > 0 else 0.,
+		"explored_percent": (explored * 100.0 / total) if total > 0 else 0.,
+		"visible_percent": (visible * 100.0 / total) if total > 0 else 0.
 	}
 
 func print_fog_stats():

@@ -1,7 +1,7 @@
 class_name UI_stats_port
 extends Node
 
-var port: Ports
+var _port: Ports
 var ui_layer: CanvasLayer
 
 var stats_visible := false
@@ -31,7 +31,7 @@ const color_txt_enemy : Color = Color(1, 0.5, 0.5)
 
 
 func _init(port : Ports) -> void:
-	self.port = port
+	self._port = port
 	port.add_child(self)
 	port.sig_show_port.connect(handler)
 	
@@ -159,7 +159,7 @@ func create_labels(names: Array) -> Dictionary:
 func create_vbox_title(vbox:VBoxContainer,color:Color):
 	var title_label := Label.new()
 	title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	var owner_name = port.player_owner.player_name if port.player_owner else "???"
+	var owner_name = self._port.player_owner.player_name if self._port.player_owner else "???"
 	var text = ""
 	if(color == color_txt_enemy):
 		text += "☠️ "
@@ -196,7 +196,7 @@ func show_stats():
 	stats_timer = stats_duration
 	
 	# Déterminer si ce port est allié ou ennemi
-	var is_ally = (port.player_owner and port.player_owner.is_human)
+	var is_ally = (self._port.player_owner and self._port.player_owner.is_human)
 	
 	if is_ally:
 		# Afficher dans le panneau allié (droite)
@@ -230,5 +230,5 @@ func update_stats(label_list:Dictionary):
 	"""Met à jour l'affichage des stats"""	
 	if label_list:
 		if(label_list.has("Nom du Port")):
-			label_list["Nom du Port"].text = "%d" [port.Nom_Port]
+			label_list["Nom du Port"].text = "%d" [self._port.Nom_Port]
 #endregion updates

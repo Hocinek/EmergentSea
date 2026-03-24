@@ -74,6 +74,7 @@ func _ready():
 	_try_get_players_manager()
 
 #region fonctions d'initialisation
+## Créé et configure le système de fog of war
 func _setup_fog_of_war():
 	DEBUG.log("[GAMEMANAGER] Setup Fog of War...")
 	fog_of_war = get_tree().get_first_node_in_group("fog_of_war")

@@ -77,6 +77,7 @@ func _ready():
 ## Créé et configure le système de fog of war
 func _setup_fog_of_war():
 	DEBUG.log("[GAMEMANAGER] Setup Fog of War...")
+# Vérifier si le fog existe déjà dans la scène
 	fog_of_war = get_tree().get_first_node_in_group("fog_of_war")
 	fog_manager = get_tree().get_first_node_in_group("fog_manager")
 	if not fog_of_war:

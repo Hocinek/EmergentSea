@@ -508,6 +508,9 @@ func _unhandled_input(event: InputEvent) -> void:
 			attempt_shoot(target_case)
 			get_viewport().set_input_as_handled()
 
+# ══════════════════════════════════════════════════════════════════
+	# CLAVIER
+	# ══════════════════════════════════════════════════════════════════
 	if not is_selected:
 		return
 

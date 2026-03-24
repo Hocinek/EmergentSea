@@ -676,7 +676,7 @@ func _process_movement(delta: float) -> void:
 				DEBUG.log("    Raison: pas de player_owner")
 			if player_owner and not player_owner.is_human:
 				DEBUG.log("    Raison: player_owner n'est pas humain")
-
+# Mise à jour de la visibilité pour navires ennemis
 		if player_owner and not player_owner.is_human:
 			_update_visibility_in_fog()
 

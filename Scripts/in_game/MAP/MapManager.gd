@@ -4,6 +4,8 @@ extends Node2D
 
 # Permettra de signaler la fin de la génération de la map
 signal map_generated
+## Permet de signaler qu'une case a été cliquée
+signal cell_clicked(cell: HexCell)
 
 @export var map_gen : Map_gen
 @export var map_utils : Map_utils
@@ -64,13 +66,9 @@ func spawn_tile_object(cell: HexCell):
 	add_child(s)
 	
 	if cell.getTypeTerrain() == "port":
-		var port_node = Node2D.new()
-		port_node.set_script(load("res://Scripts/in_game/ports/port.gd"))
-		
-		# NOTE : Idéalement, tu devrais charger une Scène complète (.tscn) plutôt qu'un script vide :
-		# var port_node = preload("res://Chemin/Vers/PortScene.tscn").instantiate()
-		
+		var port_node = Map_data.port_scene.instantiate()
 		port_node.position = pixel_pos
+		port_node.setCell(cell)
 		add_child(port_node)
 		
 		cell.port_instance = port_node
@@ -82,14 +80,9 @@ func _unhandled_input(event: InputEvent) -> void:
 		var clicked_cell = grid.get_cell_from_world(mouse_pos)
 		
 		if clicked_cell != null:
+			emit_signal("cell_clicked", clicked_cell)
+			var terrain = clicked_cell.getTypeTerrain()
 			# Si c'est un port et qu'il y a bien une instance de port attachée
-			if clicked_cell.getTypeTerrain() == "port" and clicked_cell.port_instance != null:
-				var le_port = clicked_cell.port_instance
-				DEBUG.log("Port cliqué !")
-				
-				# Logique de sélection (assure-toi que les méthodes existent dans port.gd)
-				if le_port.player_owner and le_port.player_owner.is_human:
-					le_port.set_selected(true)
-					le_port.port_clicked.emit(le_port)
-					
+			if terrain == "port" and clicked_cell.port_instance != null:
+				clicked_cell.port_instance.on_clicked()
 				get_viewport().set_input_as_handled()

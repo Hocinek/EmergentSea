@@ -23,6 +23,8 @@ static var TilePort: Texture2D = preload("res://Assets/textures/tiles/TilePort.p
 static var TileMissing : Texture2D = preload("res://Assets/textures/tiles/TileMissing.png")
 
 
+static var port_scene = preload("res://Scenes/in_game/ENTITIES/Port.tscn")
+
 # =========================
 # Map parameters
 # =========================

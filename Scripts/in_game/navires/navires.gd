@@ -358,6 +358,7 @@ func die() -> void:
 		set_selected(false)
 # Masquer TOUS les panneaux de stats
 	stats_panel.hide_all_stats()
+# Masquer le feedback de pêche
 	if fish_feedback_label and is_instance_valid(fish_feedback_label):
 		fish_feedback_label.hide()
 	if player_owner != null and player_owner.has_method("remove_navire"):

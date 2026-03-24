@@ -350,6 +350,7 @@ func take_damage(damage: int) -> void:
 func die() -> void:
 	"""Gère la mort du navire"""
 	DEBUG.log("Navire [%d] en train de mourir..." % id)
+# IMPORTANT : Émettre le signal AVANT toute modification
 	emit_signal("ship_destroyed", self)
 	emit_signal("sig_navire_died", self)
 	if is_selected:

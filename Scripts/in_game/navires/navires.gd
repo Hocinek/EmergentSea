@@ -446,6 +446,10 @@ func _unhandled_input(event: InputEvent) -> void:
 						get_viewport().set_input_as_handled()
 						return
 
+# ── PAS DE MODE ACTIF ─────────────────────────────────────
+			# Si un navire allié a un mode actif, ignorer le clic pour éviter
+			# un changement de sélection accidentel. Mais seul le navire
+			# NON-sélectionné vérifie ça — le sélectionné a déjà return ci-dessus.
 			if not is_selected:
 				for _s in get_tree().get_nodes_in_group("ships"):
 					if _s is Navires and _s.player_owner == player_owner and _s.is_selected:

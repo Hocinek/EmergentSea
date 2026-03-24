@@ -67,6 +67,7 @@ func _ready():
 # Créer le système de fog of war
 	_setup_fog_of_war()
 	_setup_fish_manager()
+# Créer le HexContextMenu 
 	_setup_hex_menu()
 	_setup_case_info_ui()
 # Récupérer le PlayersManager

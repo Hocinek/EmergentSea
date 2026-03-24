@@ -118,6 +118,7 @@ func _try_get_players_manager() -> void:
 	return
 
 
+## Créé le menu contextuel hexagonal sur un CanvasLayer dédié
 func _setup_hex_menu() -> void:
 	var canvas := CanvasLayer.new()
 	canvas.layer = 10

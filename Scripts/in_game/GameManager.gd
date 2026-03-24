@@ -69,6 +69,7 @@ func _ready():
 	_setup_fish_manager()
 	_setup_hex_menu()
 	_setup_case_info_ui()
+# Récupérer le PlayersManager
 	_try_get_players_manager()
 
 #region fonctions d'initialisation

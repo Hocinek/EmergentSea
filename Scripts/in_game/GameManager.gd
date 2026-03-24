@@ -422,6 +422,7 @@ func get_player_by_id(player_id: int) -> Player:
 	return null
 
 
+## Ouvre le menu contextuel pour le navire donné
 func _on_open_hex_menu(navire: Navires, screen_pos: Vector2) -> void:
 	if hex_menu:
 		hex_menu.show_for(navire, screen_pos)

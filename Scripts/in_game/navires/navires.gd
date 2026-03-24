@@ -534,6 +534,7 @@ func _unhandled_input(event: InputEvent) -> void:
 #region gestion combat
 func attempt_shoot(target_case: Vector2i) -> void:
 	"""Tente de tirer sur une case cible"""
+# Vérifications de base
 	if energie < 20:
 		DEBUG.log("Pas assez d'énergie pour tirer!")
 		return

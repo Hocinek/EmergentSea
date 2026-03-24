@@ -208,6 +208,7 @@ func _on_map_generated():
 
 
 #region gestion des navires
+## Faire apparaître un bateau sur la carte
 func spawn_navire(player: Player, position: Vector2, is_player_controlled: bool = false) -> Navires:
 	if player == null:
 		DEBUG.log("Impossible de créer un navire sans joueur propriétaire !", DEBUG.ERROR)

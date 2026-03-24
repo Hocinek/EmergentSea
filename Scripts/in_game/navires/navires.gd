@@ -485,6 +485,7 @@ func _unhandled_input(event: InputEvent) -> void:
 
 		elif event.button_index == MOUSE_BUTTON_RIGHT:
 
+# Seul le navire sélectionné traite le clic droit
 			if not is_selected:
 				return
 

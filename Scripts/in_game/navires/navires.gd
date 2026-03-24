@@ -752,6 +752,7 @@ func _update_visibility_in_fog() -> void:
 		is_visible_to_human = true
 		visible = true
 		return
+# Pour les navires ennemis, vérifier s'ils sont dans le fog
 	if not fog_of_war_ref or not fog_of_war_ref.has_method("is_tile_visible"):
 		is_visible_to_human = true
 		visible = true

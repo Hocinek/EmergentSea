@@ -535,6 +535,7 @@ func attempt_shoot(target_case: Vector2i) -> void:
 	if not is_in_range(target_case):
 		DEBUG.log("Cible hors de portée!")
 		return
+# Récupérer les navires sur la case cible
 	var target_ships = get_ships_at_position(target_case)
 	if target_ships.is_empty():
 		DEBUG.log("Aucune cible sur cette case!")

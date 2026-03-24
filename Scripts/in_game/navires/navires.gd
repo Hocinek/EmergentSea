@@ -463,6 +463,7 @@ func _unhandled_input(event: InputEvent) -> void:
 				get_viewport().set_input_as_handled()
 				return
 
+# Comportement original : déplacement libre (clic gauche sans mode)
 			if is_selected and energie > 0 and not is_moving and not is_fishing:
 				var clicked_ship := get_ship_at_position(mouse_pos)
 				if clicked_ship:

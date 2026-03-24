@@ -360,9 +360,9 @@ func get_fog_stats() -> Dictionary:
 		"explored": explored,
 		"visible": visible,
 		"total": total,
-		"unexplored_percent": (unexplored * 100.0 / total) if total > 0 else 0,
-		"explored_percent": (explored * 100.0 / total) if total > 0 else 0,
-		"visible_percent": (visible * 100.0 / total) if total > 0 else 0
+		"unexplored_percent": (unexplored * 100.0 / total) if total > 0 else 0.,
+		"explored_percent": (explored * 100.0 / total) if total > 0 else 0.,
+		"visible_percent": (visible * 100.0 / total) if total > 0 else 0.
 	}
 
 func print_fog_stats():

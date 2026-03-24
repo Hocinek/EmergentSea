@@ -130,7 +130,7 @@ var _pirate_ship_3d: Node3D = null
 @export var hull_offset: Vector2 = Vector2.ZERO
 
 # =========================
-# CAMÉRA
+# CAMÉRA 2D
 # =========================
 @onready var camera: Camera2D = get_node_or_null("Camera2D")
 
@@ -211,6 +211,10 @@ func _setup_node3d_instance() -> void:
 	if _visual_node:
 		_visual_node.position = hull_offset
 		DEBUG.log("Navire [%d] - hull_offset appliqué : %s" % [id, hull_offset])
+
+
+func _resolve_visual_node() -> void:
+	pass
 
 
 func _get_visual_rotation() -> float:
@@ -394,10 +398,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		var distance: float    = global_position.distance_to(mouse_pos)
 
 		if event.button_index == MOUSE_BUTTON_LEFT:
-
 			if is_selected and current_input_mode != InputMode.NONE:
 				match current_input_mode:
-
 					InputMode.MOVE:
 						var clicked_ship := get_ship_at_position(mouse_pos)
 						if not clicked_ship:
@@ -417,14 +419,12 @@ func _unhandled_input(event: InputEvent) -> void:
 						set_input_mode(InputMode.NONE)
 						get_viewport().set_input_as_handled()
 						return
-
 					InputMode.ATTACK:
 						var target_case: Vector2i = Map_utils.monde_vers_case(mouse_pos)
 						attempt_shoot(target_case)
 						set_input_mode(InputMode.NONE)
 						get_viewport().set_input_as_handled()
 						return
-
 					InputMode.INSPECT:
 						var target_case: Vector2i = Map_utils.monde_vers_case(mouse_pos)
 						emit_signal("sig_inspect_case", target_case)
@@ -800,7 +800,6 @@ func _update_fishing(delta: float) -> void:
 func try_start_fishing() -> void:
 	if is_moving or is_fishing:
 		return
-
 	if energie < fish_energy_cost:
 		DEBUG.log("Navire [%d] - Pas assez d'énergie pour pêcher" % id)
 		return
@@ -828,7 +827,6 @@ func try_start_fishing() -> void:
 	is_fishing = true
 	fish_timer = fish_duration
 	energie = max(energie - fish_energy_cost, 0)
-
 	stats_panel.show_ally()
 	DEBUG.log("Navire [%d] - Début de pêche sur case %s" % [id, case_actuelle])
 

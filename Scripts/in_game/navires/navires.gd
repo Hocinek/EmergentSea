@@ -489,6 +489,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			if not is_selected:
 				return
 
+# Annuler un mode en cours
 			if current_input_mode != InputMode.NONE:
 				set_input_mode(InputMode.NONE)
 				get_viewport().set_input_as_handled()

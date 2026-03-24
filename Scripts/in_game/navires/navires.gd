@@ -353,6 +353,7 @@ func die() -> void:
 # IMPORTANT : Émettre le signal AVANT toute modification
 	emit_signal("ship_destroyed", self)
 	emit_signal("sig_navire_died", self)
+# Désélectionner visuellement le navire
 	if is_selected:
 		set_selected(false)
 	stats_panel.hide_all_stats()

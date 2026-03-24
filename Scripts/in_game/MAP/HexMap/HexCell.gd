@@ -39,6 +39,7 @@ func getTileTexture() -> Texture2D :
 		"forest": tile_name = "TileForest"
 		"mountain": tile_name = "TileMountain"
 		"port": tile_name = "TilePort"
+		"fish": tile_name = "TileFish" 
 	var m_data = Map_data.new()
 	var texture =  m_data.get(tile_name)
 	if(texture == null):

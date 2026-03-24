@@ -54,14 +54,8 @@ func spawn_tile_object(cell: HexCell):
 	var s := Sprite2D.new()
 	
 	s.centered = true
-	# On récupère le type depuis la cellule, plus besoin de Map_data.tiles[y][x]
-#"fish":
-#			if "TileFish" in Map_data:
-#				s.texture = Map_data.TileFish
-#			else:
-#				s.texture = Map_data.TileWater
-#				DEBUG.log("TileFish non trouvé, utilisation de TileWater", DEBUG.WARNING)
-  s.texture = cell.getTileTexture()
+	# On récupère le type de terrain depuis la cellule
+	s.texture = cell.getTileTexture()
 	if(s.texture == Map_data.TileMissing):
 		DEBUG.log("Texture manquante pour le terrain '%s'" % cell.getTypeTerrain(),DEBUG.WARNING)
 	

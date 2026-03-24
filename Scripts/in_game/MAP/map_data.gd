@@ -9,6 +9,14 @@ static var TILE_HEIGHT : int = 128
 static var tiles := []
 static var ocean_cases: Array = []	#liste des cases navigables
 static var ports := []  # liste des positions des ports (Vector2i)
+static var fish_cases: Array = []   # liste des cases de pêche (Vector2i)
+
+# =========================
+# RESSOURCES DE PÊCHE
+# Dictionnaire {Vector2i: int} — nombre de poissons par case de pêche
+# Rempli par le MapGenerator lors de la génération
+# =========================
+static var fish_counts: Dictionary = {}
 
 # =========================
 # Textures
@@ -20,6 +28,7 @@ static var TileEarth: Texture2D = preload("res://Assets/textures/tiles/TileEarth
 static var TileForest: Texture2D = preload("res://Assets/textures/tiles/TileForest.png")
 static var TileMountain: Texture2D = preload("res://Assets/textures/tiles/TileMountain.png")
 static var TilePort: Texture2D = preload("res://Assets/textures/tiles/TilePort.png")
+static var TileFish: Texture2D = preload("res://Assets/textures/tiles/TileFish.png")
 static var TileMissing : Texture2D = preload("res://Assets/textures/tiles/TileMissing.png")
 
 

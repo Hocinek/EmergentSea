@@ -145,7 +145,7 @@ func _ready():
 
 	case_actuelle = Map_utils.monde_vers_case(global_position)
 
-	# Résoudre le nœud visuel (Sprite2D)
+	# Résoudre le nœud visuel (Sprite2D) et configurer la rotation 3D
 	_setup_node3d_instance()
 
 	# Configuration de la caméra pour le navire contrôlé par le joueur
@@ -256,6 +256,7 @@ func _init_stats_ui():
 	if not ui_layer:
 		DEBUG.log("ui_layer est null, impossible de créer l'UI des stats!", DEBUG.ERROR)
 		return
+# On vérifie si le panel existe déjà avant d'en créer un nouveau
 	if stats_panel == null:
 		stats_panel = UI_stats_navire.new(self)
 	if fish_feedback_label == null:
@@ -312,6 +313,7 @@ func set_selected(selected: bool) -> void:
 	"""Définit si ce navire est sélectionné"""
 	is_selected = selected
 	queue_redraw()
+# Activer/désactiver la caméra selon la sélection
 	if selected and player_owner and player_owner.is_human:
 		_setup_camera()
 		if stats_panel:
@@ -348,13 +350,18 @@ func take_damage(damage: int) -> void:
 func die() -> void:
 	"""Gère la mort du navire"""
 	DEBUG.log("Navire [%d] en train de mourir..." % id)
+# IMPORTANT : Émettre le signal AVANT toute modification
 	emit_signal("ship_destroyed", self)
 	emit_signal("sig_navire_died", self)
+# Désélectionner visuellement le navire
 	if is_selected:
 		set_selected(false)
+# Masquer TOUS les panneaux de stats
 	stats_panel.hide_all_stats()
+# Masquer le feedback de pêche
 	if fish_feedback_label and is_instance_valid(fish_feedback_label):
 		fish_feedback_label.hide()
+# Notifier le propriétaire
 	if player_owner != null and player_owner.has_method("remove_navire"):
 		player_owner.remove_navire(self)
 	DEBUG.log("Navire [%d] détruit" % id)
@@ -393,11 +400,17 @@ func _unhandled_input(event: InputEvent) -> void:
 	if turn_manager and not turn_manager.can_navire_act(self):
 		return
 
+# ══════════════════════════════════════════════════════════════════
+	# CLICS SOURIS
+	# ══════════════════════════════════════════════════════════════════
 	if event is InputEventMouseButton and event.pressed:
 		var mouse_pos: Vector2 = get_global_mouse_position()
 		var distance: float    = global_position.distance_to(mouse_pos)
 
 		if event.button_index == MOUSE_BUTTON_LEFT:
+# MODE ACTIF 
+			# Seulement le navire sélectionné exécute l'action ET absorbe le clic.
+			# Les navires non-sélectionnés ignorent complètement ce bloc.
 			if is_selected and current_input_mode != InputMode.NONE:
 				match current_input_mode:
 					InputMode.MOVE:
@@ -433,6 +446,10 @@ func _unhandled_input(event: InputEvent) -> void:
 						get_viewport().set_input_as_handled()
 						return
 
+# ── PAS DE MODE ACTIF ─────────────────────────────────────
+			# Si un navire allié a un mode actif, ignorer le clic pour éviter
+			# un changement de sélection accidentel. Mais seul le navire
+			# NON-sélectionné vérifie ça — le sélectionné a déjà return ci-dessus.
 			if not is_selected:
 				for _s in get_tree().get_nodes_in_group("ships"):
 					if _s is Navires and _s.player_owner == player_owner and _s.is_selected:
@@ -440,11 +457,13 @@ func _unhandled_input(event: InputEvent) -> void:
 							return
 						break
 
+# Sélection normale du navire
 			if distance <= interaction_radius:
 				emit_signal("ship_clicked", self)
 				get_viewport().set_input_as_handled()
 				return
 
+# Comportement original : déplacement libre (clic gauche sans mode)
 			if is_selected and energie > 0 and not is_moving and not is_fishing:
 				var clicked_ship := get_ship_at_position(mouse_pos)
 				if clicked_ship:
@@ -465,25 +484,37 @@ func _unhandled_input(event: InputEvent) -> void:
 					DEBUG.log("Case cible NON navigable !")
 
 		elif event.button_index == MOUSE_BUTTON_RIGHT:
+
+# Seul le navire sélectionné traite le clic droit
 			if not is_selected:
 				return
+
+# Annuler un mode en cours
 			if current_input_mode != InputMode.NONE:
 				set_input_mode(InputMode.NONE)
 				get_viewport().set_input_as_handled()
 				return
+
+# Sur le navire → ouvrir le menu hexagonal
 			if distance <= interaction_radius:
 				var canvas_xform := get_canvas_transform()
 				var screen_pos: Vector2 = canvas_xform * global_position
 				emit_signal("sig_open_hex_menu", self, screen_pos)
 				get_viewport().set_input_as_handled()
 				return
+
+# En dehors → tir direct (clic droit hors menu)
 			var target_case: Vector2i = Map_utils.monde_vers_case(mouse_pos)
 			attempt_shoot(target_case)
 			get_viewport().set_input_as_handled()
 
+# ══════════════════════════════════════════════════════════════════
+	# CLAVIER
+	# ══════════════════════════════════════════════════════════════════
 	if not is_selected:
 		return
 
+# Echap → annuler le mode actif
 	if event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE:
 		if current_input_mode != InputMode.NONE:
 			set_input_mode(InputMode.NONE)
@@ -503,16 +534,19 @@ func _unhandled_input(event: InputEvent) -> void:
 #region gestion combat
 func attempt_shoot(target_case: Vector2i) -> void:
 	"""Tente de tirer sur une case cible"""
+# Vérifications de base
 	if energie < 20:
 		DEBUG.log("Pas assez d'énergie pour tirer!")
 		return
 	if not is_in_range(target_case):
 		DEBUG.log("Cible hors de portée!")
 		return
+# Récupérer les navires sur la case cible
 	var target_ships = get_ships_at_position(target_case)
 	if target_ships.is_empty():
 		DEBUG.log("Aucune cible sur cette case!")
 		return
+# Tirer sur tous les navires ennemis présents
 	var hit_count = 0
 	for target_ship in target_ships:
 		if target_ship.is_enemy_of(self):
@@ -531,6 +565,7 @@ func shoot_at(target: Navires) -> void:
 		return
 	DEBUG.log("Tir sur navire [%d]" % target.id)
 	target.take_damage(dgt_tir)
+	# Effets visuels / son (à implémenter)
 #endregion gestion combat
 
 
@@ -660,6 +695,7 @@ func _process_movement(delta: float) -> void:
 		else:
 			DEBUG.log("player_owner est NULL !")
 
+# Actualiser le fog si c'est un navire du joueur humain et qu'il a changé de case
 		if old_case != case_actuelle and player_owner and player_owner.is_human:
 			DEBUG.log("✓ CONDITIONS OK - Appel de _update_fog_of_war()")
 			_update_fog_of_war()
@@ -671,7 +707,7 @@ func _process_movement(delta: float) -> void:
 				DEBUG.log("    Raison: pas de player_owner")
 			if player_owner and not player_owner.is_human:
 				DEBUG.log("    Raison: player_owner n'est pas humain")
-
+# Mise à jour de la visibilité pour navires ennemis
 		if player_owner and not player_owner.is_human:
 			_update_visibility_in_fog()
 
@@ -742,10 +778,12 @@ func _update_fog_of_war() -> void:
 # =========================
 func _update_visibility_in_fog() -> void:
 	"""Met à jour la visibilité de ce navire basée sur le fog of war"""
+# Les navires du joueur humain sont toujours visibles
 	if player_owner and player_owner.is_human:
 		is_visible_to_human = true
 		visible = true
 		return
+# Pour les navires ennemis, vérifier s'ils sont dans le fog
 	if not fog_of_war_ref or not fog_of_war_ref.has_method("is_tile_visible"):
 		is_visible_to_human = true
 		visible = true
@@ -765,6 +803,7 @@ func _draw():
 	if is_selected and player_owner and player_owner.is_human:
 		drawable.selection_circle(scale_factor)
 
+# Flèche de déplacement (seulement pour le navire sélectionné)
 	if not show_arrow or not is_selected:
 		return
 	var local_target = target_position - global_position
@@ -773,6 +812,19 @@ func _draw():
 
 
 #region peche
+func _get_fish_manager() -> FishManager:
+	"""Cherche le FishManager : d'abord par groupe, puis comme enfant du MapManager."""
+	var fm = get_tree().get_first_node_in_group("fish_manager")
+	if fm:
+		return fm
+	# Fallback : enfant du MapManager
+	var map_manager = get_tree().get_first_node_in_group("Map_manager")
+	if map_manager:
+		for child in map_manager.get_children():
+			if child is FishManager:
+				return child
+	return null
+
 func _update_fishing(delta: float) -> void:
 	if not is_fishing:
 		return
@@ -784,23 +836,53 @@ func try_start_fishing() -> void:
 	if is_moving or is_fishing:
 		return
 	if energie < fish_energy_cost:
+		DEBUG.log("Navire [%d] - Pas assez d'énergie pour pêcher" % id)
 		return
-	if not Map_utils.is_on_water(global_position):
+
+	var fish_manager: FishManager = _get_fish_manager()
+	if not fish_manager:
+		DEBUG.log("Navire [%d] - FishManager introuvable !" % id, DEBUG.ERROR)
 		return
+
+	if not fish_manager.is_fish_tile(case_actuelle):
+		DEBUG.log("Navire [%d] - Cette case n'est pas une zone de pêche" % id)
+		DEBUG.log("  → case_actuelle = %s" % str(case_actuelle))
+		DEBUG.log("  → Map_data.tiles[%d][%d] = '%s'" % [case_actuelle.y, case_actuelle.x, Map_data.tiles[case_actuelle.y][case_actuelle.x]])
+		DEBUG.log("  → Map_data.fish_cases (%d cases) = %s" % [Map_data.fish_cases.size(), str(Map_data.fish_cases)])
+		DEBUG.log("  → fish_manager.fish_stocks keys (%d) = %s" % [fish_manager.fish_stocks.size(), str(fish_manager.fish_stocks.keys())])
+		return
+
+	if not fish_manager.can_fish_at(case_actuelle):
+		DEBUG.log("Navire [%d] - Cette zone de pêche est épuisée !" % id)
+		if fish_feedback_label:
+			fish_feedback_label.finished_fishing(0)
+		return
+
 	sig_show_fishing.emit()
 	is_fishing = true
 	fish_timer = fish_duration
 	energie = max(energie - fish_energy_cost, 0)
 	stats_panel.show_ally()
+	DEBUG.log("Navire [%d] - Début de pêche sur case %s" % [id, case_actuelle])
 
 func finish_fishing() -> void:
 	is_fishing = false
-	var gain := randi_range(fish_yield_min, fish_yield_max)
+
+	var fish_manager: FishManager = _get_fish_manager()
+	if not fish_manager:
+		return
+
+	var wanted := randi_range(fish_yield_min, fish_yield_max)
 	if nrbequipage >= 6:
-		gain += 1
+		wanted += 1
+
+	var gain := fish_manager.harvest_fish(case_actuelle, wanted)
+
 	nourriture += gain
+
 	if fish_feedback_label:
 		fish_feedback_label.finished_fishing(gain)
 		sig_show_stats.emit()
-		DEBUG.log("fishing finished")
+
+	DEBUG.log("Navire [%d] - Pêche terminée : +%d poissons (case %s)" % [id, gain, case_actuelle])
 #endregion peche

@@ -356,6 +356,7 @@ func die() -> void:
 # Désélectionner visuellement le navire
 	if is_selected:
 		set_selected(false)
+# Masquer TOUS les panneaux de stats
 	stats_panel.hide_all_stats()
 	if fish_feedback_label and is_instance_valid(fish_feedback_label):
 		fish_feedback_label.hide()

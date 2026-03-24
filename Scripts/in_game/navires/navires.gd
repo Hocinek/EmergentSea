@@ -256,6 +256,7 @@ func _init_stats_ui():
 	if not ui_layer:
 		DEBUG.log("ui_layer est null, impossible de créer l'UI des stats!", DEBUG.ERROR)
 		return
+# On vérifie si le panel existe déjà avant d'en créer un nouveau
 	if stats_panel == null:
 		stats_panel = UI_stats_navire.new(self)
 	if fish_feedback_label == null:

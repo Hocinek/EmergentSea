@@ -400,6 +400,9 @@ func _unhandled_input(event: InputEvent) -> void:
 	if turn_manager and not turn_manager.can_navire_act(self):
 		return
 
+# ══════════════════════════════════════════════════════════════════
+	# CLICS SOURIS
+	# ══════════════════════════════════════════════════════════════════
 	if event is InputEventMouseButton and event.pressed:
 		var mouse_pos: Vector2 = get_global_mouse_position()
 		var distance: float    = global_position.distance_to(mouse_pos)

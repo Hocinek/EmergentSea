@@ -39,6 +39,7 @@ var turn_manager: TurnManager = null
 var case_info_ui: UI_case_info = null
 
 
+# Ce qui sera dans cette fonction sera exécuté en premier (avant que le reste soit prêt)
 func _enter_tree():
 	add_to_group("game_manager")
 	

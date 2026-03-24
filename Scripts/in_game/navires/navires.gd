@@ -772,6 +772,7 @@ func _draw():
 	if is_selected and player_owner and player_owner.is_human:
 		drawable.selection_circle(scale_factor)
 
+# Flèche de déplacement (seulement pour le navire sélectionné)
 	if not show_arrow or not is_selected:
 		return
 	var local_target = target_position - global_position

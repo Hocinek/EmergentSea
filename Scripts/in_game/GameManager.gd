@@ -57,6 +57,7 @@ func _enter_tree():
 
 
 func _ready():
+# Attendre un frame pour que tout soit bien initialisé
 	await get_tree().process_frame
 	
 	turn_manager = get_tree().get_first_node_in_group("turn_manager")

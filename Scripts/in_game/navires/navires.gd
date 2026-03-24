@@ -565,6 +565,7 @@ func shoot_at(target: Navires) -> void:
 		return
 	DEBUG.log("Tir sur navire [%d]" % target.id)
 	target.take_damage(dgt_tir)
+	# Effets visuels / son (à implémenter)
 #endregion gestion combat
 
 

@@ -64,6 +64,7 @@ func _ready():
 	if not turn_manager:
 		DEBUG.log("TurnManager introuvable !",DEBUG.ERROR)
 	
+# Créer le système de fog of war
 	_setup_fog_of_war()
 	_setup_fish_manager()
 	_setup_hex_menu()

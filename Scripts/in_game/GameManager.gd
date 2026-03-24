@@ -49,6 +49,7 @@ func _enter_tree():
 	if not map_manager:
 		DEBUG.log("Aucune carte trouvée dans le groupe 'Map_manager' !",DEBUG.ERROR)
 		return
+# Connecter le signal de génération de map
 	map_manager.map_generated.connect(_on_map_generated)
 	
 	if not data:

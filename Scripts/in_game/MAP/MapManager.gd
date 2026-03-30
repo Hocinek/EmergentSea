@@ -1,14 +1,17 @@
 class_name MapManager
-extends Node
+extends Node2D
 
 
 # Permettra de signaler la fin de la génération de la map
 signal map_generated
+## Permet de signaler qu'une case a été cliquée
+signal cell_clicked(cell: HexCell)
 
 @export var map_gen : Map_gen
 @export var map_utils : Map_utils
 
 var grid : HexGrid
+var fish_manager : FishManager
 
 func _enter_tree():
 	add_to_group("Map_manager")
@@ -18,6 +21,9 @@ func _enter_tree():
 	map_gen = Map_gen.new()
 	map_utils = Map_utils.new()
 	add_child(map_gen)
+	# Instancier le FishManager ici pour qu'il soit disponible dès la scène
+	fish_manager = FishManager.new()
+	add_child(fish_manager)
 	
 func _ready():
 	await get_tree().process_frame
@@ -27,10 +33,11 @@ func _ready():
 		grid.generate_hex_grid_rectangular()
 		grid.import_from_map_data()
 		render_map_from_grid()
-		#grid.spawn_all_tiles(self)
-		#render_map()
 		DEBUG.log("Rendu de la map effectué")
-		#permet de signaler au moteur que la map est générée
+		# Initialiser les stocks de pêche MAINTENANT que fish_cases est rempli
+		fish_manager.initialize_fish_tiles()
+		DEBUG.log("FishManager initialisé (%d cases)" % Map_data.fish_cases.size())
+		# Signaler que la map est générée
 		await get_tree().process_frame
 		emit_signal("map_generated")
 	pass
@@ -47,32 +54,40 @@ func spawn_tile_object(cell: HexCell):
 	var s := Sprite2D.new()
 	
 	s.centered = true
-	# On récupère le type depuis la cellule, plus besoin de Map_data.tiles[y][x]
-	match cell.terrain_type:
-		"deepwater": s.texture = Map_data.TileDeepWater
-		"water": s.texture = Map_data.TileWater
-		"sand": s.texture = Map_data.TileSand
-		"earth": s.texture = Map_data.TileEarth
-		"forest": s.texture = Map_data.TileForest
-		"mountain": s.texture = Map_data.TileMountain
-		"port": 
-			#cell.set_script(load("res://Scripts/in_game/ports/port.gd"))
-			# Vérifier si TilePort existe dans Map_data
-			if "TilePort" in Map_data:
-				s.texture = Map_data.TilePort
-			else:
-				# Fallback: utiliser une texture de sable si TilePort n'existe pas
-				s.texture = Map_data.TileSand
-				DEBUG.log("TilePort non trouvé, utilisation de TileSand",DEBUG.WARNING)
+	# On récupère le type de terrain depuis la cellule
+	s.texture = cell.getTileTexture()
+	if(s.texture == Map_data.TileMissing):
+		DEBUG.log("Texture manquante pour le terrain '%s'" % cell.getTypeTerrain(),DEBUG.WARNING)
+	
 	var scale_x = Map_data.hex_width / s.texture.get_width()
 	var scale_y = Map_data.hex_height / s.texture.get_height()
 	s.scale = Vector2(scale_x, scale_y)
 
 	# Utilisation des coordonnées offset stockées dans la cellule
-	s.position = Map_utils.hex_to_pixel_iso(cell.offset_coords.x, cell.offset_coords.y)
-	#print(cell.offset_coords)
-	
-	# Optionnel : Stocker une référence du sprite dans la cellule pour y accéder plus tard
-	# cell.visual_node = s 
+	var offset_coords = cell.getTabCoordinates()
+	var pixel_pos = Map_utils.hex_to_pixel_iso(offset_coords.x, offset_coords.y)
+	s.position = pixel_pos
 	
 	add_child(s)
+	
+	if cell.getTypeTerrain() == "port":
+		var port_node = Map_data.port_scene.instantiate()
+		port_node.position = pixel_pos
+		port_node.setCell(cell)
+		add_child(port_node)
+		
+		cell.port_instance = port_node
+
+func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		var mouse_pos = get_global_mouse_position()
+		
+		var clicked_cell = grid.get_cell_from_world(mouse_pos)
+		
+		if clicked_cell != null:
+			emit_signal("cell_clicked", clicked_cell)
+			var terrain = clicked_cell.getTypeTerrain()
+			# Si c'est un port et qu'il y a bien une instance de port attachée
+			if terrain == "port" and clicked_cell.port_instance != null:
+				clicked_cell.port_instance.on_clicked()
+				get_viewport().set_input_as_handled()

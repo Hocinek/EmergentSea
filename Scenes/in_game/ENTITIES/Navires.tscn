@@ -1,7 +1,7 @@
 [gd_scene load_steps=5 format=3 uid="uid://cfhs5uyx5g4go"]
 
 [ext_resource type="Script" uid="uid://dhuetiveiynws" path="res://Scripts/in_game/navires/navires.gd" id="1_32h2o"]
-[ext_resource type="PackedScene" uid="uid://cl2n4rsqsb6wa" path="res://Assets/navire/pirateShip.glb" id="2_32h2o"]
+[ext_resource type="PackedScene" uid="uid://dr4w82yq6lojk" path="res://Assets/navire/pirateShip.glb" id="2_32h2o"]
 
 [sub_resource type="ViewportTexture" id="ViewportTexture_p8r5l"]
 viewport_path = NodePath("Sprite2D/SubViewport")
@@ -21,13 +21,17 @@ transparent_bg = true
 [node name="Node3D" type="Node3D" parent="Sprite2D/SubViewport"]
 
 [node name="Camera3D" type="Camera3D" parent="Sprite2D/SubViewport/Node3D"]
-transform = Transform3D(-1, 4.502606e-08, -7.493595e-08, 0, 0.8571673, 0.5150381, 8.742278e-08, 0.5150381, -0.8571673, 0, 17.684, -30)
+physics_interpolation_mode = 1
+auto_translate_mode = 1
+transform = Transform3D(-1, 7.776859e-08, -1.2942867e-07, 0, 0.8571673, 0.5150381, 1.509958e-07, 0.5150381, -0.8571673, 0, 17.684, -30)
 environment = SubResource("Environment_p8r5l")
 current = true
 near = 0.1
 far = 100.0
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="Sprite2D/SubViewport/Node3D"]
-transform = Transform3D(0.7660531, -0.07691644, -0.63815874, 0.064989164, -0.97845876, 0.1959461, -0.6394835, -0.1915785, -0.7445526, -34.27262, 26.425621, -45.2335)
+transform = Transform3D(0.76605314, -0.07691644, -0.6381586, 0.06498913, -0.97845876, 0.1959461, -0.6394834, -0.1915785, -0.7445527, -34.27262, 26.425621, -45.2335)
+light_energy = 3.0
+light_angular_distance = 1.0
 
 [node name="pirateShip" parent="Sprite2D/SubViewport/Node3D" instance=ExtResource("2_32h2o")]

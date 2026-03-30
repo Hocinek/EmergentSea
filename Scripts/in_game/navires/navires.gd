@@ -372,6 +372,10 @@ func _unhandled_input(event: InputEvent) -> void:
 					DEBUG.log("Case cible NON navigable !")
 
 		elif event.button_index == MOUSE_BUTTON_RIGHT:
+<<<<<<< HEAD
+=======
+
+>>>>>>> cfd3dbd077e5602e940731bbc4f4b078e7e0e766
 			# Seul le navire sélectionné traite le clic droit
 			if not is_selected:
 				return
@@ -543,6 +547,16 @@ func _process_movement(delta: float) -> void:
 		energie = max(energie - 1, 0)
 		DEBUG.log("Navire [%d] → %s (%d cases restantes)" % [id, case_actuelle, path.size()])
 
+<<<<<<< HEAD
+=======
+		DEBUG.log("Navire [%d] arrivé à %s - Cases restantes: %d" % [id, case_actuelle, path.size()])
+		DEBUG.log("old_case: %s, case_actuelle: %s, changé: %s" % [old_case, case_actuelle, old_case != case_actuelle])
+		if player_owner:
+			DEBUG.log("player_owner existe: %s, is_human: %s" % [player_owner.player_name, player_owner.is_human])
+		else:
+			DEBUG.log("player_owner est NULL !")
+
+>>>>>>> cfd3dbd077e5602e940731bbc4f4b078e7e0e766
 		# Actualiser le fog si c'est un navire du joueur humain et qu'il a changé de case
 		if old_case != case_actuelle and player_owner and player_owner.is_human:
 			_update_fog_of_war()

@@ -45,7 +45,7 @@ var case_info_ui: UI_case_info = null
 
 # Ce qui sera dans cette fonction sera exécuté en premier (avant que le reste soit prêt)
 func _enter_tree():
-	add_to_group("game_manager")
+	add_to_group("game_manager") # Important pour que les navires puissent trouver le GameManager
 	
 	map_manager = get_tree().get_first_node_in_group("Map_manager")
 	data = get_tree().get_first_node_in_group("shared_entities")
@@ -53,7 +53,7 @@ func _enter_tree():
 	if not map_manager:
 		DEBUG.log("Aucune carte trouvée dans le groupe 'Map_manager' !",DEBUG.ERROR)
 		return
-# Connecter le signal de génération de map
+	# Connecter le signal de génération de map
 	map_manager.map_generated.connect(_on_map_generated)
 	
 	if not data:
@@ -61,30 +61,30 @@ func _enter_tree():
 
 
 func _ready():
-# Attendre un frame pour que tout soit bien initialisé
+	# Attendre un frame pour que tout soit bien initialisé
 	await get_tree().process_frame
 	
 	turn_manager = get_tree().get_first_node_in_group("turn_manager")
 	if not turn_manager:
 		DEBUG.log("TurnManager introuvable !",DEBUG.ERROR)
 	
-# Créer le système de fog of war
+	# Créer le système de fog of war
 	_setup_fog_of_war()
 	_setup_fish_manager()
-# Créer le HexContextMenu 
+	# Créer le HexContextMenu 
 	_setup_hex_menu()
 	_setup_case_info_ui()
-# Récupérer le PlayersManager
+	# Récupérer le PlayersManager
 	_try_get_players_manager()
 
 #region fonctions d'initialisation
 ## Créé et configure le système de fog of war
 func _setup_fog_of_war():
 	DEBUG.log("[GAMEMANAGER] Setup Fog of War...")
-# Vérifier si le fog existe déjà dans la scène
+	# Vérifier si le fog existe déjà dans la scène
 	fog_of_war = get_tree().get_first_node_in_group("fog_of_war")
 	fog_manager = get_tree().get_first_node_in_group("fog_manager")
-# Si pas trouvé, créer dynamiquement
+	# Si pas trouvé, créer dynamiquement
 	if not fog_of_war:
 		DEBUG.log("[GAMEMANAGER] Création dynamique de FogOfWar...")
 		fog_of_war = FogOfWar.new()

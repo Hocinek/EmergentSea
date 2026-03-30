@@ -256,7 +256,7 @@ func _init_stats_ui():
 	if not ui_layer:
 		DEBUG.log("ui_layer est null, impossible de créer l'UI des stats!", DEBUG.ERROR)
 		return
-# On vérifie si le panel existe déjà avant d'en créer un nouveau
+	# On vérifie si le panel existe déjà avant d'en créer un nouveau
 	if stats_panel == null:
 		stats_panel = UI_stats_navire.new(self)
 	if fish_feedback_label == null:
@@ -313,7 +313,7 @@ func set_selected(selected: bool) -> void:
 	"""Définit si ce navire est sélectionné"""
 	is_selected = selected
 	queue_redraw()
-# Activer/désactiver la caméra selon la sélection
+	# Activer/désactiver la caméra selon la sélection
 	if selected and player_owner and player_owner.is_human:
 		_setup_camera()
 		if stats_panel:
@@ -350,18 +350,18 @@ func take_damage(damage: int) -> void:
 func die() -> void:
 	"""Gère la mort du navire"""
 	DEBUG.log("Navire [%d] en train de mourir..." % id)
-# IMPORTANT : Émettre le signal AVANT toute modification
+	# IMPORTANT : Émettre le signal AVANT toute modification
 	emit_signal("ship_destroyed", self)
 	emit_signal("sig_navire_died", self)
-# Désélectionner visuellement le navire
+	# Désélectionner visuellement le navire
 	if is_selected:
 		set_selected(false)
-# Masquer TOUS les panneaux de stats
+	# Masquer TOUS les panneaux de stats
 	stats_panel.hide_all_stats()
-# Masquer le feedback de pêche
+	# Masquer le feedback de pêche
 	if fish_feedback_label and is_instance_valid(fish_feedback_label):
 		fish_feedback_label.hide()
-# Notifier le propriétaire
+	# Notifier le propriétaire
 	if player_owner != null and player_owner.has_method("remove_navire"):
 		player_owner.remove_navire(self)
 	DEBUG.log("Navire [%d] détruit" % id)
@@ -400,7 +400,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	if turn_manager and not turn_manager.can_navire_act(self):
 		return
 
-# ══════════════════════════════════════════════════════════════════
+	# ══════════════════════════════════════════════════════════════════
 	# CLICS SOURIS
 	# ══════════════════════════════════════════════════════════════════
 	if event is InputEventMouseButton and event.pressed:
@@ -408,7 +408,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		var distance: float    = global_position.distance_to(mouse_pos)
 
 		if event.button_index == MOUSE_BUTTON_LEFT:
-# MODE ACTIF 
+			# MODE ACTIF 
 			# Seulement le navire sélectionné exécute l'action ET absorbe le clic.
 			# Les navires non-sélectionnés ignorent complètement ce bloc.
 			if is_selected and current_input_mode != InputMode.NONE:
@@ -446,7 +446,7 @@ func _unhandled_input(event: InputEvent) -> void:
 						get_viewport().set_input_as_handled()
 						return
 
-# ── PAS DE MODE ACTIF ─────────────────────────────────────
+			# ── PAS DE MODE ACTIF ─────────────────────────────────────
 			# Si un navire allié a un mode actif, ignorer le clic pour éviter
 			# un changement de sélection accidentel. Mais seul le navire
 			# NON-sélectionné vérifie ça — le sélectionné a déjà return ci-dessus.
@@ -457,13 +457,13 @@ func _unhandled_input(event: InputEvent) -> void:
 							return
 						break
 
-# Sélection normale du navire
+			# Sélection normale du navire
 			if distance <= interaction_radius:
 				emit_signal("ship_clicked", self)
 				get_viewport().set_input_as_handled()
 				return
 
-# Comportement original : déplacement libre (clic gauche sans mode)
+			# Comportement original : déplacement libre (clic gauche sans mode)
 			if is_selected and energie > 0 and not is_moving and not is_fishing:
 				var clicked_ship := get_ship_at_position(mouse_pos)
 				if clicked_ship:
@@ -485,17 +485,17 @@ func _unhandled_input(event: InputEvent) -> void:
 
 		elif event.button_index == MOUSE_BUTTON_RIGHT:
 
-# Seul le navire sélectionné traite le clic droit
+			# Seul le navire sélectionné traite le clic droit
 			if not is_selected:
 				return
 
-# Annuler un mode en cours
+			# Annuler un mode en cours
 			if current_input_mode != InputMode.NONE:
 				set_input_mode(InputMode.NONE)
 				get_viewport().set_input_as_handled()
 				return
 
-# Sur le navire → ouvrir le menu hexagonal
+			# Sur le navire → ouvrir le menu hexagonal
 			if distance <= interaction_radius:
 				var canvas_xform := get_canvas_transform()
 				var screen_pos: Vector2 = canvas_xform * global_position
@@ -503,18 +503,18 @@ func _unhandled_input(event: InputEvent) -> void:
 				get_viewport().set_input_as_handled()
 				return
 
-# En dehors → tir direct (clic droit hors menu)
+			# En dehors → tir direct (clic droit hors menu)
 			var target_case: Vector2i = Map_utils.monde_vers_case(mouse_pos)
 			attempt_shoot(target_case)
 			get_viewport().set_input_as_handled()
 
-# ══════════════════════════════════════════════════════════════════
+	# ══════════════════════════════════════════════════════════════════
 	# CLAVIER
 	# ══════════════════════════════════════════════════════════════════
 	if not is_selected:
 		return
 
-# Echap → annuler le mode actif
+	# Echap → annuler le mode actif
 	if event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE:
 		if current_input_mode != InputMode.NONE:
 			set_input_mode(InputMode.NONE)
@@ -534,19 +534,19 @@ func _unhandled_input(event: InputEvent) -> void:
 #region gestion combat
 func attempt_shoot(target_case: Vector2i) -> void:
 	"""Tente de tirer sur une case cible"""
-# Vérifications de base
+	# Vérifications de base
 	if energie < 20:
 		DEBUG.log("Pas assez d'énergie pour tirer!")
 		return
 	if not is_in_range(target_case):
 		DEBUG.log("Cible hors de portée!")
 		return
-# Récupérer les navires sur la case cible
+	# Récupérer les navires sur la case cible
 	var target_ships = get_ships_at_position(target_case)
 	if target_ships.is_empty():
 		DEBUG.log("Aucune cible sur cette case!")
 		return
-# Tirer sur tous les navires ennemis présents
+	# Tirer sur tous les navires ennemis présents
 	var hit_count = 0
 	for target_ship in target_ships:
 		if target_ship.is_enemy_of(self):
@@ -695,7 +695,7 @@ func _process_movement(delta: float) -> void:
 		else:
 			DEBUG.log("player_owner est NULL !")
 
-# Actualiser le fog si c'est un navire du joueur humain et qu'il a changé de case
+		# Actualiser le fog si c'est un navire du joueur humain et qu'il a changé de case
 		if old_case != case_actuelle and player_owner and player_owner.is_human:
 			DEBUG.log("✓ CONDITIONS OK - Appel de _update_fog_of_war()")
 			_update_fog_of_war()
@@ -707,7 +707,7 @@ func _process_movement(delta: float) -> void:
 				DEBUG.log("    Raison: pas de player_owner")
 			if player_owner and not player_owner.is_human:
 				DEBUG.log("    Raison: player_owner n'est pas humain")
-# Mise à jour de la visibilité pour navires ennemis
+		# Mise à jour de la visibilité pour navires ennemis
 		if player_owner and not player_owner.is_human:
 			_update_visibility_in_fog()
 
@@ -778,12 +778,12 @@ func _update_fog_of_war() -> void:
 # =========================
 func _update_visibility_in_fog() -> void:
 	"""Met à jour la visibilité de ce navire basée sur le fog of war"""
-# Les navires du joueur humain sont toujours visibles
+	# Les navires du joueur humain sont toujours visibles
 	if player_owner and player_owner.is_human:
 		is_visible_to_human = true
 		visible = true
 		return
-# Pour les navires ennemis, vérifier s'ils sont dans le fog
+	# Pour les navires ennemis, vérifier s'ils sont dans le fog
 	if not fog_of_war_ref or not fog_of_war_ref.has_method("is_tile_visible"):
 		is_visible_to_human = true
 		visible = true
@@ -803,7 +803,7 @@ func _draw():
 	if is_selected and player_owner and player_owner.is_human:
 		drawable.selection_circle(scale_factor)
 
-# Flèche de déplacement (seulement pour le navire sélectionné)
+	# Flèche de déplacement (seulement pour le navire sélectionné)
 	if not show_arrow or not is_selected:
 		return
 	var local_target = target_position - global_position

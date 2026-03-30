@@ -11,8 +11,7 @@ var navire_scene := preload("res://Scenes/in_game/ENTITIES/Navires.tscn")
 
 @onready var map
 @onready var data
-@onready var map_manager
-var players_manager: PlayersManager = null
+
 
 # Références fog of war
 var fog_of_war: FogOfWar = null
@@ -33,14 +32,20 @@ signal ship_deselected()
 var selected_port: Ports = null
 signal port_selected(port: Ports)
 signal port_deselected()
+
+
+#gestion des différents gestionnaires du programme
 var turn_manager: TurnManager = null
+@onready var map_manager
+var players_manager: PlayersManager = null
 
 # UI d'inspection de case
 var case_info_ui: UI_case_info = null
 
 
+# Ce qui sera dans cette fonction sera exécuté en premier (avant que le reste soit prêt)
 func _enter_tree():
-	add_to_group("game_manager")
+	add_to_group("game_manager") # Important pour que les navires puissent trouver le GameManager
 	
 	map_manager = get_tree().get_first_node_in_group("Map_manager")
 	data = get_tree().get_first_node_in_group("shared_entities")
@@ -48,6 +53,7 @@ func _enter_tree():
 	if not map_manager:
 		DEBUG.log("Aucune carte trouvée dans le groupe 'Map_manager' !",DEBUG.ERROR)
 		return
+	# Connecter le signal de génération de map
 	map_manager.map_generated.connect(_on_map_generated)
 	
 	if not data:
@@ -55,23 +61,30 @@ func _enter_tree():
 
 
 func _ready():
+	# Attendre un frame pour que tout soit bien initialisé
 	await get_tree().process_frame
 	
 	turn_manager = get_tree().get_first_node_in_group("turn_manager")
 	if not turn_manager:
 		DEBUG.log("TurnManager introuvable !",DEBUG.ERROR)
 	
+	# Créer le système de fog of war
 	_setup_fog_of_war()
 	_setup_fish_manager()
+	# Créer le HexContextMenu 
 	_setup_hex_menu()
 	_setup_case_info_ui()
+	# Récupérer le PlayersManager
 	_try_get_players_manager()
 
 #region fonctions d'initialisation
+## Créé et configure le système de fog of war
 func _setup_fog_of_war():
 	DEBUG.log("[GAMEMANAGER] Setup Fog of War...")
+	# Vérifier si le fog existe déjà dans la scène
 	fog_of_war = get_tree().get_first_node_in_group("fog_of_war")
 	fog_manager = get_tree().get_first_node_in_group("fog_manager")
+	# Si pas trouvé, créer dynamiquement
 	if not fog_of_war:
 		DEBUG.log("[GAMEMANAGER] Création dynamique de FogOfWar...")
 		fog_of_war = FogOfWar.new()
@@ -109,6 +122,7 @@ func _try_get_players_manager() -> void:
 	return
 
 
+## Créé le menu contextuel hexagonal sur un CanvasLayer dédié
 func _setup_hex_menu() -> void:
 	var canvas := CanvasLayer.new()
 	canvas.layer = 10
@@ -198,6 +212,7 @@ func _on_map_generated():
 
 
 #region gestion des navires
+## Faire apparaître un bateau sur la carte
 func spawn_navire(player: Player, position: Vector2, is_player_controlled: bool = false) -> Navires:
 	if player == null:
 		DEBUG.log("Impossible de créer un navire sans joueur propriétaire !", DEBUG.ERROR)
@@ -411,6 +426,7 @@ func get_player_by_id(player_id: int) -> Player:
 	return null
 
 
+## Ouvre le menu contextuel pour le navire donné
 func _on_open_hex_menu(navire: Navires, screen_pos: Vector2) -> void:
 	if hex_menu:
 		hex_menu.show_for(navire, screen_pos)

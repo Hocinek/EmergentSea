@@ -195,9 +195,16 @@ func print_fog_stats():
 			FogState.EXPLORED: explored += 1
 			FogState.VISIBLE: visible += 1
 	var total = unexplored + explored + visible
-	DEBUG.log("[FOG] UNEXPLORED: %d | EXPLORED: %d | VISIBLE: %d | TOTAL: %d" % [
-		unexplored, explored, visible, total
-	])
+	
+	return {
+		"unexplored": unexplored,
+		"explored": explored,
+		"visible": visible,
+		"total": total,
+		"unexplored_percent": (unexplored * 100.0 / total) if total > 0 else 0.,
+		"explored_percent": (explored * 100.0 / total) if total > 0 else 0.,
+		"visible_percent": (visible * 100.0 / total) if total > 0 else 0.
+	}
 
 func _input(event):
 	if event is InputEventKey and event.pressed:

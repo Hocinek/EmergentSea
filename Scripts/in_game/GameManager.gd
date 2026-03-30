@@ -11,8 +11,7 @@ var navire_scene := preload("res://Scenes/in_game/ENTITIES/Navires.tscn")
 
 @onready var map
 @onready var data
-@onready var map_manager
-var players_manager: PlayersManager = null
+
 
 # Références fog of war
 var fog_of_war: FogOfWar = null
@@ -33,7 +32,12 @@ signal ship_deselected()
 var selected_port: Ports = null
 signal port_selected(port: Ports)
 signal port_deselected()
+
+
+#gestion des différents gestionnaires du programme
 var turn_manager: TurnManager = null
+@onready var map_manager
+var players_manager: PlayersManager = null
 
 # UI d'inspection de case
 var case_info_ui: UI_case_info = null

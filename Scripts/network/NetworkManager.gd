@@ -7,7 +7,7 @@ signal join_failed
 signal peer_joined(peer_id: int)
 signal peer_left(peer_id: int)
 
-const SERVER_IP := "38.180.153.43"
+const SERVER_IP := "TON_IP_ICI"
 const SERVER_PORT := 7777
 const MAX_PLAYERS := 4
 

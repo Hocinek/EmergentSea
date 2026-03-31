@@ -310,13 +310,14 @@ func is_enemy_of(other_navire: Navires) -> bool:
 
 
 #region gestion selection
-func set_selected(selected: bool) -> void:
+func set_selected(selected: bool, silent:bool = false) -> void:
 	"""Définit si ce navire est sélectionné"""
 	is_selected = selected
 	queue_redraw()
 	# Activer/désactiver la caméra selon la sélection
 	if selected and player_owner and player_owner.is_human:
-		_setup_camera()
+		if(!silent):
+			_setup_camera()
 		if stats_panel:
 			stats_panel.show_ally()
 	else:

@@ -276,53 +276,49 @@ func _select_ship_by_index(index: int) -> void:
 # GESTION DE LA SÉLECTION
 # ===============================
 #region gestion de la selection
-
-
+## Permet de connaître le bateau actuellement sélectionné
 func get_selected_ship() -> Navires:
 	return ship_manager.get_selected_ship()
 
-
+## Action : Si le bateau cliqué appartient au joueur courant, il est sélectionné
 func _on_ship_clicked(ship: Navires) -> void:
-	if ship.player_owner == player1:
-		ship_manager.select_ship(ship)
+	ship_manager._on_ship_clicked(ship)
 
-
+## Si le navire est détruit, cette méthode est appelée (sûrement par un signal)
 func _on_ship_destroyed(ship: Navires) -> void:
 	ship_manager.destroy_ship(ship)
 
 #endregion gestion de la selection
 
-
-# ===============================
-# FONCTIONS UTILITAIRES
-# ===============================
-
+#region utilitaires
+## Permet de récupérer un navire de joueur, de préférence du joueur actuel, mais c'est pas sûr, j'ai aps compris l'utilité de cette méthode
 func get_player_ship() -> Navires:
 	return ship_manager.get_player_ship()
 
-
+## Permet de récupérer la liste des bateaux ennemis
 func get_enemy_ships() -> Array[Navires]:
 	return ship_manager.get_enemy_ships()
 
-
+## Permet de récupérer tous les bateaux d'un joueur
 func get_player_ships(player: Player) -> Array[Navires]:
 	if player:
 		return player.get_navires()
 	return []
 
-
+## Permet de récupérer un objet joueur à partir de son id, renvoie null si aucun joueur ne peut être trouvé
 func get_player_by_id(player_id: int) -> Player:
 	if players_manager:
 		return players_manager.get_player_by_id(player_id)
 	return null
+#endregion utilitaires
 
-
+#region interface click
 ## Ouvre le menu contextuel pour le navire donné
 func _on_open_hex_menu(navire: Navires, screen_pos: Vector2) -> void:
 	if hex_menu:
 		hex_menu.show_for(navire, screen_pos)
 
-
+## Routeur d'action pour le menu contextuel hexagonal
 func _on_hex_menu_action(action: String, navire: Navires) -> void:
 	if not navire or not is_instance_valid(navire):
 		return
@@ -348,7 +344,7 @@ func _on_hex_menu_action(action: String, navire: Navires) -> void:
 # ===============================
 # INSPECTION DE CASE
 # ===============================
-
+## Action : lorsqu'une case est inspectée
 func _on_inspect_case(case_pos: Vector2i) -> void:
 	DEBUG.log("[GAMEMANAGER] Inspection de la case %s" % str(case_pos))
 
@@ -375,7 +371,7 @@ func _on_inspect_case(case_pos: Vector2i) -> void:
 	# Poissons
 	_inspect_fish_on_case(case_pos)
 
-
+## Action : lorsqu'une case de pêche est inspectée
 func _inspect_fish_on_case(case_pos: Vector2i) -> void:
 	if not case_info_ui or not fish_manager or not fog_of_war or not player1:
 		return
@@ -398,7 +394,7 @@ func _inspect_fish_on_case(case_pos: Vector2i) -> void:
 			str(case_pos), info["stock"], info["turn"]
 		])
 
-
+## Fonction de conversion de coordonnées
 func _world_to_screen(world_pos: Vector2) -> Vector2:
 	var viewport := get_viewport()
 	if not viewport:
@@ -407,3 +403,5 @@ func _world_to_screen(world_pos: Vector2) -> Vector2:
 	if not cam:
 		return world_pos
 	return viewport.get_canvas_transform() * world_pos
+
+#endregion interface click

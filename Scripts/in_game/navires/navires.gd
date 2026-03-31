@@ -37,6 +37,14 @@ var is_selected: bool = false
 var is_visible_to_human: bool = true  # true par défaut pour les navires du joueur
 var fog_of_war_ref: FogOfWar = null
 
+# =========================
+# MODÈLE 3D
+# =========================
+## Chemin vers le fichier .glb à charger pour ce navire.
+## Doit être défini AVANT add_child() pour que _setup_node3d_instance()
+## puisse charger le bon modèle dès le _ready().
+## Par défaut : pirateShip (grand navire joueur).
+@export var ship_model_path: String = "res://Assets/navire/pirateShip.glb"
 
 # =========================
 # STATS
@@ -146,6 +154,7 @@ func _ready():
 	case_actuelle = Map_utils.monde_vers_case(global_position)
 
 	# Résoudre le nœud visuel (Sprite2D) et configurer la rotation 3D
+	# ship_model_path a déjà été défini par GameManager avant add_child()
 	_setup_node3d_instance()
 
 	# Configuration de la caméra pour le navire contrôlé par le joueur
@@ -172,8 +181,8 @@ func _ready():
 	# Debug
 	var owner_name = player_owner.player_name if player_owner else "AUCUN"
 	var control_type = "CONTRÔLÉ" if is_player_controlled else "IA/ENNEMI"
-	DEBUG.log("Navire [%s] initialisé - Propriétaire: %s - Type: %s - Position: %s" % [
-		id, owner_name, control_type, case_actuelle
+	DEBUG.log("Navire [%s] initialisé - Propriétaire: %s - Type: %s - Position: %s - Modèle: %s" % [
+		id, owner_name, control_type, case_actuelle, ship_model_path
 	])
 
 
@@ -184,8 +193,10 @@ func _setup_node3d_instance() -> void:
 	1. own_world_3d = true sur le SubViewport → chaque navire a son propre
 	   monde 3D isolé, les rotations ne se partagent plus entre instances.
 
-	2. On récupère le pirateShip et on tourne uniquement son axe Y via
-	   Transform3D.basis — les axes X et Z restent intacts → pas de surrélevement.
+	2. On charge dynamiquement le modèle défini dans ship_model_path,
+	   ce qui permet d'avoir des modèles différents selon le joueur propriétaire.
+	   Le modèle est nommé "pirateShip" après instanciation pour que le reste
+	   du code (rotation, etc.) fonctionne de manière uniforme.
 
 	3. Le Sprite2D n'est jamais tourné → pas de problème de pivot 2D.
 	"""
@@ -195,14 +206,32 @@ func _setup_node3d_instance() -> void:
 		subviewport.own_world_3d = true
 		DEBUG.log("Navire [%d] - SubViewport.own_world_3d = true" % id)
 
-	# Récupérer le pirateShip — c'est lui qu'on tourne sur Y uniquement
-	var pirate = get_node_or_null("Sprite2D/SubViewport/Node3D/pirateShip")
-	if pirate and pirate is Node3D:
-		_pirate_ship_3d = pirate
-		target_rotation_angle = pirate.rotation.y
-		DEBUG.log("Navire [%d] - pirateShip ciblé (Transform3D, axe Y)" % id)
+	# Récupérer le Node3D parent qui contiendra notre modèle
+	var node3d = get_node_or_null("Sprite2D/SubViewport/Node3D")
+	if not node3d:
+		DEBUG.log("Navire [%d] - ERREUR : Node3D introuvable" % id)
+		return
+
+	# Supprimer le modèle par défaut présent dans la scène de base
+	# (free() immédiat : on est dans _ready avant que le modèle soit utilisé)
+	var existing = node3d.get_node_or_null("pirateShip")
+	if existing:
+		existing.free()
+		DEBUG.log("Navire [%d] - Modèle par défaut supprimé" % id)
+
+	# Charger et instancier le bon modèle selon ship_model_path
+	var model_scene: PackedScene = load(ship_model_path)
+	if model_scene:
+		var model_instance: Node3D = model_scene.instantiate()
+		# Nom uniforme "pirateShip" pour que toute la logique de rotation
+		# reste identique quel que soit le modèle chargé
+		model_instance.name = "pirateShip"
+		node3d.add_child(model_instance)
+		_pirate_ship_3d = model_instance
+		target_rotation_angle = model_instance.rotation.y
+		DEBUG.log("Navire [%d] - Modèle chargé avec succès : '%s'" % [id, ship_model_path])
 	else:
-		DEBUG.log("Navire [%d] - ERREUR : pirateShip introuvable" % id)
+		DEBUG.log("Navire [%d] - ERREUR : Impossible de charger le modèle '%s'" % [id, ship_model_path])
 
 	# Le Sprite2D reste en place — on ne le tourne pas.
 	# hull_offset décale le sprite pour que le centre VISUEL du bateau
@@ -256,11 +285,16 @@ func _init_stats_ui():
 	if not ui_layer:
 		DEBUG.log("ui_layer est null, impossible de créer l'UI des stats!", DEBUG.ERROR)
 		return
-# On vérifie si le panel existe déjà avant d'en créer un nouveau
+	# On vérifie si le panel existe déjà avant d'en créer un nouveau
 	if stats_panel == null:
 		stats_panel = UI_stats_navire.new(self)
+	# UI_fish_navires extends Control → new() sans argument obligatoire
+	# On l'ajoute au ui_layer (comme HexContextMenu) pour qu'il s'affiche par-dessus tout
 	if fish_feedback_label == null:
-		fish_feedback_label = UI_fish_navires.new(self)
+		fish_feedback_label = UI_fish_navires.new()
+		ui_layer.add_child(fish_feedback_label)
+		# Connecter le signal du navire à l'UI fish
+		sig_show_fishing.connect(func(): fish_feedback_label.on_show_fishing(self))
 	DEBUG.log("UI Stats créée pour navire [%d]" % id)
 #endregion initialisation
 
@@ -313,7 +347,7 @@ func set_selected(selected: bool) -> void:
 	"""Définit si ce navire est sélectionné"""
 	is_selected = selected
 	queue_redraw()
-# Activer/désactiver la caméra selon la sélection
+	# Activer/désactiver la caméra selon la sélection
 	if selected and player_owner and player_owner.is_human:
 		_setup_camera()
 		if stats_panel:
@@ -350,18 +384,18 @@ func take_damage(damage: int) -> void:
 func die() -> void:
 	"""Gère la mort du navire"""
 	DEBUG.log("Navire [%d] en train de mourir..." % id)
-# IMPORTANT : Émettre le signal AVANT toute modification
+	# IMPORTANT : Émettre le signal AVANT toute modification
 	emit_signal("ship_destroyed", self)
 	emit_signal("sig_navire_died", self)
-# Désélectionner visuellement le navire
+	# Désélectionner visuellement le navire
 	if is_selected:
 		set_selected(false)
-# Masquer TOUS les panneaux de stats
+	# Masquer TOUS les panneaux de stats
 	stats_panel.hide_all_stats()
-# Masquer le feedback de pêche
+	# Masquer le feedback de pêche — close() au lieu de hide() car UI_fish_navires est un Control
 	if fish_feedback_label and is_instance_valid(fish_feedback_label):
-		fish_feedback_label.hide()
-# Notifier le propriétaire
+		fish_feedback_label.close()
+	# Notifier le propriétaire
 	if player_owner != null and player_owner.has_method("remove_navire"):
 		player_owner.remove_navire(self)
 	DEBUG.log("Navire [%d] détruit" % id)
@@ -408,7 +442,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		var distance: float    = global_position.distance_to(mouse_pos)
 
 		if event.button_index == MOUSE_BUTTON_LEFT:
-# MODE ACTIF 
+			# MODE ACTIF
 			# Seulement le navire sélectionné exécute l'action ET absorbe le clic.
 			# Les navires non-sélectionnés ignorent complètement ce bloc.
 			if is_selected and current_input_mode != InputMode.NONE:
@@ -446,7 +480,7 @@ func _unhandled_input(event: InputEvent) -> void:
 						get_viewport().set_input_as_handled()
 						return
 
-# ── PAS DE MODE ACTIF ─────────────────────────────────────
+			# ── PAS DE MODE ACTIF ─────────────────────────────────────
 			# Si un navire allié a un mode actif, ignorer le clic pour éviter
 			# un changement de sélection accidentel. Mais seul le navire
 			# NON-sélectionné vérifie ça — le sélectionné a déjà return ci-dessus.
@@ -457,13 +491,13 @@ func _unhandled_input(event: InputEvent) -> void:
 							return
 						break
 
-# Sélection normale du navire
+			# Sélection normale du navire
 			if distance <= interaction_radius:
 				emit_signal("ship_clicked", self)
 				get_viewport().set_input_as_handled()
 				return
 
-# Comportement original : déplacement libre (clic gauche sans mode)
+			# Comportement original : déplacement libre (clic gauche sans mode)
 			if is_selected and energie > 0 and not is_moving and not is_fishing:
 				var clicked_ship := get_ship_at_position(mouse_pos)
 				if clicked_ship:
@@ -485,17 +519,17 @@ func _unhandled_input(event: InputEvent) -> void:
 
 		elif event.button_index == MOUSE_BUTTON_RIGHT:
 
-# Seul le navire sélectionné traite le clic droit
+			# Seul le navire sélectionné traite le clic droit
 			if not is_selected:
 				return
 
-# Annuler un mode en cours
+			# Annuler un mode en cours
 			if current_input_mode != InputMode.NONE:
 				set_input_mode(InputMode.NONE)
 				get_viewport().set_input_as_handled()
 				return
 
-# Sur le navire → ouvrir le menu hexagonal
+			# Sur le navire → ouvrir le menu hexagonal
 			if distance <= interaction_radius:
 				var canvas_xform := get_canvas_transform()
 				var screen_pos: Vector2 = canvas_xform * global_position
@@ -503,7 +537,7 @@ func _unhandled_input(event: InputEvent) -> void:
 				get_viewport().set_input_as_handled()
 				return
 
-# En dehors → tir direct (clic droit hors menu)
+			# En dehors → tir direct (clic droit hors menu)
 			var target_case: Vector2i = Map_utils.monde_vers_case(mouse_pos)
 			attempt_shoot(target_case)
 			get_viewport().set_input_as_handled()
@@ -514,7 +548,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	if not is_selected:
 		return
 
-# Echap → annuler le mode actif
+	# Echap → annuler le mode actif
 	if event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE:
 		if current_input_mode != InputMode.NONE:
 			set_input_mode(InputMode.NONE)
@@ -534,19 +568,19 @@ func _unhandled_input(event: InputEvent) -> void:
 #region gestion combat
 func attempt_shoot(target_case: Vector2i) -> void:
 	"""Tente de tirer sur une case cible"""
-# Vérifications de base
+	# Vérifications de base
 	if energie < 20:
 		DEBUG.log("Pas assez d'énergie pour tirer!")
 		return
 	if not is_in_range(target_case):
 		DEBUG.log("Cible hors de portée!")
 		return
-# Récupérer les navires sur la case cible
+	# Récupérer les navires sur la case cible
 	var target_ships = get_ships_at_position(target_case)
 	if target_ships.is_empty():
 		DEBUG.log("Aucune cible sur cette case!")
 		return
-# Tirer sur tous les navires ennemis présents
+	# Tirer sur tous les navires ennemis présents
 	var hit_count = 0
 	for target_ship in target_ships:
 		if target_ship.is_enemy_of(self):
@@ -695,7 +729,7 @@ func _process_movement(delta: float) -> void:
 		else:
 			DEBUG.log("player_owner est NULL !")
 
-# Actualiser le fog si c'est un navire du joueur humain et qu'il a changé de case
+		# Actualiser le fog si c'est un navire du joueur humain et qu'il a changé de case
 		if old_case != case_actuelle and player_owner and player_owner.is_human:
 			DEBUG.log("✓ CONDITIONS OK - Appel de _update_fog_of_war()")
 			_update_fog_of_war()
@@ -707,7 +741,7 @@ func _process_movement(delta: float) -> void:
 				DEBUG.log("    Raison: pas de player_owner")
 			if player_owner and not player_owner.is_human:
 				DEBUG.log("    Raison: player_owner n'est pas humain")
-# Mise à jour de la visibilité pour navires ennemis
+		# Mise à jour de la visibilité pour navires ennemis
 		if player_owner and not player_owner.is_human:
 			_update_visibility_in_fog()
 
@@ -778,12 +812,12 @@ func _update_fog_of_war() -> void:
 # =========================
 func _update_visibility_in_fog() -> void:
 	"""Met à jour la visibilité de ce navire basée sur le fog of war"""
-# Les navires du joueur humain sont toujours visibles
+	# Les navires du joueur humain sont toujours visibles
 	if player_owner and player_owner.is_human:
 		is_visible_to_human = true
 		visible = true
 		return
-# Pour les navires ennemis, vérifier s'ils sont dans le fog
+	# Pour les navires ennemis, vérifier s'ils sont dans le fog
 	if not fog_of_war_ref or not fog_of_war_ref.has_method("is_tile_visible"):
 		is_visible_to_human = true
 		visible = true
@@ -803,7 +837,7 @@ func _draw():
 	if is_selected and player_owner and player_owner.is_human:
 		drawable.selection_circle(scale_factor)
 
-# Flèche de déplacement (seulement pour le navire sélectionné)
+	# Flèche de déplacement (seulement pour le navire sélectionné)
 	if not show_arrow or not is_selected:
 		return
 	var local_target = target_position - global_position
@@ -855,7 +889,8 @@ func try_start_fishing() -> void:
 	if not fish_manager.can_fish_at(case_actuelle):
 		DEBUG.log("Navire [%d] - Cette zone de pêche est épuisée !" % id)
 		if fish_feedback_label:
-			fish_feedback_label.finished_fishing(0)
+			# Zone épuisée : on affiche "+0 🐟" pour signaler l'échec
+			fish_feedback_label.finished_fishing(self, 0)
 		return
 
 	sig_show_fishing.emit()
@@ -881,7 +916,8 @@ func finish_fishing() -> void:
 	nourriture += gain
 
 	if fish_feedback_label:
-		fish_feedback_label.finished_fishing(gain)
+		# Passer self en premier argument — UI_fish_navires.finished_fishing(navire, gain)
+		fish_feedback_label.finished_fishing(self, gain)
 		sig_show_stats.emit()
 
 	DEBUG.log("Navire [%d] - Pêche terminée : +%d poissons (case %s)" % [id, gain, case_actuelle])

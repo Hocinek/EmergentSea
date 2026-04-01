@@ -6,22 +6,20 @@ signal join_succeeded
 signal join_failed
 signal peer_joined(peer_id: int)
 signal peer_left(peer_id: int)
+signal player_count_updated(count: int)
 
-const SERVER_IP := "TON_IP_ICI"
-const SERVER_PORT := 7777
+const SERVER_IP := ""
+const SERVER_PORT := 
 const MAX_PLAYERS := 4
 
 var peer: ENetMultiplayerPeer = null
 var local_peer_id: int = -1
 var local_player_id: int = -1
-
 var _peer_to_player_id: Dictionary = {}
 var _next_player_id: int = 1
 
-
 func _enter_tree() -> void:
 	add_to_group("network_manager")
-
 
 func _ready() -> void:
 	multiplayer.connected_to_server.connect(_on_connected_to_server)
@@ -29,17 +27,22 @@ func _ready() -> void:
 	multiplayer.peer_connected.connect(_on_peer_connected)
 	multiplayer.peer_disconnected.connect(_on_peer_disconnected)
 
-
 func join_dedicated_server() -> void:
 	peer = ENetMultiplayerPeer.new()
 	var error := peer.create_client(SERVER_IP, SERVER_PORT)
 	if error != OK:
-		push_error("[NETWORK] Impossible de se connecter au serveur : " + str(error))
+		push_error("[NETWORK] Impossible de se connecter : " + str(error))
 		join_failed.emit()
 		return
 	multiplayer.multiplayer_peer = peer
-	print("[NETWORK] Connexion au serveur %s:%d..." % [SERVER_IP, SERVER_PORT])
+	print("[NETWORK] Connexion à %s:%d..." % [SERVER_IP, SERVER_PORT])
 
+func request_start_game() -> void:
+	if not is_host():
+		return
+	var server = get_tree().get_first_node_in_group("dedicated_server")
+	if server:
+		server.rpc_request_start_game.rpc_id(1)
 
 func shutdown() -> void:
 	if multiplayer.multiplayer_peer != null:
@@ -52,29 +55,23 @@ func shutdown() -> void:
 	_next_player_id = 1
 	Map_data.gen_seed = 0
 
-
 func is_host() -> bool:
 	return local_player_id == 1
-
 
 func get_connected_peer_count() -> int:
 	return multiplayer.get_peers().size()
 
-
 func _on_connected_to_server() -> void:
 	local_peer_id = multiplayer.get_unique_id()
-	print("[NETWORK] Connecté au serveur — peer_id=%d" % local_peer_id)
-	# Vérifier si on est le premier joueur
+	print("[NETWORK] Connecté — peer_id=%d" % local_peer_id)
 	call_deferred("claim_host_if_first")
-
 
 func _on_connection_failed() -> void:
 	print("[NETWORK] Connexion échouée")
 	join_failed.emit()
 
-
 func _on_peer_connected(peer_id: int) -> void:
-	print("[NETWORK] Nouveau peer connecté : %d" % peer_id)
+	print("[NETWORK] Nouveau peer : %d" % peer_id)
 	if peer_id == 1:
 		return
 	if is_host():
@@ -87,14 +84,12 @@ func _on_peer_connected(peer_id: int) -> void:
 		_rpc_assign_player_id.rpc_id(peer_id, assigned_id)
 	peer_joined.emit(peer_id)
 
-
 func _on_peer_disconnected(peer_id: int) -> void:
 	if peer_id == 1:
 		print("[NETWORK] Serveur déconnecté !")
 		return
 	_peer_to_player_id.erase(peer_id)
 	peer_left.emit(peer_id)
-
 
 @rpc("any_peer", "call_remote", "reliable")
 func _rpc_assign_player_id(assigned_player_id: int) -> void:
@@ -104,7 +99,6 @@ func _rpc_assign_player_id(assigned_player_id: int) -> void:
 	if match_context != null:
 		match_context.configure_multi(local_player_id)
 	join_succeeded.emit()
-
 
 func claim_host_if_first() -> void:
 	var peers = multiplayer.get_peers()
@@ -121,6 +115,9 @@ func claim_host_if_first() -> void:
 	else:
 		print("[NETWORK] Joueur rejoignant — en attente du player_id...")
 
-
 func get_player_id_for_peer(peer_id: int) -> int:
 	return _peer_to_player_id.get(peer_id, -1)
+
+@rpc("authority", "call_local", "reliable")
+func _rpc_update_player_count(count: int) -> void:
+	player_count_updated.emit(count)

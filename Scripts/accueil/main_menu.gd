@@ -46,6 +46,8 @@ func _connect_network_signals() -> void:
 		network_manager.peer_left.connect(_on_peer_left)
 	if not network_manager.host_started.is_connected(_on_host_started):
 		network_manager.host_started.connect(_on_host_started)
+	if not network_manager.player_count_updated.is_connected(_on_player_count_updated):
+		network_manager.player_count_updated.connect(_on_player_count_updated)
 
 
 func _build_ui() -> void:
@@ -267,7 +269,7 @@ func _update_lobby_player_count() -> void:
 		return
 	var peers = multiplayer.get_peers()
 	var real_peers = peers.filter(func(p): return p != 1)
-	var total := real_peers.size() + 1
+	var total: int = real_peers.size() + 1
 	lobby_players_label.text = "Joueurs connectés : %d" % total
 	if network_manager.is_host() and lobby_start_button != null:
 		lobby_start_button.disabled = real_peers.size() < 1
@@ -285,9 +287,7 @@ func _on_multi_pressed() -> void:
 
 
 func _on_join_succeeded() -> void:
-	# Client rejoint — on attend que l'hôte lance
 	if network_manager.is_host():
-		# On est l'hôte logique
 		lobby_title_label.text = "En attente de joueurs... (vous êtes l'hôte)"
 		lobby_status_label.text = "Le bouton « Lancer » sera disponible dès qu'un joueur vous rejoint."
 		lobby_start_button.visible = true
@@ -323,6 +323,7 @@ func _on_peer_left(_peer_id: int) -> void:
 func _on_lobby_start_pressed() -> void:
 	if not network_manager.is_host():
 		return
+	network_manager.request_start_game()
 	_rpc_start_game.rpc()
 
 
@@ -331,9 +332,16 @@ func _on_lobby_cancel_pressed() -> void:
 	_show_main()
 
 
-@rpc("any_peer", "call_local", "reliable")
+@rpc("authority", "call_local", "reliable")
 func _rpc_start_game() -> void:
 	get_tree().change_scene_to_file(MULTI_SCENE_PATH)
+
+
+func _on_player_count_updated(count: int) -> void:
+	if screen_lobby.visible:
+		lobby_players_label.text = "Joueurs connectés : %d" % count
+		if network_manager.is_host() and lobby_start_button != null:
+			lobby_start_button.disabled = count < 2
 
 
 func _on_reset_pressed() -> void:

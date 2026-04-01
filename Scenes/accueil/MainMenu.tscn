@@ -6,5 +6,3 @@
 layout_mode = 3
 anchors_preset = 0
 script = ExtResource("1_tt5f1")
-action_prefix = null
-allowed_actions = null

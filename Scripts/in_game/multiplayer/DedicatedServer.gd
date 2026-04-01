@@ -1,42 +1,62 @@
 extends Node
 class_name DedicatedServer
 
-const PORT := 7777
+const PORT := 
 const MAX_PLAYERS := 4
 
 var peer: ENetMultiplayerPeer = null
 
+var _connected_peers: Array[int] = []
+var _game_started: bool = false
+
+func _enter_tree() -> void:
+	if OS.has_feature("dedicated_server") or "--server" in OS.get_cmdline_args():
+		add_to_group("dedicated_server")
 
 func _ready() -> void:
-	# Ce script ne tourne que si on est en mode serveur dédié
 	if not OS.has_feature("dedicated_server") and not "--server" in OS.get_cmdline_args():
 		return
-
-	print("[SERVER] Démarrage du serveur dédié sur le port %d..." % PORT)
+	print("[SERVER] Démarrage sur le port %d..." % PORT)
 	_start_server()
-
 
 func _start_server() -> void:
 	peer = ENetMultiplayerPeer.new()
 	var error := peer.create_server(PORT, MAX_PLAYERS)
 	if error != OK:
-		push_error("[SERVER] Impossible de démarrer le serveur : " + str(error))
+		push_error("[SERVER] Impossible de démarrer : " + str(error))
 		return
-
 	multiplayer.multiplayer_peer = peer
 	multiplayer.peer_connected.connect(_on_peer_connected)
 	multiplayer.peer_disconnected.connect(_on_peer_disconnected)
-
-	print("[SERVER] Serveur démarré et en écoute sur le port %d" % PORT)
-
+	print("[SERVER] En écoute sur le port %d" % PORT)
 
 func _on_peer_connected(peer_id: int) -> void:
-	print("[SERVER] Joueur connecté : peer_id=%d — Total : %d joueur(s)" % [
-		peer_id, multiplayer.get_peers().size()
-	])
-
+	if _game_started:
+		print("[SERVER] Refus de %d — partie déjà en cours" % peer_id)
+		multiplayer.multiplayer_peer.disconnect_peer(peer_id)
+		return
+	_connected_peers.append(peer_id)
+	print("[SERVER] Joueur connecté : %d — Total : %d" % [peer_id, _connected_peers.size()])
+	_rpc_update_player_count.rpc(_connected_peers.size())
 
 func _on_peer_disconnected(peer_id: int) -> void:
-	print("[SERVER] Joueur déconnecté : peer_id=%d — Total : %d joueur(s)" % [
-		peer_id, multiplayer.get_peers().size()
-	])
+	_connected_peers.erase(peer_id)
+	print("[SERVER] Joueur déconnecté : %d — Total : %d" % [peer_id, _connected_peers.size()])
+	if not _game_started:
+		_rpc_update_player_count.rpc(_connected_peers.size())
+
+@rpc("any_peer", "call_local", "reliable")
+func rpc_request_start_game() -> void:
+	var sender = multiplayer.get_remote_sender_id()
+	if _connected_peers.is_empty() or sender != _connected_peers[0]:
+		push_warning("[SERVER] Lancement non autorisé par peer %d" % sender)
+		return
+	if _connected_peers.size() < 2:
+		push_warning("[SERVER] Pas assez de joueurs")
+		return
+	_game_started = true
+	print("[SERVER] Lancement ! (%d joueurs)" % _connected_peers.size())
+
+@rpc("authority", "call_remote", "reliable")
+func _rpc_update_player_count(_count: int) -> void:
+	pass

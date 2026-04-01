@@ -267,7 +267,7 @@ func _show_lobby() -> void:
 func _update_lobby_player_count() -> void:
 	if lobby_players_label == null:
 		return
-	var peers = multiplayer.get_peers()
+	var peers = Array(multiplayer.get_peers())  # conversion en Array classique
 	var real_peers = peers.filter(func(p): return p != 1)
 	var total: int = real_peers.size() + 1
 	lobby_players_label.text = "Joueurs connectés : %d" % total

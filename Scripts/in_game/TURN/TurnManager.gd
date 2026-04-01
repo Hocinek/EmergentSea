@@ -178,59 +178,53 @@ func _filter_alive_players(list_in: Array[Player]) -> Array[Player]:
 	return out
 
 
-# ===============================
-# FIN DE PARTIE
-# ===============================
-
-# Regarde combien de poissons un joueur a.
-func somme_poisson(player:Player)-> int:
-	var nb_total_poissons: int = 0
-	for navire in player.navires :
-		nb_total_poissons += navire.nourriture
-	return nb_total_poissons
+# =========================================================
+# Fin de partie
+# =========================================================
+func somme_poisson(player: Player) -> int:
+	var total := 0
+	for navire in player.navires:
+		total += navire.nourriture
+	return total
 
 
-# Regarde combien de navires un joueur a.
-func somme_navire(player:Player)-> int:
-	var nb_total_navires: int = 0
-	for navire in player.navires :
-		nb_total_navires += 1
-	return nb_total_navires
+func somme_navire(player: Player) -> int:
+	return player.navires.size()
 
 
-# Regarde le nombre de ports qu'un joueur contrôle.
-func somme_port_joueur(player:Player)-> int:
-	var nb_total_ports: int = 0
-	for port in player.ports :
-		nb_total_ports += 1
-	return nb_total_ports
+func somme_port_joueur(player: Player) -> int:
+	return player.ports.size()
+
+# Calcul le nombre de ports sur toute la carte
+func calcul_nb_port() -> int:
+	var total := 0
+	for p in players:
+		total += somme_port_joueur(p)
+	return total
 
 
-# Regarde le nombre total de ports sur la carte
-func calcul_nb_port()-> int:
-	var nb_ports_carte: int = 0
-	for current_player in players:
-		nb_ports_carte += somme_port_joueur(current_player)
-	return nb_ports_carte
-
-
-# Regarde si un joueur respecte les conditions de victoire.
-func fin_de_partie()-> void:
+func fin_de_partie() -> void:
 	players = _filter_alive_players(players)
-	for current_player in players :
-		if somme_poisson(current_player) >= 150 :
-			game_over.emit(current_player)
-			DEBUG.log("Le joueur a gagné par accumulation de 150 poissons.")
-			game_over_panel.show_game_over()
-		elif somme_navire(current_player) >= 30:
-			game_over.emit(current_player)
-			DEBUG.log("Le joueur a gagné par accumulation de 30 bateaux.")
-			game_over_panel.show_game_over()
-		elif somme_port_joueur(current_player) >= (2/3)*calcul_nb_port() :
-			game_over.emit(current_player)
-			DEBUG.log("Le joueur a gagné par conquête des deux tiers des ports de la carte.")
-			game_over_panel.show_game_over()
-		elif len(players) == 1 :
-			game_over.emit(players[0])
-			DEBUG.log("Le joueur a gagné par annihilation des autres joueurs.")
-			game_over_panel.show_game_over()
+	for player in players:
+		var raison := ""
+		if somme_poisson(player) >= 150:
+			raison = "accumulation de 150 poissons"
+		elif somme_navire(player) >= 30:
+			raison = "accumulation de 30 navires"
+		#elif somme_port_joueur(player) >= int(calcul_nb_port() * 2.0 / 3.0):
+		#	raison = "conquête des deux tiers des ports"
+		if raison != "":
+			DEBUG.log("Le joueur %s a gagné par %s." % [player.player_name, raison])
+			_trigger_game_over(player, raison)
+			return
+	if players.size() == 1:
+		_trigger_game_over(players[0], "annihilation des adversaires")
+
+
+func _trigger_game_over(winner: Player, raison: String) -> void:
+	state = TurnState.State.GAME_OVER
+	game_over.emit(winner)
+	if game_over_panel != null:
+		game_over_panel.show_game_over(winner, raison)
+	else:
+		DEBUG.log("[TURNMANAGER] game_over_panel est null — assigne-le depuis le GameManager.", DEBUG.ERROR)

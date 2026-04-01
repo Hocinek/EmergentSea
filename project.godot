@@ -19,6 +19,7 @@ config/icon="res://Assets/icon.svg"
 
 key_config_manager="*res://Scripts/ControlsManager.gd"
 network_manager="*res://Scripts/network/NetworkManager.gd"
+dedicated_server="*res://Scripts/in_game/multiplayer/DedicatedServer.gd"
 
 [editor]
 

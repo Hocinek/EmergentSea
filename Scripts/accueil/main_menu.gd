@@ -267,7 +267,7 @@ func _show_lobby() -> void:
 func _update_lobby_player_count() -> void:
 	if lobby_players_label == null:
 		return
-	var peers = Array(multiplayer.get_peers())  # conversion en Array classique
+	var peers = Array(multiplayer.get_peers())
 	var real_peers = peers.filter(func(p): return p != 1)
 	var total: int = real_peers.size() + 1
 	lobby_players_label.text = "Joueurs connectés : %d" % total
@@ -323,18 +323,12 @@ func _on_peer_left(_peer_id: int) -> void:
 func _on_lobby_start_pressed() -> void:
 	if not network_manager.is_host():
 		return
-	network_manager.request_start_game()
-	_rpc_start_game.rpc()
+	network_manager.broadcast_start_game()
 
 
 func _on_lobby_cancel_pressed() -> void:
 	network_manager.shutdown()
 	_show_main()
-
-
-@rpc("authority", "call_local", "reliable")
-func _rpc_start_game() -> void:
-	get_tree().change_scene_to_file(MULTI_SCENE_PATH)
 
 
 func _on_player_count_updated(count: int) -> void:

@@ -55,7 +55,7 @@ func _generate_and_render() -> void:
 # RPC SYNC SEED (hôte → clients)
 # =============================================================
 
-@rpc("authority", "call_remote", "reliable")
+@rpc("any_peer", "call_remote", "reliable")
 func _rpc_sync_seed(seed: int) -> void:
 	# Le client reçoit la seed, l'applique et génère la même map
 	Map_data.gen_seed = seed

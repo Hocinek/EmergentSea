@@ -69,12 +69,11 @@ func _setup_fog_of_war() -> void:
 
 func _on_map_generated() -> void:
 	_refresh_refs()
-
 	if bootstrap == null or network_manager == null:
 		push_error("[MULTI GM] Bootstrap ou NetworkManager introuvable")
 		return
-
 	if network_manager.is_host():
+		await get_tree().create_timer(1.5).timeout
 		bootstrap.configure_host_lobby()
 		await _initialize_host_match()
 	else:
@@ -167,7 +166,7 @@ func _sync_initial_state_to_clients() -> void:
 	_rpc_receive_initial_state.rpc(players_data, ships_data, turn_order)
 
 
-@rpc("authority", "call_remote", "reliable")
+@rpc("any_peer", "call_remote", "reliable")
 func _rpc_receive_initial_state(players_data: Array, ships_data: Array, turn_order: Array) -> void:
 	_refresh_refs()
 
@@ -175,7 +174,6 @@ func _rpc_receive_initial_state(players_data: Array, ships_data: Array, turn_ord
 		push_error("[MULTI GM CLIENT] Refs introuvables à la réception de l'état initial")
 		return
 
-	# CRITIQUE : forcer la bonne configuration du MatchContext avant tout spawn
 	if network_manager != null and network_manager.local_player_id != -1:
 		match_context.configure_multi(network_manager.local_player_id)
 	else:

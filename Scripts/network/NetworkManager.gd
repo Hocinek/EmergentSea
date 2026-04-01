@@ -8,9 +8,9 @@ signal peer_joined(peer_id: int)
 signal peer_left(peer_id: int)
 signal player_count_updated(count: int)
 
-const SERVER_IP := ""
-const SERVER_PORT := 
-const MAX_PLAYERS := 4
+const SERVER_IP := "IP_ICI"
+const SERVER_PORT := PORT_LA
+const MAX_PLAYERS := 2
 
 var peer: ENetMultiplayerPeer = null
 var local_peer_id: int = -1
@@ -37,13 +37,6 @@ func join_dedicated_server() -> void:
 	multiplayer.multiplayer_peer = peer
 	print("[NETWORK] Connexion à %s:%d..." % [SERVER_IP, SERVER_PORT])
 
-func request_start_game() -> void:
-	if not is_host():
-		return
-	var server = get_tree().get_first_node_in_group("dedicated_server")
-	if server:
-		server.rpc_request_start_game.rpc_id(1)
-
 func shutdown() -> void:
 	if multiplayer.multiplayer_peer != null:
 		multiplayer.multiplayer_peer.close()
@@ -61,10 +54,19 @@ func is_host() -> bool:
 func get_connected_peer_count() -> int:
 	return multiplayer.get_peers().size()
 
+func broadcast_start_game() -> void:
+	if not is_host():
+		return
+	_rpc_broadcast_start_game.rpc()
+
+@rpc("any_peer", "call_local", "reliable")
+func _rpc_broadcast_start_game() -> void:
+	get_tree().change_scene_to_file("res://Scenes/in_game/MainMulti.tscn")
+
 func _on_connected_to_server() -> void:
 	local_peer_id = multiplayer.get_unique_id()
 	print("[NETWORK] Connecté — peer_id=%d" % local_peer_id)
-	call_deferred("claim_host_if_first")
+	_rpc_request_player_id.rpc_id(1)
 
 func _on_connection_failed() -> void:
 	print("[NETWORK] Connexion échouée")
@@ -74,14 +76,6 @@ func _on_peer_connected(peer_id: int) -> void:
 	print("[NETWORK] Nouveau peer : %d" % peer_id)
 	if peer_id == 1:
 		return
-	if is_host():
-		if _next_player_id > MAX_PLAYERS:
-			push_warning("[NETWORK] Maximum de joueurs atteint")
-			return
-		var assigned_id := _next_player_id
-		_peer_to_player_id[peer_id] = assigned_id
-		_next_player_id += 1
-		_rpc_assign_player_id.rpc_id(peer_id, assigned_id)
 	peer_joined.emit(peer_id)
 
 func _on_peer_disconnected(peer_id: int) -> void:
@@ -92,28 +86,29 @@ func _on_peer_disconnected(peer_id: int) -> void:
 	peer_left.emit(peer_id)
 
 @rpc("any_peer", "call_remote", "reliable")
+func _rpc_request_player_id() -> void:
+	var sender = multiplayer.get_remote_sender_id()
+	if _next_player_id > MAX_PLAYERS:
+		push_warning("[NETWORK] Maximum de joueurs atteint")
+		return
+	var assigned_id := _next_player_id
+	_peer_to_player_id[sender] = assigned_id
+	_next_player_id += 1
+	print("[NETWORK] Assignation player_id=%d à peer_id=%d" % [assigned_id, sender])
+	_rpc_assign_player_id.rpc_id(sender, assigned_id)
+
+@rpc("any_peer", "call_remote", "reliable")
 func _rpc_assign_player_id(assigned_player_id: int) -> void:
 	local_player_id = assigned_player_id
 	print("[NETWORK] Player ID assigné : %d" % local_player_id)
 	var match_context = get_tree().get_first_node_in_group("match_context")
 	if match_context != null:
 		match_context.configure_multi(local_player_id)
-	join_succeeded.emit()
-
-func claim_host_if_first() -> void:
-	var peers = multiplayer.get_peers()
-	var real_peers = peers.filter(func(p): return p != 1)
-	if real_peers.is_empty():
-		local_player_id = 1
-		_peer_to_player_id[local_peer_id] = 1
-		_next_player_id = 2
-		print("[NETWORK] Premier joueur — hôte logique (player_id=1)")
-		var match_context = get_tree().get_first_node_in_group("match_context")
-		if match_context != null:
-			match_context.configure_multi(local_player_id)
+	if local_player_id == 1:
+		print("[NETWORK] Je suis l'hôte logique")
 		host_started.emit()
 	else:
-		print("[NETWORK] Joueur rejoignant — en attente du player_id...")
+		join_succeeded.emit()
 
 func get_player_id_for_peer(peer_id: int) -> int:
 	return _peer_to_player_id.get(peer_id, -1)

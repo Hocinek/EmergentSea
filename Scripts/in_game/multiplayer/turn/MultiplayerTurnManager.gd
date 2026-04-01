@@ -45,11 +45,6 @@ func start_game(players_list: Array) -> void:
 	turn_started.emit(current_player)
 
 
-# =============================================================
-# DEMANDE DE FIN DE TOUR (appelée par UI_end_turn)
-# Le joueur local envoie une demande à l'hôte.
-# =============================================================
-
 func request_end_turn() -> void:
 	if network_manager == null:
 		network_manager = get_tree().get_first_node_in_group("network_manager")
@@ -57,7 +52,6 @@ func request_end_turn() -> void:
 	if match_context == null:
 		match_context = get_tree().get_first_node_in_group("match_context")
 
-	# Vérification locale : est-ce bien mon tour ?
 	if not match_context.is_local_turn():
 		return
 
@@ -65,20 +59,13 @@ func request_end_turn() -> void:
 		return
 
 	if network_manager != null and network_manager.is_host():
-		# L'hôte peut traiter directement
 		_process_end_turn()
 	else:
-		# Le client envoie la demande à l'hôte (peer_id 1)
-		_rpc_request_end_turn.rpc_id(1, match_context.local_player_id)
+		_rpc_request_end_turn.rpc(match_context.local_player_id)
 
-
-# =============================================================
-# RPC : le client demande à l'hôte de finir le tour
-# =============================================================
 
 @rpc("any_peer", "call_remote", "reliable")
 func _rpc_request_end_turn(requesting_player_id: int) -> void:
-	# Seul l'hôte exécute cette fonction
 	if network_manager == null:
 		network_manager = get_tree().get_first_node_in_group("network_manager")
 	if not network_manager.is_host():
@@ -87,17 +74,12 @@ func _rpc_request_end_turn(requesting_player_id: int) -> void:
 	if match_context == null:
 		match_context = get_tree().get_first_node_in_group("match_context")
 
-	# Vérifier que c'est bien le tour du joueur qui demande
 	if match_context.active_player_id != requesting_player_id:
 		push_warning("[MULTI TURN] Demande de fin de tour refusée : ce n'est pas le tour du joueur %d" % requesting_player_id)
 		return
 
 	_process_end_turn()
 
-
-# =============================================================
-# TRAITEMENT RÉEL DE LA FIN DE TOUR (hôte uniquement)
-# =============================================================
 
 func _process_end_turn() -> void:
 	if players.is_empty() or current_player == null:
@@ -116,20 +98,14 @@ func _process_end_turn() -> void:
 	var next_index := (current_index + 1) % players.size()
 	current_player = players[next_index]
 
-	# Broadcaster le nouveau joueur actif à tous (y compris l'hôte lui-même)
 	_rpc_sync_active_player.rpc(current_player.player_id)
 
 
-# =============================================================
-# RPC : l'hôte broadcaste le nouveau joueur actif à tous
-# =============================================================
-
-@rpc("authority", "call_local", "reliable")
+@rpc("any_peer", "call_local", "reliable")
 func _rpc_sync_active_player(active_player_id: int) -> void:
 	if match_context == null:
 		match_context = get_tree().get_first_node_in_group("match_context")
 
-	# Trouver le joueur correspondant dans la liste locale
 	var players_manager = get_tree().get_first_node_in_group("players_manager")
 	if players_manager == null:
 		push_error("[MULTI TURN] PlayersManager introuvable")
@@ -140,7 +116,6 @@ func _rpc_sync_active_player(active_player_id: int) -> void:
 		push_error("[MULTI TURN] Joueur %d introuvable" % active_player_id)
 		return
 
-	# Si la liste locale est vide (client), la reconstruire depuis le players_manager
 	if players.is_empty():
 		players = players_manager.get_all_players().duplicate()
 
@@ -152,11 +127,6 @@ func _rpc_sync_active_player(active_player_id: int) -> void:
 	active_player_changed.emit(current_player)
 	turn_started.emit(current_player)
 
-
-# =============================================================
-# ANCIENNE MÉTHODE end_turn() conservée pour le mode solo
-# NE PAS APPELER EN MODE MULTI — passe par request_end_turn()
-# =============================================================
 
 func end_turn() -> void:
 	if players.is_empty():
@@ -187,10 +157,6 @@ func end_turn() -> void:
 	active_player_changed.emit(current_player)
 	turn_started.emit(current_player)
 
-
-# =============================================================
-# HELPERS
-# =============================================================
 
 func _reset_player_ships(player) -> void:
 	if player == null:

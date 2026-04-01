@@ -314,7 +314,7 @@ func shoot_at(target: Navires) -> void:
 			_rpc_apply_damage.rpc(target.id, dgt_tir)
 		else:
 			# Le client envoie la demande à l'hôte
-			_rpc_sync_damage.rpc_id(1, target.id, dgt_tir)
+			_rpc_sync_damage.rpc(target.id, dgt_tir)
 	else:
 		# Mode solo : application directe comme avant
 		target.take_damage(dgt_tir)
@@ -342,7 +342,7 @@ func _rpc_sync_damage(target_ship_id: int, damage: int) -> void:
 	_rpc_apply_damage.rpc(target_ship_id, damage)
 
 # Appliqué sur tous les peers : infliger les dégâts au navire cible
-@rpc("authority", "call_local", "reliable")
+@rpc("any_peer", "call_local", "reliable")
 func _rpc_apply_damage(target_ship_id: int, damage: int) -> void:
 	var all_ships = get_tree().get_nodes_in_group("ships")
 	for ship in all_ships:

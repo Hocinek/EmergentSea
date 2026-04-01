@@ -1,8 +1,8 @@
 extends Node
 class_name DedicatedServer
 
-const PORT := 
-const MAX_PLAYERS := 4
+const PORT := PORT_LA
+const MAX_PLAYERS := 2
 
 var peer: ENetMultiplayerPeer = null
 
@@ -14,9 +14,7 @@ func _enter_tree() -> void:
 		add_to_group("dedicated_server")
 
 func _ready() -> void:
-	if not OS.has_feature("dedicated_server") and not "--server" in OS.get_cmdline_args():
-		return
-	print("[SERVER] Démarrage sur le port %d..." % PORT)
+	print("[SERVER] _ready() appelé, démarrage forcé...")
 	_start_server()
 
 func _start_server() -> void:
@@ -42,8 +40,17 @@ func _on_peer_connected(peer_id: int) -> void:
 func _on_peer_disconnected(peer_id: int) -> void:
 	_connected_peers.erase(peer_id)
 	print("[SERVER] Joueur déconnecté : %d — Total : %d" % [peer_id, _connected_peers.size()])
-	if not _game_started:
-		_rpc_update_player_count.rpc(_connected_peers.size())
+	if _connected_peers.is_empty():
+		_game_started = false
+		# Réinitialiser le NetworkManager côté serveur
+		var nm = get_tree().get_first_node_in_group("network_manager")
+		if nm:
+			nm._next_player_id = 1
+			nm._peer_to_player_id.clear()
+		print("[SERVER] Lobby réinitialisé")
+	else:
+		if not _game_started:
+			_rpc_update_player_count.rpc(_connected_peers.size())
 
 @rpc("any_peer", "call_local", "reliable")
 func rpc_request_start_game() -> void:
@@ -57,6 +64,6 @@ func rpc_request_start_game() -> void:
 	_game_started = true
 	print("[SERVER] Lancement ! (%d joueurs)" % _connected_peers.size())
 
-@rpc("authority", "call_remote", "reliable")
+@rpc("any_peer", "call_remote", "reliable")
 func _rpc_update_player_count(_count: int) -> void:
 	pass

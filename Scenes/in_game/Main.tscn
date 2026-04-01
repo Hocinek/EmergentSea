@@ -54,3 +54,4 @@ text = "Tour de l'IA..."
 
 [node name="TurnManager" type="Node" parent="."]
 script = ExtResource("6_vl8yy")
+ai_turn_delay_sec = null

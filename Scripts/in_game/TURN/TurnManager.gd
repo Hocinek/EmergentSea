@@ -11,6 +11,7 @@ var current_player_index: int = 0
 var current_player: Player = null
 
 var state: TurnState.State = TurnState.State.IDLE
+var game_over_panel : UI_game_over
 
 # Durée "freeze" simulée pour l'IA (tant que tu n'as pas le vrai code IA)
 @export var ai_turn_delay_sec: float = 1.5
@@ -45,8 +46,11 @@ func end_turn() -> void:
 	# 1) Fin du tour du joueur courant
 	state = TurnState.State.ENDING_TURN
 	turn_ended.emit(current_player)
+	
+	# 2) On vérifie si les conditions de fin de partie sont atteintes.
+	fin_de_partie()
 
-	# 2) Passer au joueur suivant
+	# 3) Passer au joueur suivant
 	_advance_to_next_player()
 
 	if current_player == null:
@@ -54,10 +58,10 @@ func end_turn() -> void:
 		game_over.emit(null)
 		return
 
-	# 3) Démarrer son tour
+	# 4) Démarrer son tour
 	_start_turn()
 
-	# 4) SI c'est une IA, on joue automatiquement son tour,
+	# 5) SI c'est une IA, on joue automatiquement son tour,
 	#    puis on boucle jusqu'à retomber sur un humain.
 	await _auto_run_non_human_turns_until_human()
 
@@ -172,3 +176,61 @@ func _filter_alive_players(list_in: Array[Player]) -> Array[Player]:
 		if p != null and is_instance_valid(p) and p.has_alive_navires():
 			out.append(p)
 	return out
+
+
+# ===============================
+# FIN DE PARTIE
+# ===============================
+
+# Regarde combien de poissons un joueur a.
+func somme_poisson(player:Player)-> int:
+	var nb_total_poissons: int = 0
+	for navire in player.navires :
+		nb_total_poissons += navire.nourriture
+	return nb_total_poissons
+
+
+# Regarde combien de navires un joueur a.
+func somme_navire(player:Player)-> int:
+	var nb_total_navires: int = 0
+	for navire in player.navires :
+		nb_total_navires += 1
+	return nb_total_navires
+
+
+# Regarde le nombre de ports qu'un joueur contrôle.
+func somme_port_joueur(player:Player)-> int:
+	var nb_total_ports: int = 0
+	for port in player.ports :
+		nb_total_ports += 1
+	return nb_total_ports
+
+
+# Regarde le nombre total de ports sur la carte
+func calcul_nb_port()-> int:
+	var nb_ports_carte: int = 0
+	for current_player in players:
+		nb_ports_carte += somme_port_joueur(current_player)
+	return nb_ports_carte
+
+
+# Regarde si un joueur respecte les conditions de victoire.
+func fin_de_partie()-> void:
+	players = _filter_alive_players(players)
+	for current_player in players :
+		if somme_poisson(current_player) >= 150 :
+			game_over.emit(current_player)
+			DEBUG.log("Le joueur a gagné par accumulation de 150 poissons.")
+			game_over_panel.show_game_over()
+		elif somme_navire(current_player) >= 30:
+			game_over.emit(current_player)
+			DEBUG.log("Le joueur a gagné par accumulation de 30 bateaux.")
+			game_over_panel.show_game_over()
+		elif somme_port_joueur(current_player) >= (2/3)*calcul_nb_port() :
+			game_over.emit(current_player)
+			DEBUG.log("Le joueur a gagné par conquête des deux tiers des ports de la carte.")
+			game_over_panel.show_game_over()
+		elif len(players) == 1 :
+			game_over.emit(players[0])
+			DEBUG.log("Le joueur a gagné par annihilation des autres joueurs.")
+			game_over_panel.show_game_over()

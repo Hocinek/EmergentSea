@@ -11,6 +11,9 @@ signal sig_inspect_case(case_pos: Vector2i)
 signal sig_open_hex_menu(navire: Navires, screen_pos: Vector2)
 signal sig_switch_ship()
 
+
+@export var attack_sound: AudioStream = null
+var _audio_player: AudioStreamPlayer2D = null
 # =========================
 # MODE D'INPUT (menu contextuel)
 # =========================
@@ -28,13 +31,22 @@ var is_visible_to_human: bool = true
 var fog_of_war_ref: FogOfWar = null
 
 # =========================
+# MODÈLE 3D
+# =========================
+## Chemin vers le fichier .glb à charger pour ce navire.
+## Doit être défini AVANT add_child() pour que _setup_node3d_instance()
+## puisse charger le bon modèle dès le _ready().
+## Par défaut : pirateShip (grand navire joueur).
+@export var ship_model_path: String = "res://Assets/navire/pirateShip.glb"
+
+# =========================
 # STATS
 # =========================
 var stats_panel : UI_stats_navire
 @export var vie: int = 10
 @export var maxvie: int = 10
-@export var energie: int = 3000
-@export var maxenergie: int = 3000
+@export var energie: int = 20
+@export var maxenergie: int = 20
 @export var vitesse: float = 800.0
 @export var nrbequipage: int = 0
 @export var interaction_radius: float = 80.0
@@ -135,6 +147,7 @@ func _ready():
 	case_actuelle = Map_utils.monde_vers_case(global_position)
 
 	# Résoudre le nœud visuel (Sprite2D) et configurer la rotation 3D
+	# ship_model_path a déjà été défini par GameManager avant add_child()
 	_setup_node3d_instance()
 
 	# Configuration de la caméra pour le navire contrôlé par le joueur
@@ -158,12 +171,19 @@ func _ready():
 	fog_of_war_ref = get_tree().get_first_node_in_group("fog_of_war")
 	if fog_of_war_ref:
 		DEBUG.log("Navire [%d] - FogOfWar connecté pour visibilité" % id)
-
+	_audio_player = AudioStreamPlayer2D.new()
+	add_child(_audio_player)
+	if attack_sound:
+		_audio_player.stream = attack_sound
+	# Dans _ready(), après _setup_node3d_instance()
+	attack_sound = load("res://son/sf_canon_01.mp3")
+	_audio_player = AudioStreamPlayer2D.new()
+	add_child(_audio_player)
 	# Debug
 	var owner_name = player_owner.player_name if player_owner else "AUCUN"
 	var control_type = "CONTRÔLÉ" if is_player_controlled else "IA/ENNEMI"
-	DEBUG.log("Navire [%s] initialisé - Propriétaire: %s - Type: %s - Position: %s" % [
-		id, owner_name, control_type, case_actuelle
+	DEBUG.log("Navire [%s] initialisé - Propriétaire: %s - Type: %s - Position: %s - Modèle: %s" % [
+		id, owner_name, control_type, case_actuelle, ship_model_path
 	])
 
 
@@ -174,8 +194,10 @@ func _setup_node3d_instance() -> void:
 	1. own_world_3d = true sur le SubViewport → chaque navire a son propre
 	   monde 3D isolé, les rotations ne se partagent plus entre instances.
 
-	2. On récupère le pirateShip et on tourne uniquement son axe Y via
-	   Transform3D.basis — les axes X et Z restent intacts → pas de surrélevement.
+	2. On charge dynamiquement le modèle défini dans ship_model_path,
+	   ce qui permet d'avoir des modèles différents selon le joueur propriétaire.
+	   Le modèle est nommé "pirateShip" après instanciation pour que le reste
+	   du code (rotation, etc.) fonctionne de manière uniforme.
 
 	3. Le Sprite2D n'est jamais tourné → pas de problème de pivot 2D.
 	"""
@@ -185,14 +207,32 @@ func _setup_node3d_instance() -> void:
 		subviewport.own_world_3d = true
 		DEBUG.log("Navire [%d] - SubViewport.own_world_3d = true" % id)
 
-	# Récupérer le pirateShip — c'est lui qu'on tourne sur Y uniquement
-	var pirate = get_node_or_null("Sprite2D/SubViewport/Node3D/pirateShip")
-	if pirate and pirate is Node3D:
-		_pirate_ship_3d = pirate
-		target_rotation_angle = pirate.rotation.y
-		DEBUG.log("Navire [%d] - pirateShip ciblé (Transform3D, axe Y)" % id)
+	# Récupérer le Node3D parent qui contiendra notre modèle
+	var node3d = get_node_or_null("Sprite2D/SubViewport/Node3D")
+	if not node3d:
+		DEBUG.log("Navire [%d] - ERREUR : Node3D introuvable" % id)
+		return
+
+	# Supprimer le modèle par défaut présent dans la scène de base
+	# (free() immédiat : on est dans _ready avant que le modèle soit utilisé)
+	var existing = node3d.get_node_or_null("pirateShip")
+	if existing:
+		existing.free()
+		DEBUG.log("Navire [%d] - Modèle par défaut supprimé" % id)
+
+	# Charger et instancier le bon modèle selon ship_model_path
+	var model_scene: PackedScene = load(ship_model_path)
+	if model_scene:
+		var model_instance: Node3D = model_scene.instantiate()
+		# Nom uniforme "pirateShip" pour que toute la logique de rotation
+		# reste identique quel que soit le modèle chargé
+		model_instance.name = "pirateShip"
+		node3d.add_child(model_instance)
+		_pirate_ship_3d = model_instance
+		target_rotation_angle = model_instance.rotation.y
+		DEBUG.log("Navire [%d] - Modèle chargé avec succès : '%s'" % [id, ship_model_path])
 	else:
-		DEBUG.log("Navire [%d] - ERREUR : pirateShip introuvable" % id)
+		DEBUG.log("Navire [%d] - ERREUR : Impossible de charger le modèle '%s'" % [id, ship_model_path])
 
 	# Le Sprite2D reste en place — on ne le tourne pas.
 	# hull_offset décale le sprite pour que le centre VISUEL du bateau
@@ -250,8 +290,13 @@ func _init_stats_ui():
 	# On vérifie si le panel existe déjà avant d'en créer un nouveau
 	if stats_panel == null:
 		stats_panel = UI_stats_navire.new(self)
+	# UI_fish_navires extends Control → new() sans argument obligatoire
+	# On l'ajoute au ui_layer (comme HexContextMenu) pour qu'il s'affiche par-dessus tout
 	if fish_feedback_label == null:
-		fish_feedback_label = UI_fish_navires.new(self)
+		fish_feedback_label = UI_fish_navires.new()
+		ui_layer.add_child(fish_feedback_label)
+		# Connecter le signal du navire à l'UI fish
+		sig_show_fishing.connect(func(): fish_feedback_label.on_show_fishing(self))
 	DEBUG.log("UI Stats créée pour navire [%d]" % id)
 #endregion initialisation
 
@@ -353,9 +398,9 @@ func die() -> void:
 		set_selected(false)
 	# Masquer TOUS les panneaux de stats
 	stats_panel.hide_all_stats()
-	# Masquer le feedback de pêche
+	# Masquer le feedback de pêche — close() au lieu de hide() car UI_fish_navires est un Control
 	if fish_feedback_label and is_instance_valid(fish_feedback_label):
-		fish_feedback_label.hide()
+		fish_feedback_label.close()
 	# Notifier le propriétaire
 	if player_owner != null and player_owner.has_method("remove_navire"):
 		player_owner.remove_navire(self)
@@ -400,7 +445,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		var distance: float    = global_position.distance_to(mouse_pos)
 
 		if event.button_index == MOUSE_BUTTON_LEFT:
-			# MODE ACTIF 
+			# MODE ACTIF
 			# Seulement le navire sélectionné exécute l'action ET absorbe le clic.
 			# Les navires non-sélectionnés ignorent complètement ce bloc.
 
@@ -479,6 +524,7 @@ func _unhandled_input(event: InputEvent) -> void:
 				else:
 					DEBUG.log("Case cible NON navigable !")
 		elif event.button_index == MOUSE_BUTTON_RIGHT:
+
 			# Seul le navire sélectionné traite le clic droit
 			if not is_selected:
 				return
@@ -496,7 +542,6 @@ func _unhandled_input(event: InputEvent) -> void:
 				emit_signal("sig_open_hex_menu", self, screen_pos)
 				get_viewport().set_input_as_handled()
 				return
-
 
 			# En dehors → tir direct (clic droit hors menu)
 			var target_case: Vector2i = Map_utils.monde_vers_case(mouse_pos)
@@ -528,7 +573,9 @@ func _unhandled_input(event: InputEvent) -> void:
 
 #region gestion combat
 func attempt_shoot(target_case: Vector2i) -> void:
-	if energie < 20:
+	"""Tente de tirer sur une case cible"""
+	# Vérifications de base
+	if energie < 10:
 		DEBUG.log("Pas assez d'énergie pour tirer!")
 		return
 	if not is_in_range(target_case):
@@ -546,7 +593,7 @@ func attempt_shoot(target_case: Vector2i) -> void:
 			shoot_at(target_ship)
 			hit_count += 1
 	if hit_count > 0:
-		energie = max(energie - 20, 0)
+		energie = max(energie - 10, 0)
 		DEBUG.log("Tir effectué sur %d cible(s)!" % hit_count)
 		stats_panel.show_ally()
 	else:
@@ -556,6 +603,10 @@ func shoot_at(target: Navires) -> void:
 	if target == null or not target.is_alive():
 		return
 	DEBUG.log("Tir sur navire [%d]" % target.id)
+	# ── SON D'ATTAQUE ──────────────────────────────────────────────
+	if _audio_player and attack_sound:
+		_audio_player.stream = attack_sound
+		_audio_player.play()
 
 	# En mode multi : synchroniser les dégâts via l'hôte
 	if match_context != null and match_context.mode == MatchContext.MatchMode.MULTI:
@@ -719,6 +770,7 @@ func _process_movement(delta: float) -> void:
 		else:
 			DEBUG.log("player_owner est NULL !")
 
+    # Actualiser le fog si c'est un navire du joueur humain et qu'il a changé de case
 		if old_case != case_actuelle:
 			if _is_local_human_owner():
 				DEBUG.log("✓ CONDITIONS OK - Appel de _update_fog_of_war()")
@@ -806,6 +858,8 @@ func _draw():
 	var scale_factor = sqrt(1.0 / cam_zoom)
 	if is_selected and _is_local_human_owner():
 		drawable.selection_circle(scale_factor)
+
+	# Flèche de déplacement (seulement pour le navire sélectionné)
 	if not show_arrow or not is_selected:
 		return
 	var local_target = target_position - global_position
@@ -859,7 +913,8 @@ func try_start_fishing() -> void:
 	if not fish_manager.can_fish_at(case_actuelle):
 		DEBUG.log("Navire [%d] - Cette zone de pêche est épuisée !" % id)
 		if fish_feedback_label:
-			fish_feedback_label.finished_fishing(0)
+			# Zone épuisée : on affiche "+0 🐟" pour signaler l'échec
+			fish_feedback_label.finished_fishing(self, 0)
 		return
 
 	sig_show_fishing.emit()
@@ -885,7 +940,8 @@ func finish_fishing() -> void:
 	nourriture += gain
 
 	if fish_feedback_label:
-		fish_feedback_label.finished_fishing(gain)
+		# Passer self en premier argument — UI_fish_navires.finished_fishing(navire, gain)
+		fish_feedback_label.finished_fishing(self, gain)
 		sig_show_stats.emit()
 
 	DEBUG.log("Navire [%d] - Pêche terminée : +%d poissons (case %s)" % [id, gain, case_actuelle])

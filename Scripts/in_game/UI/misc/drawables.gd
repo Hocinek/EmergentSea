@@ -53,14 +53,25 @@ func arrow(target : Vector2, scale_factor:float):
 	obj.draw_circle(arrow_base, 16.0 * pulse * arrow_scale, glow_color)
 	obj.draw_circle(arrow_base, 8.0 * arrow_scale, arrow_color)
 
-func selection_circle(scale_factor:float):
+func _draw_circle_outline(center: Vector2, radius: float, color: Color, width: float, segments: int = 64):
+	var points = PackedVector2Array()
+	for i in range(segments + 1):  # +1 pour fermer le cercle
+		var angle = (float(i) / segments) * TAU
+		points.append(center + Vector2(cos(angle), sin(angle)) * radius)
+	obj.draw_polyline(points, color, width, true)
+
+func selection_circle(scale_factor: float):
 	var pulse = sin(Time.get_ticks_msec() * 0.003) * 5.0 * scale_factor
 	var current_radius = selection_radius + pulse
-	obj.draw_arc(Vector2.ZERO, current_radius, 0, TAU, 32, Color.BLACK, (selection_thickness + 2) * scale_factor)
-	obj.draw_arc(Vector2.ZERO, current_radius, 0, TAU, 32, selection_color, selection_thickness * scale_factor)
+
+	# Contour noir
+	_draw_circle_outline(Vector2.ZERO, current_radius, Color.BLACK, (selection_thickness + 2) * scale_factor)
+	# Cercle principal
+	_draw_circle_outline(Vector2.ZERO, current_radius, selection_color, selection_thickness * scale_factor)
+
+	# Halo lumineux
 	var glow_alpha = (sin(Time.get_ticks_msec() * 0.004) * 0.15) + 0.2
 	var glow_color = Color(selection_color.r, selection_color.g, selection_color.b, glow_alpha)
 	var base_offset = 80.0 * scale_factor
 	var base_thickness = 80.0 * scale_factor
-	obj.draw_arc(Vector2.ZERO, current_radius + base_offset, 0, TAU, 32, glow_color, base_thickness)
-	
+	_draw_circle_outline(Vector2.ZERO, current_radius + base_offset, glow_color, base_thickness)

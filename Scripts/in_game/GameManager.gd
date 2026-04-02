@@ -9,6 +9,10 @@ extends Node
 # Scène du navire
 var navire_scene := preload("res://Scenes/in_game/ENTITIES/Navires.tscn")
 
+# Modèles 3D disponibles pour les navires
+const SHIP_MODEL_PLAYER := "res://Assets/navire/pirateShip.glb"
+const SHIP_MODEL_ENEMY  := "res://Assets/navire/smolPirateShip.glb"
+
 @onready var map
 @onready var data
 
@@ -180,8 +184,9 @@ func _on_map_generated():
 	if fish_manager:
 		fish_manager.initialize_fish_tiles()
 	
-	var ship1 = spawn_navire_random(player1, true)
-	var ship2 = spawn_navire_random(player1, true)
+	# Navires du joueur humain → pirateShip (grand navire)
+	var ship1 = spawn_navire_random(player1, true, SHIP_MODEL_PLAYER)
+	var ship2 = spawn_navire_random(player1, true, SHIP_MODEL_PLAYER)
 	
 	if ship1:
 		ship1.id = 1
@@ -190,7 +195,8 @@ func _on_map_generated():
 		ship2.id = 2
 		DEBUG.log("Ship2 créé avec succès")
 	
-	var enemy1 = spawn_navire_random(player2, false)
+	# Navire ennemi → smolPirateShip (petit navire)
+	var enemy1 = spawn_navire_random(player2, false, SHIP_MODEL_ENEMY)
 	if enemy1:
 		enemy1.id = 101
 		DEBUG.log("Enemy1 créé avec succès avec l'id "+str(enemy1.id))
@@ -228,7 +234,8 @@ func _on_map_generated():
 
 #region gestion des navires
 ## Faire apparaître un bateau sur la carte
-func spawn_navire(player: Player, position: Vector2, is_player_controlled: bool = false) -> Navires:
+## model_path : chemin vers le .glb à utiliser (SHIP_MODEL_PLAYER par défaut)
+func spawn_navire(player: Player, position: Vector2, is_player_controlled: bool = false, model_path: String = SHIP_MODEL_PLAYER) -> Navires:
 	if player == null:
 		DEBUG.log("Impossible de créer un navire sans joueur propriétaire !", DEBUG.ERROR)
 		return null
@@ -236,6 +243,9 @@ func spawn_navire(player: Player, position: Vector2, is_player_controlled: bool 
 	var navire: Navires = navire_scene.instantiate()
 	navire.global_position = position
 	navire.is_player_controlled = is_player_controlled
+	# IMPORTANT : définir ship_model_path AVANT add_child()
+	# car _ready() → _setup_node3d_instance() lit cette propriété au démarrage
+	navire.ship_model_path = model_path
 	add_child(navire)
 	navire.set_owner_player(player)
 
@@ -259,18 +269,20 @@ func spawn_navire(player: Player, position: Vector2, is_player_controlled: bool 
 
 	if data and data.has_method("addNavireToData"):
 		data.addNavireToData(navire)
-	DEBUG.log("Navire créé avec ID : %d" % navire.id if navire.has_method("get") else "N/A")
+	DEBUG.log("Navire créé avec ID : %d — modèle : %s" % [navire.id, model_path] if navire.has_method("get") else "N/A")
 	return navire
 
 
-func spawn_navire_random(player: Player, is_player_controlled: bool = false) -> Navires:
+## Fait apparaître un navire sur une case océan aléatoire
+func spawn_navire_random(player: Player, is_player_controlled: bool = false, model_path: String = SHIP_MODEL_PLAYER) -> Navires:
 	var pos = Map_utils.get_random_ocean_position()
-	return spawn_navire(player, pos, is_player_controlled)
+	return spawn_navire(player, pos, is_player_controlled, model_path)
 
 
-func spawn_navire_at(player: Player, case_pos: Vector2i, is_player_controlled: bool = false) -> Navires:
+## Fait apparaître un navire sur une case précise (coordonnées hexagonales)
+func spawn_navire_at(player: Player, case_pos: Vector2i, is_player_controlled: bool = false, model_path: String = SHIP_MODEL_PLAYER) -> Navires:
 	var wpos = Map_utils.case_vers_monde(case_pos)
-	return spawn_navire(player, wpos, is_player_controlled)
+	return spawn_navire(player, wpos, is_player_controlled, model_path)
 #endregion gestion des navires
 
 

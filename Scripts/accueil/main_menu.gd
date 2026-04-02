@@ -267,12 +267,13 @@ func _show_lobby() -> void:
 func _update_lobby_player_count() -> void:
 	if lobby_players_label == null:
 		return
-	var peers = Array(multiplayer.get_peers())
-	var real_peers = peers.filter(func(p): return p != 1)
-	var total: int = real_peers.size() + 1
-	lobby_players_label.text = "Joueurs connectés : %d" % total
-	if network_manager.is_host() and lobby_start_button != null:
-		lobby_start_button.disabled = real_peers.size() < 1
+	if multiplayer.has_multiplayer_peer():
+		var peers = Array(multiplayer.get_peers())
+		var real_peers = peers.filter(func(p): return p != 1)
+		var total: int = real_peers.size() + 1
+		lobby_players_label.text = "Joueurs connectés : %d" % total
+		if network_manager.is_host() and lobby_start_button != null:
+			lobby_start_button.disabled = real_peers.size() < 1
 
 
 func _on_solo_pressed() -> void:

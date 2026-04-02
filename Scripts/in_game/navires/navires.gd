@@ -726,7 +726,8 @@ func _process(delta):
 		_update_visibility_in_fog()
 
 func _process_movement(delta: float) -> void:
-	_rpc_sync_position.rpc(case_actuelle.x, case_actuelle.y, global_position.x, global_position.y, target_rotation_angle)
+	if multiplayer.has_multiplayer_peer():
+		_rpc_sync_position.rpc(case_actuelle.x, case_actuelle.y, global_position.x, global_position.y, target_rotation_angle)
 	if path.is_empty():
 		DEBUG.log("Navire [%d] - Chemin vide, arrêt du mouvement" % id)
 		is_moving  = false
@@ -772,13 +773,14 @@ func _process_movement(delta: float) -> void:
 		else:
 			DEBUG.log("player_owner est NULL !")
 
-    # Actualiser le fog si c'est un navire du joueur humain et qu'il a changé de case
+	# Actualiser le fog si c'est un navire du joueur humain et qu'il a changé de case
 		if old_case != case_actuelle:
 			if _is_local_human_owner():
 				DEBUG.log("✓ CONDITIONS OK - Appel de _update_fog_of_war()")
 				_update_fog_of_war()
 				# Synchroniser la nouvelle position vers tous les autres peers
-				_rpc_sync_position.rpc(case_actuelle.x, case_actuelle.y, global_position.x, global_position.y, target_rotation_angle)
+				if multiplayer.has_multiplayer_peer():
+					_rpc_sync_position.rpc(case_actuelle.x, case_actuelle.y, global_position.x, global_position.y, target_rotation_angle)
 			else:
 				DEBUG.log("✗ CONDITIONS PAS OK - Pas de mise à jour du fog")
 				if old_case == case_actuelle:

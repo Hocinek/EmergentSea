@@ -12,6 +12,9 @@ signal sig_inspect_case(case_pos: Vector2i)
 signal sig_open_hex_menu(navire: Navires, screen_pos: Vector2)
 signal sig_switch_ship()
 
+
+@export var attack_sound: AudioStream = null
+var _audio_player: AudioStreamPlayer2D = null
 # =========================
 # MODE D'INPUT (menu contextuel)
 # =========================
@@ -150,7 +153,7 @@ func _init() -> void:
 
 func _ready():
 	await get_tree().process_frame
-
+	await get_tree().process_frame
 	case_actuelle = Map_utils.monde_vers_case(global_position)
 
 	# Résoudre le nœud visuel (Sprite2D) et configurer la rotation 3D
@@ -177,7 +180,14 @@ func _ready():
 	fog_of_war_ref = get_tree().get_first_node_in_group("fog_of_war")
 	if fog_of_war_ref:
 		DEBUG.log("Navire [%d] - FogOfWar connecté pour visibilité" % id)
-
+	_audio_player = AudioStreamPlayer2D.new()
+	add_child(_audio_player)
+	if attack_sound:
+		_audio_player.stream = attack_sound
+	# Dans _ready(), après _setup_node3d_instance()
+	attack_sound = load("res://son/sf_canon_01.mp3")
+	_audio_player = AudioStreamPlayer2D.new()
+	add_child(_audio_player)
 	# Debug
 	var owner_name = player_owner.player_name if player_owner else "AUCUN"
 	var control_type = "CONTRÔLÉ" if is_player_controlled else "IA/ENNEMI"
@@ -569,7 +579,7 @@ func _unhandled_input(event: InputEvent) -> void:
 func attempt_shoot(target_case: Vector2i) -> void:
 	"""Tente de tirer sur une case cible"""
 	# Vérifications de base
-	if energie < 20:
+	if energie < 10:
 		DEBUG.log("Pas assez d'énergie pour tirer!")
 		return
 	if not is_in_range(target_case):
@@ -587,7 +597,7 @@ func attempt_shoot(target_case: Vector2i) -> void:
 			shoot_at(target_ship)
 			hit_count += 1
 	if hit_count > 0:
-		energie = max(energie - 20, 0)
+		energie = max(energie - 10, 0)
 		DEBUG.log("Tir effectué sur %d cible(s)!" % hit_count)
 		stats_panel.show_ally()
 	else:
@@ -599,6 +609,11 @@ func shoot_at(target: Navires) -> void:
 		return
 	DEBUG.log("Tir sur navire [%d]" % target.id)
 	target.take_damage(dgt_tir)
+
+	# ── SON D'ATTAQUE ──────────────────────────────────────────────
+	if _audio_player and attack_sound:
+		_audio_player.stream = attack_sound
+		_audio_player.play()
 	# Effets visuels / son (à implémenter)
 #endregion gestion combat
 

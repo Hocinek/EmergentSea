@@ -20,7 +20,9 @@ func _ready() -> void:
 		if network_cfg == OK:
 			PORT = config.get_value("network", "port", 666)
 		else:
-			DEBUG.log("Fichier de configuration réseau non lisible",DEBUG.ERROR)
+			DEBUG.log("Fichier de configuration réseau non lisible, port par défaut utilisé : %d" % PORT,DEBUG.ERROR)
+	else:
+		DEBUG.log("Impossible de démarrer le lecteur du fichier de config, port par défaut utilisé : %d" % PORT,DEBUG.ERROR)
 
 	print("[SERVER] _ready() appelé, démarrage forcé...")
 	_start_server()

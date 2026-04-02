@@ -11,6 +11,7 @@ var current_player_index: int = 0
 var current_player: Player = null
 
 var state: TurnState.State = TurnState.State.IDLE
+var game_over_panel : UI_game_over
 
 # Durée "freeze" simulée pour l'IA (tant que tu n'as pas le vrai code IA)
 @export var ai_turn_delay_sec: float = 1.5
@@ -45,8 +46,11 @@ func end_turn() -> void:
 	# 1) Fin du tour du joueur courant
 	state = TurnState.State.ENDING_TURN
 	turn_ended.emit(current_player)
+	
+	# 2) On vérifie si les conditions de fin de partie sont atteintes.
+	fin_de_partie()
 
-	# 2) Passer au joueur suivant
+	# 3) Passer au joueur suivant
 	_advance_to_next_player()
 
 	if current_player == null:
@@ -54,10 +58,10 @@ func end_turn() -> void:
 		game_over.emit(null)
 		return
 
-	# 3) Démarrer son tour
+	# 4) Démarrer son tour
 	_start_turn()
 
-	# 4) SI c'est une IA, on joue automatiquement son tour,
+	# 5) SI c'est une IA, on joue automatiquement son tour,
 	#    puis on boucle jusqu'à retomber sur un humain.
 	await _auto_run_non_human_turns_until_human()
 
@@ -172,3 +176,55 @@ func _filter_alive_players(list_in: Array[Player]) -> Array[Player]:
 		if p != null and is_instance_valid(p) and p.has_alive_navires():
 			out.append(p)
 	return out
+
+
+# =========================================================
+# Fin de partie
+# =========================================================
+func somme_poisson(player: Player) -> int:
+	var total := 0
+	for navire in player.navires:
+		total += navire.nourriture
+	return total
+
+
+func somme_navire(player: Player) -> int:
+	return player.navires.size()
+
+
+func somme_port_joueur(player: Player) -> int:
+	return player.ports.size()
+
+# Calcul le nombre de ports sur toute la carte
+func calcul_nb_port() -> int:
+	var total := 0
+	for p in players:
+		total += somme_port_joueur(p)
+	return total
+
+
+func fin_de_partie() -> void:
+	players = _filter_alive_players(players)
+	for player in players:
+		var raison := ""
+		if somme_poisson(player) >= 150:
+			raison = "accumulation de 150 poissons"
+		elif somme_navire(player) >= 30:
+			raison = "accumulation de 30 navires"
+		#elif somme_port_joueur(player) >= int(calcul_nb_port() * 2.0 / 3.0):
+		#	raison = "conquête des deux tiers des ports"
+		if raison != "":
+			DEBUG.log("Le joueur %s a gagné par %s." % [player.player_name, raison])
+			_trigger_game_over(player, raison)
+			return
+	if players.size() == 1:
+		_trigger_game_over(players[0], "annihilation des adversaires")
+
+
+func _trigger_game_over(winner: Player, raison: String) -> void:
+	state = TurnState.State.GAME_OVER
+	game_over.emit(winner)
+	if game_over_panel != null:
+		game_over_panel.show_game_over(winner, raison)
+	else:
+		DEBUG.log("[TURNMANAGER] game_over_panel est null — assigne-le depuis le GameManager.", DEBUG.ERROR)

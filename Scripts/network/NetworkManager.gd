@@ -29,7 +29,9 @@ func _ready() -> void:
 			SERVER_PORT = config.get_value("network", "port", 666)
 			SERVER_IP = config.get_value("network", "ip", "127.0.0.1")
 		else:
-			DEBUG.log("Fichier de configuration réseau non lisible",DEBUG.ERROR)
+			DEBUG.log("Fichier de configuration réseau non lisible, par défaut : %s:%d" % [SERVER_IP, SERVER_PORT],DEBUG.ERROR)
+	else:
+		DEBUG.log("Impossible de démarrer le lecteur du fichier de config, config par défaut utilisée : %s:%d" % [SERVER_IP, SERVER_PORT],DEBUG.ERROR)
 	multiplayer.connected_to_server.connect(_on_connected_to_server)
 	multiplayer.connection_failed.connect(_on_connection_failed)
 	multiplayer.peer_connected.connect(_on_peer_connected)

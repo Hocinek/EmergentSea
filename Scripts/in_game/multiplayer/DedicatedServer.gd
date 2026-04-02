@@ -1,7 +1,7 @@
 extends Node
 class_name DedicatedServer
 
-var PORT := 7777
+var PORT := 666
 const MAX_PLAYERS := 2
 
 var peer: ENetMultiplayerPeer = null

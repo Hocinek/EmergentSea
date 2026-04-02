@@ -128,7 +128,7 @@ func _init() -> void:
 
 func _ready():
 	await get_tree().process_frame
-
+	print_tree()
 	match_context = get_tree().get_first_node_in_group("match_context")
 	network_manager = get_tree().get_first_node_in_group("network_manager")
   
@@ -573,12 +573,13 @@ func shoot_at(target: Navires) -> void:
 #region sync réseau
 # Synchronise la position d'un navire sur tous les autres peers
 @rpc("any_peer", "call_remote", "reliable")
-func _rpc_sync_position(case_x: int, case_y: int, world_x: float, world_y: float) -> void:
-	# Ne pas appliquer sur le navire local (déjà à jour)
+func _rpc_sync_position(case_x: int, case_y: int, world_x: float, world_y: float, rotation_angle: float) -> void:
 	if _is_local_human_owner():
 		return
 	case_actuelle = Vector2i(case_x, case_y)
 	global_position = Vector2(world_x, world_y)
+	target_rotation_angle = rotation_angle
+	_set_visual_rotation(rotation_angle)
 	_update_visibility_in_fog()
 
 # Le client envoie une demande de dégât à l'hôte
@@ -674,6 +675,7 @@ func _process(delta):
 		_update_visibility_in_fog()
 
 func _process_movement(delta: float) -> void:
+	_rpc_sync_position.rpc(case_actuelle.x, case_actuelle.y, global_position.x, global_position.y, target_rotation_angle)
 	if path.is_empty():
 		DEBUG.log("Navire [%d] - Chemin vide, arrêt du mouvement" % id)
 		is_moving  = false
@@ -724,7 +726,7 @@ func _process_movement(delta: float) -> void:
 				DEBUG.log("✓ CONDITIONS OK - Appel de _update_fog_of_war()")
 				_update_fog_of_war()
 				# Synchroniser la nouvelle position vers tous les autres peers
-				_rpc_sync_position.rpc(case_actuelle.x, case_actuelle.y, global_position.x, global_position.y)
+				_rpc_sync_position.rpc(case_actuelle.x, case_actuelle.y, global_position.x, global_position.y, target_rotation_angle)
 			else:
 				DEBUG.log("✗ CONDITIONS PAS OK - Pas de mise à jour du fog")
 				if old_case == case_actuelle:

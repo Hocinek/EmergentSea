@@ -29,6 +29,7 @@ var host_match_initialized: bool = false
 
 
 func _enter_tree() -> void:
+	name = "MultiplayerGameManager"
 	add_to_group("game_manager")
 
 	var map_manager = get_tree().get_first_node_in_group("Map_manager")

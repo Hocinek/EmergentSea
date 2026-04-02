@@ -8,8 +8,8 @@ signal peer_joined(peer_id: int)
 signal peer_left(peer_id: int)
 signal player_count_updated(count: int)
 
-const SERVER_IP := "IP_ICI"
-const SERVER_PORT := PORT_LA
+var SERVER_IP := "127.0.0.1"
+var SERVER_PORT := 666
 const MAX_PLAYERS := 2
 
 var peer: ENetMultiplayerPeer = null
@@ -22,6 +22,14 @@ func _enter_tree() -> void:
 	add_to_group("network_manager")
 
 func _ready() -> void:
+	var config := ConfigFile.new()
+	if config:
+		var network_cfg = config.load("res://Scripts/config/network.cfg")
+		if network_cfg == OK:
+			SERVER_PORT = config.get_value("network", "port", 666)
+			SERVER_IP = config.get_value("network", "ip", "127.0.0.1")
+		else:
+			DEBUG.log("Fichier de configuration réseau non lisible",DEBUG.ERROR)
 	multiplayer.connected_to_server.connect(_on_connected_to_server)
 	multiplayer.connection_failed.connect(_on_connection_failed)
 	multiplayer.peer_connected.connect(_on_peer_connected)

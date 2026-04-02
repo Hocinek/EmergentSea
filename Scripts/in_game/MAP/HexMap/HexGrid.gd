@@ -32,7 +32,7 @@ func generate_hex_grid_rectangular():
 # ============================================================
 
 func add_cell(cell: HexCell):
-	var key = Vector3(cell.q, cell.r, cell.s)
+	var key = cell.getCoordinates()
 	cells[key] = cell
 
 func get_cell(q: int, r: int, s: int) -> HexCell:

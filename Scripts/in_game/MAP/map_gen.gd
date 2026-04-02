@@ -5,6 +5,15 @@ extends Node2D
 @export var port_count: int = 8
 @export var min_port_distance: int = 15
 
+# =========================
+# Fish tile parameters
+# =========================
+@export var fish_tile_count: int = 12
+@export var min_fish_distance: int = 4   # Distance min entre deux cases de pêche
+
+# =========================
+# Internal data
+# =========================
 var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 var noise: FastNoiseLite = FastNoiseLite.new()
 var height_map := []
@@ -25,8 +34,9 @@ func generate() -> bool:
 	generate_islands()
 	generate_tiles()
 	compute_ocean_cases()
-	generate_ports()
-	sync_ports_to_map_data()
+	generate_ports()  # Génération des ports après les autres éléments
+	sync_ports_to_map_data()  # Synchroniser avec Map_data
+	generate_fish_tiles()  # Cases de pêche sur l'eau
 	return true
 
 func init_maps():
@@ -183,3 +193,55 @@ func calculate_distance(a: Vector2i, b: Vector2i) -> float:
 	var dx: float = a.x - b.x
 	var dy: float = a.y - b.y
 	return sqrt(dx * dx + dy * dy)
+
+
+# =========================
+# GÉNÉRATION DES CASES DE PÊCHE
+# =========================
+func generate_fish_tiles() -> void:
+	"""Place des cases de pêche sur des cases d'eau navigables, loin des ports."""
+	Map_data.fish_cases.clear()
+
+	# Candidats : cases d'eau navigables qui ne sont pas déjà des ports
+	var candidates: Array = []
+	for pos in Map_data.ocean_cases:
+		var tile = Map_data.tiles[pos.y][pos.x]
+		if tile == "water" or tile == "deepwater":
+			candidates.append(pos)
+
+	# Mélanger aléatoirement
+	candidates.shuffle()
+
+	var placed = 0
+	for candidate in candidates:
+		if placed >= fish_tile_count:
+			break
+
+		# Vérifier distance minimale avec les autres cases de pêche
+		if not _is_valid_fish_location(candidate):
+			continue
+
+		# Vérifier qu'on n'est pas sur un port
+		if Map_data.tiles[candidate.y][candidate.x] == "port":
+			continue
+
+		# Placer la case de pêche
+		Map_data.tiles[candidate.y][candidate.x] = "fish"
+		Map_data.fish_cases.append(candidate)
+		# La case reste navigable : on la garde dans ocean_cases
+		# (elle y est déjà puisqu'on pioche dedans)
+		placed += 1
+
+	# Recalculer ocean_cases maintenant que "fish" est reconnu comme eau
+	# Cela garantit que les cases fish sont bien navigables
+	compute_ocean_cases()
+
+	DEBUG.log("[FISH] %d cases de pêche générées sur %d demandées" % [placed, fish_tile_count])
+
+
+func _is_valid_fish_location(candidate: Vector2i) -> bool:
+	"""Vérifie que le candidat respecte la distance minimale avec les autres cases de pêche."""
+	for existing in Map_data.fish_cases:
+		if calculate_distance(candidate, existing) < min_fish_distance:
+			return false
+	return true

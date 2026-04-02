@@ -17,8 +17,8 @@ signal port_clicked(port: Ports)
 ## Détermine si le port est contrôlé par le joueur humain actuel
 var is_player_controlled: bool = false
 
-## Indique si ce port est actuellement sélectionné
-var is_selected: bool = false
+## Case liée à ce port
+var _cell : HexCell
 
 ## AJOUT : Visibilité basée sur le fog of war
 var is_visible_to_human: bool = true  # true par défaut pour les ports du joueur
@@ -55,16 +55,11 @@ var case_actuelle: Vector2i
 
 
 # =========================
-# CAMÉRA
-# =========================
-@onready var camera: Camera2D = get_node_or_null("Camera2D")
-
-
-# =========================
 # INITIALIZATION
 # =========================
 func _init() -> void:
 	add_to_group("ports")
+	case_actuelle = Map_utils.monde_vers_case(global_position)
 
 
 func _ready():
@@ -81,16 +76,6 @@ func _ready():
 	
 	# Initialisation de l'UI
 	_init_stats_ui()
-	
-	# AJOUT : Récupérer le FogManager
-	fog_manager = get_tree().get_first_node_in_group("fog_manager")
-	if fog_manager:
-		DEBUG.log("Port [%d] - FogManager connecté" % id)
-	
-	# AJOUT : Récupérer le FogOfWar pour vérifier la visibilité
-	fog_of_war_ref = get_tree().get_first_node_in_group("fog_of_war")
-	if fog_of_war_ref:
-		DEBUG.log("Port [%d] - FogOfWar connecté pour visibilité" % id)
 	
 	# Debug
 	var owner_name = player_owner.player_name if player_owner else "AUCUN"
@@ -123,8 +108,8 @@ func _setup_input_handling() -> void:
 # =========================
 # GESTION DU PROPRIÉTAIRE
 # =========================
-func set_owner_player(player: Player) -> void:
-	"""Définit le joueur propriétaire de ce port"""
+## PErmet de définir un joueur en tant que propriétaire du port
+func set_as_owner(player: Player) -> void:
 	if player_owner != null and player_owner.has_method("remove_port"):
 		player_owner.remove_port(self)
 	
@@ -132,13 +117,9 @@ func set_owner_player(player: Player) -> void:
 	
 	if player != null and player.has_method("add_port"):
 		player.add_port(self)
-	
-	# Reconfigurer les inputs
-	_setup_input_handling()
 
-
-func get_owner_player() -> Player:
-	"""Retourne le joueur propriétaire"""
+## Permet de récupérer le propriétaire du port
+func get_port_owner() -> Player:
 	return player_owner
 
 
@@ -161,10 +142,9 @@ func _is_local_human_owner() -> bool:
 	return true
 
 
+## Vérifie si tel joueur est le propriétaire du port
 func is_owned_by(player: Player) -> bool:
-	"""Vérifie si ce port appartient au joueur spécifié"""
 	return player_owner == player
-	
 
 # =========================
 # SÉLECTION
@@ -193,7 +173,7 @@ func _init_stats_ui():
 	if not ui_layer:
 		DEBUG.log("ui_layer est null, impossible de créer l'UI des stats!",DEBUG.ERROR)
 		return
-	# ---------- UI STATS (pour TOUS les navires) ----------
+	# ---------- UI STATS (pour TOUS les ports) ----------
 	# On vérifie si le panel existe déjà avant d'en créer un nouveau
 	if stats_panel == null: 
 		stats_panel = UI_stats_port.new(self)
@@ -229,6 +209,15 @@ func _unhandled_input(event: InputEvent) -> void:
 		#envoie un signal qui est récupéré par l'UI_stats_ports associé à ce port
 		if(self.is_selected):
 			emit_signal("sig_show_port")
+func on_clicked():
+	DEBUG.log("Le port a reçu le signal du clic !")
+	
+	# Toute la logique liée au port est gérée ICI, pas dans le MapManager
+	if player_owner != null and player_owner.is_human:
+		# On peut émettre le signal si d'autres menus doivent s'ouvrir (ex: interface d'achat)
+		port_clicked.emit(self) 
+	else:
+		DEBUG.log("Ce port ne vous appartient pas ou n'a pas de propriétaire.")
 	
 
 
@@ -241,8 +230,8 @@ func _unhandled_input(event: InputEvent) -> void:
 # =========================
 # HELPER FUNCTIONS
 # =========================
+## Cache les stats de tous les ports
 func hide_all_ports_stats():
-	"""Cache les stats de tous les ports"""
 	var all_ports = get_tree().get_nodes_in_group("ports")
 	
 	for port in all_ports:
@@ -253,6 +242,10 @@ func hide_all_ports_stats():
 # =========================
 # UTILS
 # =========================
+
+## Permet de récupérer les coordonnées du port
 func getPosition() -> Vector2i:
-	"""Retourne la position du navire en coordonnées de case"""
 	return case_actuelle
+
+func setCell(cell : HexCell):
+	self._cell = cell

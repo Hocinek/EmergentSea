@@ -56,7 +56,7 @@ static func is_case_valid(c: Vector2i) -> bool:
 static func is_case_water(c: Vector2i) -> bool:
 	if not is_case_valid(c):
 		return false
-	return Map_data.tiles[c.y][c.x] in ["water", "deepwater"]
+	return Map_data.tiles[c.y][c.x] in ["water", "deepwater", "fish"]
 
 ## Returns true if the given world coordinate corresponds to a water tile.
 ## This avoids checking tiles[][] outside Map.gd.

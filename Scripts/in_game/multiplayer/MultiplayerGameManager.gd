@@ -18,6 +18,7 @@ var data = null
 
 var fog_of_war: FogOfWar = null
 var fog_manager: FogManager = null
+var hex_menu: HexContextMenu = null
 
 var player1 = null
 var player2 = null
@@ -41,6 +42,7 @@ func _enter_tree() -> void:
 func _ready() -> void:
 	_refresh_refs()
 	_setup_fog_of_war()
+	_setup_hex_menu()
 
 
 func _refresh_refs() -> void:
@@ -66,6 +68,18 @@ func _setup_fog_of_war() -> void:
 		fog_manager = FogManager.new()
 		fog_manager.name = "FogManager"
 		add_child(fog_manager)
+
+
+func _setup_hex_menu() -> void:
+	var canvas := CanvasLayer.new()
+	canvas.layer = 10
+	canvas.name = "HexMenuLayer"
+	add_child(canvas)
+	hex_menu = HexContextMenu.new()
+	hex_menu.name = "HexContextMenu"
+	hex_menu.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	canvas.add_child(hex_menu)
+	hex_menu.action_selected.connect(_on_hex_menu_action)
 
 
 func _on_map_generated() -> void:
@@ -248,6 +262,9 @@ func spawn_navire(player, position: Vector2, is_player_controlled: bool = false,
 	if navire.has_signal("ship_destroyed"):
 		navire.ship_destroyed.connect(_on_ship_destroyed)
 
+	if navire.has_signal("sig_open_hex_menu"):
+		navire.sig_open_hex_menu.connect(_on_open_hex_menu)
+
 	if data == null:
 		data = get_tree().get_first_node_in_group("shared_entities")
 
@@ -302,6 +319,37 @@ func _on_ship_clicked(ship) -> void:
 func _on_ship_destroyed(ship) -> void:
 	if selected_ship == ship:
 		deselect_ship()
+
+
+func _on_open_hex_menu(navire: Navires, screen_pos: Vector2) -> void:
+	if hex_menu:
+		hex_menu.show_for(navire, screen_pos)
+
+
+func _on_hex_menu_action(action: String, navire: Navires) -> void:
+	if not navire or not is_instance_valid(navire):
+		return
+	match action:
+		"move":
+			select_ship(navire)
+			navire.set_input_mode(Navires.InputMode.MOVE)
+		"attack":
+			select_ship(navire)
+			navire.set_input_mode(Navires.InputMode.ATTACK)
+		"inspect":
+			select_ship(navire)
+			navire.set_input_mode(Navires.InputMode.INSPECT)
+		"stats":
+			navire.toggle_stats()
+		"switch":
+			var local_player = players_manager.get_local_player()
+			if local_player:
+				var ships = local_player.get_navires()
+				if ships.size() > 1:
+					var idx = ships.find(navire)
+					select_ship(ships[(idx + 1) % ships.size()])
+		"fish":
+			navire.try_start_fishing()
 
 
 func select_port(port) -> void:

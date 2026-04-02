@@ -67,12 +67,6 @@ func _ready():
 	
 	match_context = get_tree().get_first_node_in_group("match_context")
 	case_actuelle = Map_utils.monde_vers_case(global_position)
-
-	# Configuration de la caméra pour le port contrôlé par le joueur
-	_setup_camera()
-	
-	# Configuration des inputs selon le type de contrôle
-	_setup_input_handling()
 	
 	# Initialisation de l'UI
 	_init_stats_ui()
@@ -83,16 +77,6 @@ func _ready():
 	DEBUG.log("Port [%s] initialisé - Propriétaire: %s - Type: %s - Position: %s" % [
 		id, owner_name, control_type, case_actuelle
 	])
-
-
-func _setup_camera() -> void:
-	"""Configure la caméra pour suivre le port si c'est celui du joueur"""
-	if not is_selected:
-		return
-		
-	var cam = get_tree().get_first_node_in_group("camera_controller")
-	if cam and cam.has_method("set_target"):
-		cam.set_target(self)
 
 
 func _setup_input_handling() -> void:
@@ -146,25 +130,6 @@ func _is_local_human_owner() -> bool:
 func is_owned_by(player: Player) -> bool:
 	return player_owner == player
 
-# =========================
-# SÉLECTION
-# =========================
-func set_selected(selected: bool) -> void:
-	"""Définit si ce port est sélectionné"""
-	is_selected = selected
-	queue_redraw()
-	
-	# Activer/désactiver la caméra selon la sélection
-	if selected and _is_local_human_owner():
-		_setup_camera()
-		# Afficher les stats du port sélectionné
-		if(stats_panel):
-			stats_panel.show_ally()
-	else:
-		stats_panel.hide_all_stats()
-	
-	DEBUG.log("Port %d %s" % [id, "SÉLECTIONNÉ" if selected else "désélectionné"])
-	
 
 # =========================
 # UI INITIALIZATION
@@ -184,31 +149,6 @@ func _init_stats_ui():
 # =========================
 # INPUT
 # =========================
-func _unhandled_input(event: InputEvent) -> void:
-	# Vérifier que ce port appartient au joueur local humain
-	if not _is_local_human_owner():
-		return
-	
-	# Détecter le clic sur ce port pour le sélectionner
-	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
-		var mouse_pos = get_global_mouse_position()
-		var distance = global_position.distance_to(mouse_pos)
-		
-		# Si on clique sur ce port
-		if distance <= interaction_radius:
-			emit_signal("port_clicked", self)
-			get_viewport().set_input_as_handled()
-			return
-	
-	# Le reste des inputs uniquement pour le port sélectionné
-	if not is_selected:
-		return
-	
-	# Toggle stats
-	if Input.is_action_just_pressed("input_toggle_stats"):
-		#envoie un signal qui est récupéré par l'UI_stats_ports associé à ce port
-		if(self.is_selected):
-			emit_signal("sig_show_port")
 func on_clicked():
 	DEBUG.log("Le port a reçu le signal du clic !")
 	

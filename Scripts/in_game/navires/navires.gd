@@ -213,6 +213,7 @@ func _setup_node3d_instance() -> void:
 		DEBUG.log("Navire [%d] - hull_offset appliqué : %s" % [id, hull_offset])
 
 
+
 func _resolve_visual_node() -> void:
 	pass
 
@@ -411,8 +412,10 @@ func _unhandled_input(event: InputEvent) -> void:
 			# MODE ACTIF 
 			# Seulement le navire sélectionné exécute l'action ET absorbe le clic.
 			# Les navires non-sélectionnés ignorent complètement ce bloc.
+
 			if is_selected and current_input_mode != InputMode.NONE:
 				match current_input_mode:
+
 					InputMode.MOVE:
 						var clicked_ship := get_ship_at_position(mouse_pos)
 						if not clicked_ship:
@@ -432,12 +435,14 @@ func _unhandled_input(event: InputEvent) -> void:
 						set_input_mode(InputMode.NONE)
 						get_viewport().set_input_as_handled()
 						return
+
 					InputMode.ATTACK:
 						var target_case: Vector2i = Map_utils.monde_vers_case(mouse_pos)
 						attempt_shoot(target_case)
 						set_input_mode(InputMode.NONE)
 						get_viewport().set_input_as_handled()
 						return
+
 					InputMode.INSPECT:
 						var target_case: Vector2i = Map_utils.monde_vers_case(mouse_pos)
 						emit_signal("sig_inspect_case", target_case)
@@ -484,7 +489,6 @@ func _unhandled_input(event: InputEvent) -> void:
 					DEBUG.log("Case cible NON navigable !")
 
 		elif event.button_index == MOUSE_BUTTON_RIGHT:
-
 			# Seul le navire sélectionné traite le clic droit
 			if not is_selected:
 				return
@@ -502,6 +506,7 @@ func _unhandled_input(event: InputEvent) -> void:
 				emit_signal("sig_open_hex_menu", self, screen_pos)
 				get_viewport().set_input_as_handled()
 				return
+
 
 			# En dehors → tir direct (clic droit hors menu)
 			var target_case: Vector2i = Map_utils.monde_vers_case(mouse_pos)
@@ -707,6 +712,7 @@ func _process_movement(delta: float) -> void:
 				DEBUG.log("    Raison: pas de player_owner")
 			if player_owner and not player_owner.is_human:
 				DEBUG.log("    Raison: player_owner n'est pas humain")
+
 		# Mise à jour de la visibilité pour navires ennemis
 		if player_owner and not player_owner.is_human:
 			_update_visibility_in_fog()
@@ -835,6 +841,7 @@ func _update_fishing(delta: float) -> void:
 func try_start_fishing() -> void:
 	if is_moving or is_fishing:
 		return
+
 	if energie < fish_energy_cost:
 		DEBUG.log("Navire [%d] - Pas assez d'énergie pour pêcher" % id)
 		return
@@ -862,6 +869,7 @@ func try_start_fishing() -> void:
 	is_fishing = true
 	fish_timer = fish_duration
 	energie = max(energie - fish_energy_cost, 0)
+
 	stats_panel.show_ally()
 	DEBUG.log("Navire [%d] - Début de pêche sur case %s" % [id, case_actuelle])
 

@@ -52,8 +52,8 @@ var fog_of_war_ref: FogOfWar = null
 var stats_panel : UI_stats_navire
 @export var vie: int = 10
 @export var maxvie: int = 10
-@export var energie: int = 3000
-@export var maxenergie: int = 3000
+@export var energie: int = 20
+@export var maxenergie: int = 20
 @export var vitesse: float = 800.0
 @export var nrbequipage: int = 0
 @export var interaction_radius: float = 80.0

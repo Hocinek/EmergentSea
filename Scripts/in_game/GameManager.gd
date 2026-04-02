@@ -74,6 +74,8 @@ func _ready():
 	# Créer le HexContextMenu 
 	_setup_hex_menu()
 	_setup_case_info_ui()
+	# Préparer la fin de partie
+	_setup_game_over_ui()
 	# Récupérer le PlayersManager
 	_try_get_players_manager()
 
@@ -142,6 +144,19 @@ func _setup_case_info_ui() -> void:
 	add_child(case_info_ui)
 	case_info_ui.setup()
 	DEBUG.log("[GAMEMANAGER] UI_case_info créé")
+
+func _setup_game_over_ui() -> void:
+	var ui_game_over := UI_game_over.new()
+	ui_game_over.name = "UI_game_over"
+	add_child(ui_game_over)
+	await ui_game_over.init()
+	
+	if turn_manager:
+		turn_manager.game_over_panel = ui_game_over
+		DEBUG.log("[GAMEMANAGER] UI_game_over assigné au TurnManager")
+	else:
+		DEBUG.log("[GAMEMANAGER] Impossible d'assigner UI_game_over : TurnManager null", DEBUG.ERROR)
+
 #endregion fonctions d'initialisation
 
 

@@ -7,7 +7,7 @@ signal sig_navire_damaged(navire: Navires, damage: int)
 signal ship_clicked(ship: Navires)
 signal ship_destroyed(ship: Navires)
 signal sig_show_fishing
-signal sig_inspect_case(case_pos: Vector2i)
+signal sig_inspect_case(case_pos: Vector2i, screen_pos: Vector2)
 signal sig_open_hex_menu(navire: Navires, screen_pos: Vector2)
 signal sig_switch_ship()
 
@@ -481,7 +481,7 @@ func _unhandled_input(event: InputEvent) -> void:
 
 					InputMode.INSPECT:
 						var target_case: Vector2i = Map_utils.monde_vers_case(mouse_pos)
-						emit_signal("sig_inspect_case", target_case)
+						emit_signal("sig_inspect_case", target_case, get_viewport().get_mouse_position())
 						DEBUG.log("Inspection de la case %s" % str(target_case))
 						set_input_mode(InputMode.NONE)
 						get_viewport().set_input_as_handled()

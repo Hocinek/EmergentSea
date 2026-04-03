@@ -26,6 +26,10 @@ func _enter_tree() -> void:
 # =========================================================
 
 func start_game(players_list: Array[Player]) -> void:
+	var label = get_tree().get_first_node_in_group("ai_turn_label")
+	if label:
+		label.visible = false
+
 	players = _filter_alive_players(players_list)
 	current_player_index = 0
 
@@ -161,7 +165,7 @@ func _advance_to_next_player() -> void:
 		current_player = null
 		return
 
-	# Sécurité : si l’index dépasse après filtrage
+	# Sécurité : si l'index dépasse après filtrage
 	if current_player_index >= players.size():
 		current_player_index = 0
 

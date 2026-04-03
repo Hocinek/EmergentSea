@@ -906,18 +906,10 @@ func try_start_fishing() -> void:
 	if not Map_utils.is_on_water(global_position):
 		return
 
-	if not fish_manager.is_fish_tile(case_actuelle):
-		DEBUG.log("Navire [%d] - Cette case n'est pas une zone de pêche" % id)
-		DEBUG.log("  → case_actuelle = %s" % str(case_actuelle))
-		DEBUG.log("  → Map_data.tiles[%d][%d] = '%s'" % [case_actuelle.y, case_actuelle.x, Map_data.tiles[case_actuelle.y][case_actuelle.x]])
-		DEBUG.log("  → Map_data.fish_cases (%d cases) = %s" % [Map_data.fish_cases.size(), str(Map_data.fish_cases)])
-		DEBUG.log("  → fish_manager.fish_stocks keys (%d) = %s" % [fish_manager.fish_stocks.size(), str(fish_manager.fish_stocks.keys())])
-		return
-
-	if not fish_manager.can_fish_at(case_actuelle):
+	# Zone de pêche épuisée → on signale mais on ne bloque pas (eau ordinaire possible)
+	if fish_manager.is_fish_tile(case_actuelle) and not fish_manager.can_fish_at(case_actuelle):
 		DEBUG.log("Navire [%d] - Cette zone de pêche est épuisée !" % id)
 		if fish_feedback_label:
-			# Zone épuisée : on affiche "+0 🐟" pour signaler l'échec
 			fish_feedback_label.finished_fishing(self, 0)
 		return
 
@@ -926,7 +918,9 @@ func try_start_fishing() -> void:
 	fish_timer = fish_duration
 	energie = max(energie - fish_energy_cost, 0)
 	stats_panel.show_ally()
-	DEBUG.log("Navire [%d] - Début de pêche sur case %s" % [id, case_actuelle])
+
+	var zone_type = "zone de pêche" if fish_manager.is_fish_tile(case_actuelle) else "eau libre"
+	DEBUG.log("Navire [%d] - Début de pêche sur case %s (%s)" % [id, case_actuelle, zone_type])
 
 func finish_fishing() -> void:
 	is_fishing = false
@@ -935,11 +929,19 @@ func finish_fishing() -> void:
 	if not fish_manager:
 		return
 
-	var wanted := randi_range(fish_yield_min, fish_yield_max)
-	if nrbequipage >= 6:
-		wanted += 1
+	var gain: int = 0
 
-	var gain := fish_manager.harvest_fish(case_actuelle, wanted)
+	if fish_manager.is_fish_tile(case_actuelle):
+		# Zone de pêche : rendement élevé (6-7, +1 si équipage >= 6)
+		var wanted := randi_range(6, 7)
+		if nrbequipage >= 6:
+			wanted += 1
+		gain = fish_manager.harvest_fish(case_actuelle, wanted)
+	else:
+		# Eau libre (peu profonde ou profonde) : rendement faible (1-2)
+		gain = randi_range(1, 2)
+		if nrbequipage >= 6:
+			gain = mini(gain + 1, 2)
 
 	nourriture += gain
 
@@ -948,5 +950,6 @@ func finish_fishing() -> void:
 		fish_feedback_label.finished_fishing(self, gain)
 		sig_show_stats.emit()
 
-	DEBUG.log("Navire [%d] - Pêche terminée : +%d poissons (case %s)" % [id, gain, case_actuelle])
+	var zone_type = "zone de pêche" if fish_manager.is_fish_tile(case_actuelle) else "eau libre"
+	DEBUG.log("Navire [%d] - Pêche terminée : +%d poissons sur %s (case %s)" % [id, gain, zone_type, case_actuelle])
 #endregion peche

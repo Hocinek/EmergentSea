@@ -96,7 +96,7 @@ func spawn_tile_object(cell: HexCell):
 	var offset_coords = cell.getTabCoordinates()
 	var pixel_pos = Map_utils.hex_to_pixel_iso(offset_coords.x, offset_coords.y)
 	s.position = pixel_pos
-	
+				
 	add_child(s)
 	
 	if cell.getTypeTerrain() == "port":
@@ -106,6 +106,8 @@ func spawn_tile_object(cell: HexCell):
 		add_child(port_node)
 		
 		cell.port_instance = port_node
+		
+		
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:

@@ -171,13 +171,9 @@ func _ready():
 	fog_of_war_ref = get_tree().get_first_node_in_group("fog_of_war")
 	if fog_of_war_ref:
 		DEBUG.log("Navire [%d] - FogOfWar connecté pour visibilité" % id)
-	_audio_player = AudioStreamPlayer2D.new()
-	add_child(_audio_player)
-	if attack_sound:
-		_audio_player.stream = attack_sound
-	# Dans _ready(), après _setup_node3d_instance()
 	attack_sound = load("res://son/sf_canon_01.mp3")
 	_audio_player = AudioStreamPlayer2D.new()
+	_audio_player.stream = attack_sound
 	add_child(_audio_player)
 	# Debug
 	var owner_name = player_owner.player_name if player_owner else "AUCUN"

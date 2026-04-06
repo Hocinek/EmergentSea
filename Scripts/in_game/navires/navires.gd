@@ -29,7 +29,8 @@ var is_player_controlled: bool = false
 var is_selected: bool = false
 var is_visible_to_human: bool = true
 var fog_of_war_ref: FogOfWar = null
-
+var pending_path := []
+var _confirm_ui: UI_confirm_deplacement = null
 # =========================
 # MODÈLE 3D
 # =========================
@@ -174,6 +175,7 @@ func _ready():
 	attack_sound = load("res://son/sf_canon_01.mp3")
 	_audio_player = AudioStreamPlayer2D.new()
 	_audio_player.stream = attack_sound
+	_audio_player.volume_db = 10.0
 	add_child(_audio_player)
 	# Debug
 	var owner_name = player_owner.player_name if player_owner else "AUCUN"
@@ -451,19 +453,19 @@ func _unhandled_input(event: InputEvent) -> void:
 					InputMode.MOVE:
 						var clicked_ship := get_ship_at_position(mouse_pos)
 						if not clicked_ship:
-							var target_case: Vector2i = Map_utils.monde_vers_case(mouse_pos)
-							if Map_utils.is_case_navigable(target_case):
-								path = Pathfinder.calculer_chemin(case_actuelle, target_case)
-								if not path.is_empty():
-									DEBUG.log("Chemin: " + str(path))
-									is_moving       = true
-									target_position = mouse_pos
-									show_arrow      = true
-									queue_redraw()
-								else:
-									DEBUG.log("Chemin vide !")
+							if energie <= 0:
+								DEBUG.log("Navire [%d] — Pas assez d'énergie pour se déplacer!" % id)
 							else:
-								DEBUG.log("Case non navigable !")
+								var target_case: Vector2i = Map_utils.monde_vers_case(mouse_pos)
+								if Map_utils.is_case_navigable(target_case):
+									var computed_path = Pathfinder.calculer_chemin(case_actuelle, target_case)
+									if not computed_path.is_empty():
+										DEBUG.log("Chemin: " + str(computed_path))
+										_request_move_confirmation(computed_path)
+									else:
+										DEBUG.log("Chemin vide !")
+								else:
+									DEBUG.log("Case non navigable !")
 						set_input_mode(InputMode.NONE)
 						get_viewport().set_input_as_handled()
 						return
@@ -507,22 +509,26 @@ func _unhandled_input(event: InputEvent) -> void:
 					return
 				var target_case: Vector2i = Map_utils.monde_vers_case(mouse_pos)
 				if Map_utils.is_case_navigable(target_case):
-					path = Pathfinder.calculer_chemin(case_actuelle, target_case)
-					if not path.is_empty():
-						DEBUG.log("Chemin: " + str(path))
-						is_moving       = true
-						target_position = mouse_pos
-						show_arrow      = true
-						queue_redraw()
+					var computed_path = Pathfinder.calculer_chemin(case_actuelle, target_case)
+					if not computed_path.is_empty():
+						DEBUG.log("Chemin: " + str(computed_path))
+						_request_move_confirmation(computed_path)
 						get_viewport().set_input_as_handled()
 					else:
 						DEBUG.log("Chemin vide !")
 				else:
 					DEBUG.log("Case cible NON navigable !")
+
 		elif event.button_index == MOUSE_BUTTON_RIGHT:
 
 			# Seul le navire sélectionné traite le clic droit
 			if not is_selected:
+				return
+
+			# Annuler une confirmation en attente
+			if not pending_path.is_empty():
+				_cancel_pending_move()
+				get_viewport().set_input_as_handled()
 				return
 
 			# Annuler un mode en cours
@@ -550,8 +556,12 @@ func _unhandled_input(event: InputEvent) -> void:
 	if not is_selected:
 		return
 
-	# Echap → annuler le mode actif
+	# Echap → annuler la confirmation en attente ou le mode actif
 	if event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE:
+		if not pending_path.is_empty():
+			_cancel_pending_move()
+			get_viewport().set_input_as_handled()
+			return
 		if current_input_mode != InputMode.NONE:
 			set_input_mode(InputMode.NONE)
 			get_viewport().set_input_as_handled()
@@ -764,6 +774,13 @@ func _process_movement(delta: float) -> void:
 
 		DEBUG.log("Navire [%d] arrivé à %s - Cases restantes: %d" % [id, case_actuelle, path.size()])
 		DEBUG.log("old_case: %s, case_actuelle: %s, changé: %s" % [old_case, case_actuelle, old_case != case_actuelle])
+		if energie <= 0:
+			is_moving  = false
+			show_arrow = false
+			path.clear()
+			queue_redraw()
+			DEBUG.log("Navire [%d] — Énergie épuisée, arrêt du déplacement" % id)
+			return
 		if player_owner:
 			DEBUG.log("player_owner existe: %s, is_human: %s, is_local: %s" % [player_owner.player_name, player_owner.is_human, player_owner.is_local])
 		else:
@@ -797,6 +814,62 @@ func _process_movement(delta: float) -> void:
 	else:
 		global_position += direction.normalized() * vitesse * delta
 #endregion process
+
+#region confirmation déplacement
+func _request_move_confirmation(computed_path: Array) -> void:
+	# Fermer une confirmation précédente si elle traîne
+	_cancel_pending_move()
+
+	# ── TRONQUER le chemin si l'énergie est insuffisante ──
+	# Le joueur ne peut avancer que d'autant de cases qu'il a d'énergie.
+	var affordable_path: Array = computed_path
+	if computed_path.size() > energie:
+		affordable_path = computed_path.slice(0, energie)
+		DEBUG.log("Navire [%d] — Chemin tronqué à %d cases (énergie: %d)" % [id, affordable_path.size(), energie])
+
+	pending_path = affordable_path
+	var cost: int = affordable_path.size()  # coût réel = cases effectivement parcourables
+
+	if not _confirm_ui:
+		_confirm_ui = UI_confirm_deplacement.new()
+		_confirm_ui.confirmed.connect(_on_move_confirmed)
+		_confirm_ui.cancelled.connect(_on_move_cancelled)
+		ui_layer.add_child(_confirm_ui)
+
+	# Positionner la bulle près du navire (en coordonnées écran)
+	var canvas_xform := get_canvas_transform()
+	var screen_pos: Vector2 = canvas_xform * global_position
+	_confirm_ui.show_for(affordable_path.size(), cost, screen_pos)
+
+	# Dessiner la flèche vers la destination réellement atteignable
+	show_arrow = true
+	target_position = Map_utils.case_vers_monde(affordable_path.back())
+	queue_redraw()
+	DEBUG.log("Navire [%d] — Confirmation demandée : %d case(s) pour %d ⚡" % [id, affordable_path.size(), cost])
+
+func _on_move_confirmed() -> void:
+	if pending_path.is_empty():
+		return
+	path           = pending_path
+	pending_path   = []
+	is_moving      = true
+	show_arrow     = true
+	target_position = Map_utils.case_vers_monde(path.back())
+	queue_redraw()
+	DEBUG.log("Navire [%d] — Déplacement confirmé, %d cases" % [id, path.size()])
+
+func _on_move_cancelled() -> void:
+	_cancel_pending_move()
+	DEBUG.log("Navire [%d] — Déplacement annulé" % id)
+
+func _cancel_pending_move() -> void:
+	pending_path = []
+	if _confirm_ui and is_instance_valid(_confirm_ui):
+		_confirm_ui.hide_ui()
+	show_arrow = false
+	queue_redraw()
+#endregion confirmation déplacement
+
 
 
 #region UI

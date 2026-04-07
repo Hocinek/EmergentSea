@@ -1,8 +1,7 @@
 class_name MapManager
 extends Node2D
 
-
-# Permettra de signaler la fin de la génération de la map
+## Permettra de signaler la fin de la génération de la map
 signal map_generated
 ## Permet de signaler qu'une case a été cliquée
 signal cell_clicked(cell: HexCell)
@@ -12,6 +11,7 @@ signal cell_clicked(cell: HexCell)
 
 var grid : HexGrid
 var fish_manager : FishManager
+
 
 func _enter_tree():
 	add_to_group("Map_manager")
@@ -26,9 +26,28 @@ func _enter_tree():
 	add_child(fish_manager)
 	
 func _ready():
+	var network_manager: NetworkManager = get_tree().get_first_node_in_group("network_manager")
+
+	if network_manager == null or not network_manager.multiplayer.has_multiplayer_peer():
+		# Mode solo : génération immédiate comme avant
+		await _generate_and_render()
+	elif network_manager.is_host():
+		# Mode multi hôte : générer puis envoyer la seed aux clients
+		await _generate_and_render()
+		_rpc_sync_seed.rpc(Map_data.gen_seed)
+	else:
+		# Mode multi client : attendre la seed de l'hôte, ne pas générer tout de suite
+		pass
+
+
+# =============================================================
+# GÉNÉRATION ET RENDU (commun hôte + solo)
+# =============================================================
+
+func _generate_and_render() -> void:
 	await get_tree().process_frame
 	var is_map_gen = map_gen.generate()
-	if(is_map_gen):
+	if is_map_gen:
 		DEBUG.log("Map générée")
 		grid.generate_hex_grid_rectangular()
 		grid.import_from_map_data()
@@ -40,19 +59,30 @@ func _ready():
 		# Signaler que la map est générée
 		await get_tree().process_frame
 		emit_signal("map_generated")
-	pass
 
-# =========================
-# Rendering Refactorisé
-# =========================
+
+# =============================================================
+# RPC SYNC SEED (hôte → clients)
+# =============================================================
+
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_sync_seed(seed: int) -> void:
+	# Le client reçoit la seed, l'applique et génère la même map
+	Map_data.gen_seed = seed
+	await _generate_and_render()
+
+
+# =============================================================
+# RENDU
+# =============================================================
+
 func render_map_from_grid():
-	# On itère sur toutes les cellules stockées dans le dictionnaire
 	for cell in grid.cells.values():
 		spawn_tile_object(cell)
 
+
 func spawn_tile_object(cell: HexCell):
 	var s := Sprite2D.new()
-	
 	s.centered = true
 	# On récupère le type de terrain depuis la cellule
 	s.texture = cell.getTileTexture()

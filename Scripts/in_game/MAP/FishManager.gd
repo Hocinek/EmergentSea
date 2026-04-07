@@ -5,10 +5,10 @@ extends Node
 # CONFIGURATION
 # =========================
 ## Stock initial de poissons par case
-@export var fish_max_stock: int = 20
+@export var fish_max_stock: int = 25
 
 ## Stock de départ (peut être différent du max)
-@export var fish_initial_stock: int = 15
+@export var fish_initial_stock: int = 18
 
 ## Régénération par tour (très lente)
 @export var fish_regen_per_turn: float = 0.5
@@ -77,6 +77,11 @@ func can_fish_at(pos: Vector2i) -> bool:
 	if not fish_stocks.has(pos):
 		return false
 	return fish_stocks[pos] >= 1.0
+
+
+func is_open_water_fishable(pos: Vector2i) -> bool:
+	"""Vérifie si la case est de l'eau ordinaire (pas une zone de pêche) mais pêchable quand même."""
+	return not fish_stocks.has(pos)
 
 
 func harvest_fish(pos: Vector2i, amount: int) -> int:

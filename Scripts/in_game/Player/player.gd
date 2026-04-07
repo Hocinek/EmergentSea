@@ -7,6 +7,7 @@ class_name Player
 @export var player_id: int = -1
 @export var player_name: String = ""
 @export var is_human: bool = true
+@export var is_local: bool = false
 
 # ===============================
 # DONNEES DE JEU

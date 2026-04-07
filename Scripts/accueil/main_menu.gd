@@ -1,6 +1,7 @@
 extends Control
 
 const SOLO_SCENE_PATH := "res://Scenes/in_game/Main.tscn"
+const MULTI_SCENE_PATH := "res://Scenes/in_game/MainMulti.tscn"
 
 # Configuration : seules les actions commençant par ceci seront affichées
 @export var action_prefix := "input_"
@@ -11,33 +12,48 @@ const SOLO_SCENE_PATH := "res://Scenes/in_game/Main.tscn"
 	&"ui_right"
 ]
 
-# UI state
 var waiting_action: StringName = &""
 
-# Screens
+# Screens : les différents écrans pouvant être affichés
 var screen_main: Control
+var screen_lobby: Control
 var screen_options: Control
 var screen_controls: Control
 
-# Controls screen refs
 var hint_label: Label
 var actions_box: VBoxContainer
 
+var lobby_title_label: Label
+var lobby_players_label: Label
+var lobby_status_label: Label
+var lobby_start_button: Button
+var lobby_cancel_button: Button
 
-# =========================================================
-# Lifecycle
-# =========================================================
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_connect_network_signals()
 	_build_ui()
 	_show_main()
 
 
+func _connect_network_signals() -> void:
+	if not network_manager.join_succeeded.is_connected(_on_join_succeeded):
+		network_manager.join_succeeded.connect(_on_join_succeeded)
+	if not network_manager.join_failed.is_connected(_on_join_failed):
+		network_manager.join_failed.connect(_on_join_failed)
+	if not network_manager.peer_joined.is_connected(_on_peer_joined):
+		network_manager.peer_joined.connect(_on_peer_joined)
+	if not network_manager.peer_left.is_connected(_on_peer_left):
+		network_manager.peer_left.connect(_on_peer_left)
+	if not network_manager.host_started.is_connected(_on_host_started):
+		network_manager.host_started.connect(_on_host_started)
+	if not network_manager.player_count_updated.is_connected(_on_player_count_updated):
+		network_manager.player_count_updated.connect(_on_player_count_updated)
+
 # =========================================================
 # UI BUILD
 # =========================================================
-
 func _build_ui() -> void:
 	for c in get_children():
 		c.queue_free()
@@ -49,10 +65,12 @@ func _build_ui() -> void:
 	add_child(bg)
 
 	screen_main = _make_main_screen()
+	screen_lobby = _make_lobby_screen()
 	screen_options = _make_options_screen()
 	screen_controls = _make_controls_screen()
 
 	add_child(screen_main)
+	add_child(screen_lobby)
 	add_child(screen_options)
 	add_child(screen_controls)
 
@@ -62,7 +80,7 @@ func _make_panel(title_text: String) -> Dictionary:
 	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
 	var panel := PanelContainer.new()
-	panel.custom_minimum_size = Vector2(520, 0)
+	panel.custom_minimum_size = Vector2(560, 0)
 
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 14)
@@ -90,6 +108,13 @@ func _make_button(text: String) -> Button:
 # =========================================================
 # SCREENS
 # =========================================================
+func _make_line_edit(placeholder: String, default_text: String = "") -> LineEdit:
+	var e := LineEdit.new()
+	e.placeholder_text = placeholder
+	e.text = default_text
+	e.custom_minimum_size = Vector2(0, 40)
+	return e
+
 
 func _make_main_screen() -> Control:
 	var d := _make_panel("EmergentSea")
@@ -101,13 +126,9 @@ func _make_main_screen() -> Control:
 	var btn_quit := _make_button("Quitter")
 
 	btn_solo.pressed.connect(_on_solo_pressed)
+	btn_multi.pressed.connect(_on_multi_pressed)
 	btn_options.pressed.connect(_show_options)
 	btn_quit.pressed.connect(func(): get_tree().quit())
-
-	btn_multi.pressed.connect(func():
-		btn_multi.text = "Multijoueur (bientôt)"
-		btn_multi.disabled = true
-	)
 
 	v.add_child(btn_solo)
 	v.add_child(btn_multi)
@@ -116,6 +137,44 @@ func _make_main_screen() -> Control:
 
 	var wrapper := Control.new()
 	wrapper.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	wrapper.add_child(d["root"])
+	return wrapper
+
+
+func _make_lobby_screen() -> Control:
+	var d := _make_panel("Salon d'attente")
+	var v: VBoxContainer = d["vbox"]
+
+	lobby_title_label = Label.new()
+	lobby_title_label.text = "Connexion au serveur..."
+	lobby_title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lobby_title_label.add_theme_font_size_override("font_size", 18)
+	v.add_child(lobby_title_label)
+
+	lobby_players_label = Label.new()
+	lobby_players_label.text = "Joueurs connectés : 1"
+	lobby_players_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	v.add_child(lobby_players_label)
+
+	lobby_status_label = Label.new()
+	lobby_status_label.text = ""
+	lobby_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	lobby_status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	v.add_child(lobby_status_label)
+
+	lobby_start_button = _make_button("Lancer la partie")
+	lobby_start_button.disabled = true
+	lobby_start_button.visible = false
+	lobby_start_button.pressed.connect(_on_lobby_start_pressed)
+	v.add_child(lobby_start_button)
+
+	lobby_cancel_button = _make_button("Annuler")
+	lobby_cancel_button.pressed.connect(_on_lobby_cancel_pressed)
+	v.add_child(lobby_cancel_button)
+
+	var wrapper := Control.new()
+	wrapper.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	wrapper.visible = false
 	wrapper.add_child(d["root"])
 	return wrapper
 
@@ -145,7 +204,7 @@ func _make_controls_screen() -> Control:
 	var v: VBoxContainer = d["vbox"]
 
 	hint_label = Label.new()
-	hint_label.text = "Clique sur “Changer”, puis appuie sur une touche. (Échap = annuler)"
+	hint_label.text = "Clique sur « Changer », puis appuie sur une touche. (Échap = annuler)"
 	hint_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	v.add_child(hint_label)
 
@@ -180,13 +239,12 @@ func _make_controls_screen() -> Control:
 	wrapper.add_child(d["root"])
 	return wrapper
 
-
 # =========================================================
 # NAVIGATION
 # =========================================================
-
 func _set_visible_screen(active: Control) -> void:
 	screen_main.visible = active == screen_main
+	screen_lobby.visible = active == screen_lobby
 	screen_options.visible = active == screen_options
 	screen_controls.visible = active == screen_controls
 
@@ -207,18 +265,95 @@ func _show_controls() -> void:
 	_set_visible_screen(screen_controls)
 
 
+func _show_lobby() -> void:
+	lobby_title_label.text = "Connexion au serveur en cours..."
+	lobby_status_label.text = ""
+	lobby_start_button.visible = false
+	lobby_start_button.disabled = true
+	_update_lobby_player_count()
+	_set_visible_screen(screen_lobby)
+
+
+func _update_lobby_player_count() -> void:
+	if lobby_players_label == null:
+		return
+	if multiplayer.has_multiplayer_peer():
+		var peers = Array(multiplayer.get_peers())
+		var real_peers = peers.filter(func(p): return p != 1)
+		var total: int = real_peers.size() + 1
+		lobby_players_label.text = "Joueurs connectés : %d" % total
+		if network_manager.is_host() and lobby_start_button != null:
+			lobby_start_button.disabled = real_peers.size() < 1
+
 # =========================================================
 # ACTIONS
 # =========================================================
-
 func _on_solo_pressed() -> void:
+	network_manager.shutdown()
 	get_tree().change_scene_to_file(SOLO_SCENE_PATH)
+
+
+func _on_multi_pressed() -> void:
+	network_manager.shutdown()
+	_show_lobby()
+	network_manager.join_dedicated_server()
+
+
+func _on_join_succeeded() -> void:
+	if network_manager.is_host():
+		lobby_title_label.text = "En attente de joueurs... (vous êtes l'hôte)"
+		lobby_status_label.text = "Le bouton « Lancer » sera disponible dès qu'un joueur vous rejoint."
+		lobby_start_button.visible = true
+	else:
+		lobby_title_label.text = "Connecté ! En attente du lancement par l'hôte..."
+		lobby_status_label.text = "L'hôte va bientôt lancer la partie."
+	_update_lobby_player_count()
+
+
+func _on_host_started() -> void:
+	lobby_title_label.text = "En attente de joueurs... (vous êtes l'hôte)"
+	lobby_status_label.text = "Le bouton « Lancer » sera disponible dès qu'un joueur vous rejoint."
+	lobby_start_button.visible = true
+	_update_lobby_player_count()
+
+
+func _on_join_failed() -> void:
+	lobby_status_label.text = "Connexion échouée. Le serveur est peut-être hors ligne."
+
+
+func _on_peer_joined(_peer_id: int) -> void:
+	if screen_lobby.visible:
+		_update_lobby_player_count()
+		if network_manager.is_host():
+			lobby_status_label.text = "Un joueur a rejoint ! Vous pouvez lancer la partie."
+
+
+func _on_peer_left(_peer_id: int) -> void:
+	if screen_lobby.visible:
+		_update_lobby_player_count()
+
+
+func _on_lobby_start_pressed() -> void:
+	if not network_manager.is_host():
+		return
+	network_manager.broadcast_start_game()
+
+
+func _on_lobby_cancel_pressed() -> void:
+	network_manager.shutdown()
+	_show_main()
+
+
+func _on_player_count_updated(count: int) -> void:
+	if screen_lobby.visible:
+		lobby_players_label.text = "Joueurs connectés : %d" % count
+		if network_manager.is_host() and lobby_start_button != null:
+			lobby_start_button.disabled = count < 2
 
 
 func _on_reset_pressed() -> void:
 	key_config_manager.reset_to_defaults(_get_rebindable_actions())
 	_rebuild_actions_ui()
-
 
 # =========================================================
 # REBIND UI
@@ -235,34 +370,28 @@ func _get_rebindable_actions() -> Array[StringName]:
 			list.append(action)
 	return list
 
+
 func _rebuild_actions_ui() -> void:
 	if actions_box == null:
 		return
-
 	for c in actions_box.get_children():
 		c.queue_free()
-
 	for a in _get_rebindable_actions():
 		if not InputMap.has_action(a):
 			continue
-
 		var row := HBoxContainer.new()
 		row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-
 		var lbl := Label.new()
 		lbl.text = _pretty_action(a)
 		lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-
 		var key_lbl := Label.new()
 		key_lbl.text = _keys_text(a)
 		key_lbl.custom_minimum_size = Vector2(220, 0)
-
 		var btn := _make_button(tr("BTN_REBIND") if tr("BTN_REBIND") != "BTN_REBIND" else "Changer")
 		btn.pressed.connect(func():
 			waiting_action = a
 			hint_label.text = "Appuie sur une touche pour : %s (Échap = annuler)" % _pretty_action(a)
 		)
-
 		row.add_child(lbl)
 		row.add_child(key_lbl)
 		row.add_child(btn)
@@ -272,24 +401,21 @@ func _rebuild_actions_ui() -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if waiting_action == &"":
 		return
-
 	if event is InputEventKey and event.pressed and not event.echo:
 		if event.keycode == KEY_ESCAPE:
 			_cancel_waiting()
 			return
-
 		_apply_new_bind(waiting_action, event)
 		key_config_manager.save_binds(_get_rebindable_actions())
-		
 		_cancel_waiting()
 		_rebuild_actions_ui()
+
 
 func _apply_new_bind(action_name: StringName, event: InputEventKey) -> void:
 	# Supprimer l'ancienne touche
 	for e in InputMap.action_get_events(action_name):
 		if e is InputEventKey:
 			InputMap.action_erase_event(action_name, e)
-	
 	# Créer le nouvel événement
 	var new_ev := InputEventKey.new()
 	new_ev.keycode = event.keycode
@@ -298,32 +424,30 @@ func _apply_new_bind(action_name: StringName, event: InputEventKey) -> void:
 	new_ev.alt_pressed = event.alt_pressed
 	new_ev.shift_pressed = event.shift_pressed
 	new_ev.meta_pressed = event.meta_pressed # utile pour Mac
-	
 	InputMap.action_add_event(action_name, new_ev)
 
 
 func _cancel_waiting() -> void:
 	waiting_action = &""
-	hint_label.text = "Clique sur “Changer”, puis appuie sur une touche. (Échap = annuler)"
+	hint_label.text = "Clique sur « Changer », puis appuie sur une touche. (Échap = annuler)"
 
-## Traduction et formatage dynamique
+## Traduction et formatage dynamique pour l'action associée à une touche
 func _pretty_action(a: StringName) -> String:
 	var key_str = String(a).to_upper()
 	var translated = tr(key_str)
-	var clean_str : String
-	
+	var clean_str: String
 	if translated == key_str:
 		clean_str = String(a).trim_prefix(action_prefix)
 		var tmp = tr(clean_str.to_upper())
-		if(tmp!=translated):
+		if tmp != translated:
 			translated = tmp
-		else :
+		else:
+			# Fallback si pas de traduction : "input_fish" -> "Fish" ou "ui_up" -> "Ui Up"
 			if clean_str.begins_with("ui_"):
 				clean_str = clean_str.trim_prefix("ui_")
-			# Fallback si pas de traduction : "input_fish" -> "Fish" ou "ui_up" -> "Ui Up"
 			translated = clean_str.replace("_", " ").capitalize()
-		
 	return translated
+
 
 func _keys_text(action_name: StringName) -> String:
 	var keys: Array[String] = []

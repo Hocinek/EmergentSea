@@ -36,10 +36,11 @@ var stats_panel : UI_stats_port
 
 @onready var ui_layer: CanvasLayer = get_tree().get_first_node_in_group("ui_layer")
 @onready var data := get_tree().get_first_node_in_group("shared_entities")
-@onready var players_manager: PlayersManager = get_tree().get_first_node_in_group("players_manager")
+@onready var players_manager : PlayersManager = get_tree().get_first_node_in_group("players_manager")
 
 # AJOUT : Référence au fog manager pour mise à jour en temps réel
 var fog_manager: FogManager = null
+var match_context: MatchContext = null
 
 # Case du port
 var case_actuelle: Vector2i
@@ -64,6 +65,8 @@ func _init() -> void:
 func _ready():
 	await get_tree().process_frame
 	
+	match_context = get_tree().get_first_node_in_group("match_context")
+	case_actuelle = Map_utils.monde_vers_case(global_position)
 	
 	# Initialisation de l'UI
 	_init_stats_ui()
@@ -74,6 +77,17 @@ func _ready():
 	DEBUG.log("Port [%s] initialisé - Propriétaire: %s - Type: %s - Position: %s" % [
 		id, owner_name, control_type, case_actuelle
 	])
+
+
+func _setup_input_handling() -> void:
+	"""Configure la gestion des inputs selon le type de port"""
+	# Tous les ports du joueur local humain peuvent recevoir des inputs pour être sélectionnés
+	if _is_local_human_owner():
+		set_process_input(true)
+		set_process_unhandled_input(true)
+	else:
+		set_process_input(false)
+		set_process_unhandled_input(false)
 
 # =========================
 # GESTION DU PROPRIÉTAIRE
@@ -91,6 +105,26 @@ func set_as_owner(player: Player) -> void:
 ## Permet de récupérer le propriétaire du port
 func get_port_owner() -> Player:
 	return player_owner
+
+
+func _is_local_human_owner() -> bool:
+	if player_owner == null:
+		return false
+	
+	if not player_owner.is_human:
+		return false
+	
+	if match_context == null:
+		match_context = get_tree().get_first_node_in_group("match_context")
+	
+	if match_context == null:
+		return true
+	
+	if match_context.mode == MatchContext.MatchMode.MULTI:
+		return player_owner.is_local
+	
+	return true
+
 
 ## Vérifie si tel joueur est le propriétaire du port
 func is_owned_by(player: Player) -> bool:
@@ -112,6 +146,9 @@ func _init_stats_ui():
 	DEBUG.log("UI Stats créée pour port [%d]" % id)
 
 
+# =========================
+# INPUT
+# =========================
 func on_clicked():
 	DEBUG.log("Le port a reçu le signal du clic !")
 	
@@ -122,7 +159,6 @@ func on_clicked():
 	else:
 		DEBUG.log("Ce port ne vous appartient pas ou n'a pas de propriétaire.")
 	
-
 
 
 # =========================

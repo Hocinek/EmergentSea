@@ -1,15 +1,7 @@
 class_name Map_gen
 extends Node2D
 
-
-# =========================
-# Terrain tuning
-# =========================
 @export var water_ratio := 0.55
-
-# =========================
-# Port parameters
-# =========================
 @export var port_count: int = 8
 @export var min_port_distance: int = 15
 
@@ -26,8 +18,7 @@ var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 var noise: FastNoiseLite = FastNoiseLite.new()
 var height_map := []
 var islands := []
-var ports := []  # Liste des ports générés
-
+var ports := [] # Liste des ports générés
 
 func _init():
 	pass
@@ -36,10 +27,7 @@ func _enter_tree():
 func _ready():
 	pass
 
-
-
-func generate()-> bool:
-	rng.randomize()
+func generate() -> bool:
 	init_maps()
 	init_noise()
 	generate_island_centers()
@@ -50,17 +38,11 @@ func generate()-> bool:
 	sync_ports_to_map_data()  # Synchroniser avec Map_data
 	generate_fish_tiles()  # Cases de pêche sur l'eau
 	return true
-	
 
-
-# =========================
-# Init arrays
-# =========================
 func init_maps():
 	height_map.clear()
 	Map_data.tiles.clear()
 	ports.clear()
-
 	for y in range(Map_data.map_height):
 		height_map.append([])
 		Map_data.tiles.append([])
@@ -68,20 +50,21 @@ func init_maps():
 			height_map[y].append(0.0)
 			Map_data.tiles[y].append("water")
 
-# =========================
-# Noise configuration
-# =========================
 func init_noise():
 	noise.noise_type = FastNoiseLite.TYPE_PERLIN
-	noise.seed = Map_data.gen_seed if Map_data.gen_seed != 0 else randi()
+	if Map_data.gen_seed != 0:
+		noise.seed = Map_data.gen_seed
+	else:
+		var new_seed := randi()
+		noise.seed = new_seed
+		Map_data.gen_seed = new_seed
+	# RNG utilise la même seed que noise -> génération 100% déterministe
+	rng.seed = Map_data.gen_seed
 	noise.frequency = Map_data.noise_scale
 	noise.fractal_octaves = Map_data.octaves
 	noise.fractal_lacunarity = Map_data.lacunarity
 	noise.fractal_gain = Map_data.gain
 
-# =========================
-# Island helpers
-# =========================
 func add_island(radius_range: Vector2, power_range: Vector2):
 	islands.append({
 		"pos": Vector2(
@@ -92,55 +75,37 @@ func add_island(radius_range: Vector2, power_range: Vector2):
 		"power": rng.randf_range(power_range.x, power_range.y)
 	})
 
-# =========================
-# Create islands
-# =========================
 func generate_island_centers():
 	islands.clear()
-
 	for i in range(Map_data.small_island_count):
 		add_island(Map_data.small_radius, Map_data.small_power)
-
 	for i in range(Map_data.medium_island_count):
 		add_island(Map_data.medium_radius, Map_data.medium_power)
-
 	for i in range(Map_data.large_island_count):
 		add_island(Map_data.large_radius, Map_data.large_power)
 
-# =========================
-# Heightmap generation
-# =========================
 func generate_islands():
 	for y in range(Map_data.map_height):
 		for x in range(Map_data.map_width):
 			var n: float = noise.get_noise_2d(x, y)
 			n = (n + 1.0) * 0.5
-
 			var mask := 0.0
-
 			for island in islands:
 				var pos: Vector2 = island["pos"]
 				var radius: float = island["radius"]
 				var power: float = island["power"]
-
 				var dx := x - pos.x
 				var dy := y - pos.y
 				var d := sqrt(dx * dx + dy * dy)
-
 				if d < radius:
 					var local := 1.0 - (d / radius)
 					mask = max(mask, pow(local, power))
-
 			height_map[y][x] = clamp(n * mask, 0.0, 1.0)
 
-# =========================
-# Tile classification
-# =========================
 func generate_tiles():
 	for y in range(Map_data.map_height):
 		for x in range(Map_data.map_width):
 			var h: float = height_map[y][x]
-
 			if h < water_ratio - 0.08:
 				Map_data.tiles[y][x] = "deepwater"
 			elif h < water_ratio:
@@ -154,126 +119,77 @@ func generate_tiles():
 			else:
 				Map_data.tiles[y][x] = "mountain"
 
-
-# =========================
-# Préparation de la navigation
-# =========================
 ## Computes and stores all water tiles connected to the map borders (ocean).
 func compute_ocean_cases() -> void:
 	Map_data.ocean_cases.clear()
 	var visited := {}
 	var queue := []
-
-	# 1. On initialise avec les bordures
 	for x in range(Map_data.map_width):
 		queue.append(Vector2i(x, 0))
 		queue.append(Vector2i(x, Map_data.map_height - 1))
 	for y in range(Map_data.map_height):
 		queue.append(Vector2i(0, y))
 		queue.append(Vector2i(Map_data.map_width - 1, y))
-
 	while queue.size() > 0:
 		var c: Vector2i = queue.pop_front()
 		if visited.has(c): continue
 		visited[c] = true
-		
-		# On ne traite que si c'est de l'eau
 		if not Map_utils.is_case_water(c): continue
-		
 		Map_data.ocean_cases.append(c)
-		
-		# 2. UTILISE LA NOUVELLE FONCTION ICI
 		var neighbors = Map_utils.get_neighbors_water_only(c)
 		for n in neighbors:
 			if not visited.has(n):
 				queue.append(n)
 
-
-# =========================
-# Port generation
-# =========================
 ## Génère des ports sur les côtes avec distance minimale entre eux
 func generate_ports() -> void:
 	ports.clear()
 	var coastal_tiles: Array = []
-	
-	# 1. Trouver toutes les cases côtières (terre adjacente à l'eau)
 	for y in range(Map_data.map_height):
 		for x in range(Map_data.map_width):
 			if is_coastal_tile(x, y):
 				coastal_tiles.append(Vector2i(x, y))
-	
 	if coastal_tiles.is_empty():
-		DEBUG.log("Aucune case côtière trouvée pour placer des ports",DEBUG.WARNING)
+		DEBUG.log("Aucune case côtière trouvée pour placer des ports", DEBUG.WARNING)
 		return
-	
-	DEBUG.log("Cases côtières trouvées: "+str( coastal_tiles.size()))
-	
-	# 2. Placer les ports avec distance minimale
+	DEBUG.log("Cases côtières trouvées: " + str(coastal_tiles.size()))
 	var attempts: int = 0
-	var max_attempts: int = port_count * 100  # Éviter une boucle infinie
-	
+	var max_attempts: int = port_count * 100
 	while ports.size() < port_count and attempts < max_attempts:
 		attempts += 1
-		
-		# Choisir une case côtière aléatoire
 		var random_index: int = rng.randi_range(0, coastal_tiles.size() - 1)
 		var candidate: Vector2i = coastal_tiles[random_index]
-		
-		# Vérifier la distance avec les ports existants
 		if is_valid_port_location(candidate):
 			ports.append(candidate)
 			Map_data.tiles[candidate.y][candidate.x] = "port"
-			DEBUG.log("Port placé à : "+str(candidate))
-	
-	DEBUG.log("Ports générés : "+str(ports.size(), "/", port_count))
-
+			DEBUG.log("Port placé à : " + str(candidate))
+	DEBUG.log("Ports générés : " + str(ports.size()) + "/" + str(port_count))
 
 ## Synchronise les ports avec Map_data (appelé après generate_ports)
 func sync_ports_to_map_data() -> void:
-	# Copier les ports dans Map_data.ports
 	Map_data.ports.clear()
 	for port in ports:
 		Map_data.ports.append(port)
 
-
 ## Vérifie si une case est côtière (terre avec eau adjacente)
 func is_coastal_tile(x: int, y: int) -> bool:
 	var pos: Vector2i = Vector2i(x, y)
-	
-	# La case doit être de la terre (pas de l'eau)
 	if not Map_utils.is_case_valid(pos):
 		return false
-	
 	var tile_type: String = Map_data.tiles[y][x]
 	if tile_type == "water" or tile_type == "deepwater":
 		return false
-	
-	# Vérifier si au moins une case adjacente est de l'eau navigable
-	var neighbors: Array = [
-		Vector2i(x + 1, y),
-		Vector2i(x - 1, y),
-		Vector2i(x, y + 1),
-		Vector2i(x, y - 1)
-	]
-	
-	for neighbor in neighbors:
-		if Map_utils.is_case_valid(neighbor):
-			var neighbor_type: String = Map_data.tiles[neighbor.y][neighbor.x]
-			if neighbor_type == "water" or neighbor_type == "deepwater":
-				return true
-	
+	var water_neighbor: Array[Vector2i] = Map_utils.get_neighbors(pos)
+	if water_neighbor != []:
+		return true
 	return false
-
 
 ## Vérifie si un emplacement de port respecte la distance minimale
 func is_valid_port_location(candidate: Vector2i) -> bool:
 	for existing_port in ports:
-		var distance: float = calculate_distance(candidate, existing_port)
-		if distance < min_port_distance:
+		if calculate_distance(candidate, existing_port) < min_port_distance:
 			return false
 	return true
-
 
 ## Calcule la distance euclidienne entre deux positions
 func calculate_distance(a: Vector2i, b: Vector2i) -> float:

@@ -1,6 +1,7 @@
 class_name Navires
 extends Node2D
 
+# Permettra de signaler au moteur différents évènements
 signal sig_show_stats
 signal sig_navire_died(navire: Navires)
 signal sig_navire_damaged(navire: Navires, damage: int)
@@ -23,9 +24,16 @@ var current_input_mode: InputMode = InputMode.NONE
 # =========================
 # PROPRIÉTAIRE ET IDENTITÉ
 # =========================
+## Référence directe au joueur propriétaire
 @export var player_owner: Player = null
+
+## ID unique du navire
 @export var id: int = 0
+
+## Détermine si c'est le navire contrôlé par le joueur humain actuel
 var is_player_controlled: bool = false
+
+## Indique si ce navire est actuellement sélectionné
 var is_selected: bool = false
 var is_visible_to_human: bool = true
 var fog_of_war_ref: FogOfWar = null
@@ -51,13 +59,14 @@ var stats_panel : UI_stats_navire
 @export var nrbequipage: int = 0
 @export var interaction_radius: float = 80.0
 @export var stats_duration: float = 2.5
-@export var tir: int = 10
-@export var dgt_tir: int = 2
+@export var tir: int = 10		# Portée d'un tir
+@export var dgt_tir: int = 2	# Dégâts d'un tir
 
 @onready var ui_layer: CanvasLayer = get_tree().get_first_node_in_group("ui_layer")
 @onready var data := get_tree().get_first_node_in_group("shared_entities")
-@onready var players_manager = get_tree().get_first_node_in_group("players_manager")
+@onready var players_manager : PlayersManager = get_tree().get_first_node_in_group("players_manager")
 
+# Référence au fog manager pour mise à jour en temps réels
 var fog_manager: FogManager = null
 var match_context: MatchContext = null
 var network_manager: NetworkManager = null
@@ -298,6 +307,7 @@ func _init_stats_ui():
 
 
 #region camera
+## Configure la caméra pour suivre le navire si c'est celui du joueur
 func _setup_camera() -> void:
 	if not is_selected:
 		return
@@ -314,6 +324,7 @@ func _get_camera_zoom() -> float:
 
 
 #region gestion proprietaire
+## Définit le joueur propriétaire de ce navire
 func set_owner_player(player: Player) -> void:
 	if player_owner != null and player_owner.has_method("remove_navire"):
 		player_owner.remove_navire(self)
@@ -322,6 +333,7 @@ func set_owner_player(player: Player) -> void:
 		player.add_navire(self)
 	_setup_input_handling()
 
+## Retourne le joueur propriétaire du navire
 func get_owner_player() -> Player:
 	return player_owner
 
@@ -338,9 +350,11 @@ func _is_local_human_owner() -> bool:
 		return player_owner.is_local
 	return true
 
+## Vérifie si ce navire appartient au joueur spécifié
 func is_owned_by(player: Player) -> bool:
 	return player_owner == player
 
+## Vérifie si ce navire est ennemi d'un autre navire
 func is_enemy_of(other_navire: Navires) -> bool:
 	if player_owner == null or other_navire.player_owner == null:
 		return false
@@ -349,6 +363,7 @@ func is_enemy_of(other_navire: Navires) -> bool:
 
 
 #region gestion selection
+## Définit si ce navire est sélectionné
 func set_selected(selected: bool) -> void:
 	is_selected = selected
 	queue_redraw()
@@ -372,9 +387,11 @@ func toggle_stats() -> void:
 
 
 #region gestion etat navire
+## Vérifie si le navire est encore en vie
 func is_alive() -> bool:
 	return vie > 0
 
+## Applique des dégâts au navire
 func take_damage(damage: int) -> void:
 	if not is_alive():
 		return
@@ -384,6 +401,7 @@ func take_damage(damage: int) -> void:
 	if vie <= 0:
 		die()
 
+## Gère la mort du navire
 func die() -> void:
 	DEBUG.log("Navire [%d] en train de mourir..." % id)
 	# IMPORTANT : Émettre le signal AVANT toute modification
@@ -403,6 +421,7 @@ func die() -> void:
 	DEBUG.log("Navire [%d] détruit" % id)
 	queue_free()
 
+## Soigne le navire
 func heal(amount: int) -> void:
 	if not is_alive():
 		return
@@ -410,6 +429,7 @@ func heal(amount: int) -> void:
 	if is_selected:
 		stats_panel.show_ally()
 
+## Réinitialise l'énergie au maximum
 func reset_energie() -> void:
 	energie = maxenergie
 #endregion gestion etat navire
@@ -595,6 +615,7 @@ func attempt_shoot(target_case: Vector2i) -> void:
 	else:
 		DEBUG.log("Aucun ennemi sur cette case!")
 
+## Tire sur un navire spécifique
 func shoot_at(target: Navires) -> void:
 	if target == null or not target.is_alive():
 		return
@@ -654,6 +675,7 @@ func is_in_range(target_case: Vector2i) -> bool:
 	var chemin := Pathfinder.calculer_chemin(case_actuelle, target_case)
 	return chemin.size() <= tir
 
+## Récupère tous les navires présents sur une case
 func get_ships_at_position(target_case: Vector2i) -> Array[Navires]:
 	var ships: Array[Navires] = []
 	if data and data.has_method("getNavireByPosition"):
@@ -663,6 +685,7 @@ func get_ships_at_position(target_case: Vector2i) -> Array[Navires]:
 				ships.append(ship)
 	return ships
 
+## Récupère le navire à une position donnée (dans le rayon d'interaction)
 func get_ship_at_position(pos: Vector2) -> Navires:
 	var all_ships = get_tree().get_nodes_in_group("ships")
 	for ship in all_ships:
@@ -672,6 +695,7 @@ func get_ship_at_position(pos: Vector2) -> Navires:
 				return ship
 	return null
 
+## Retourne la position du navire en coordonnées de case
 func getPosition() -> Vector2i:
 	return case_actuelle
 #endregion utils
@@ -703,6 +727,7 @@ func _compute_target_rotation(direction: Vector2) -> float:
 
 #region process
 func _process(delta):
+	# Animation de la sélection et de la flèche
 	if is_selected or show_arrow:
 		queue_redraw()
 
@@ -721,6 +746,7 @@ func _process(delta):
 	if player_owner and not _is_local_human_owner():
 		_update_visibility_in_fog()
 
+## Gère le déplacement du navire
 func _process_movement(delta: float) -> void:
 	if multiplayer.has_multiplayer_peer():
 		_rpc_sync_position.rpc(case_actuelle.x, case_actuelle.y, global_position.x, global_position.y, target_rotation_angle)
@@ -800,12 +826,14 @@ func _process_movement(delta: float) -> void:
 
 
 #region UI
+## Cache les stats de tous les navires
 func hide_all_ships_stats():
 	var all_ships = get_tree().get_nodes_in_group("ships")
 	for ship in all_ships:
 		if ship is Navires:
 			ship.hide_all_stats()
 
+## Met à jour le fog of war autour de ce navire
 func _update_fog_of_war() -> void:
 	DEBUG.log("[NAVIRE %d] _update_fog_of_war() APPELÉE !" % id)
 	if not _is_local_human_owner():
@@ -813,12 +841,12 @@ func _update_fog_of_war() -> void:
 		return
 	DEBUG.log("[NAVIRE %d] Actualisation du fog à la position %s" % [id, case_actuelle])
 	if not fog_manager:
-		DEBUG.log("[NAVIRE %d] ERREUR - fog_manager est NULL, tentative de récupération..." % id)
+		DEBUG.log("[NAVIRE %d] ERREUR - fog_manager est NULL, tentative de récupération..." % id,DEBUG.WARNING)
 		fog_manager = get_tree().get_first_node_in_group("fog_manager")
 		if fog_manager:
 			DEBUG.log("[NAVIRE %d] fog_manager récupéré avec succès" % id)
 		else:
-			DEBUG.log("[NAVIRE %d] ERREUR CRITIQUE - fog_manager introuvable !" % id)
+			DEBUG.log("[NAVIRE %d] ERREUR CRITIQUE - fog_manager introuvable !" % id, DEBUG.ERROR)
 	if fog_manager:
 		DEBUG.log("[NAVIRE %d] fog_manager existe, vérification de force_update..." % id)
 		if fog_manager.has_method("force_update"):
@@ -826,7 +854,7 @@ func _update_fog_of_war() -> void:
 			fog_manager.force_update()
 			return
 		else:
-			DEBUG.log("[NAVIRE %d] ✗ fog_manager n'a pas la méthode force_update !" % id)
+			DEBUG.log("[NAVIRE %d] ✗ fog_manager n'a pas la méthode force_update !" % id,DEBUG.WARNING)
 	DEBUG.log("[NAVIRE %d] Fallback - tentative via FogOfWar direct" % id)
 	var fog_of_war = get_tree().get_first_node_in_group("fog_of_war")
 	if fog_of_war:
@@ -835,10 +863,11 @@ func _update_fog_of_war() -> void:
 			DEBUG.log("[NAVIRE %d] ✓ Appel de fog_of_war.reveal_around_position(%s)" % [id, case_actuelle])
 			fog_of_war.reveal_around_position(case_actuelle)
 		else:
-			DEBUG.log("[NAVIRE %d] ✗ FogOfWar n'a pas la méthode reveal_around_position !" % id)
+			DEBUG.log("[NAVIRE %d] ✗ FogOfWar n'a pas la méthode reveal_around_position !" % id, DEBUG.WARNING)
 	else:
-		DEBUG.log("[NAVIRE %d] ✗ FogOfWar introuvable !" % id)
+		DEBUG.log("[NAVIRE %d] ✗ FogOfWar introuvable !" % id,DEBUG.ERROR)
 
+## Met à jour la visibilité de ce navire basée sur le fog of war
 func _update_visibility_in_fog() -> void:
   # Met à jour la visibilité de ce navire basée sur le fog of war
 	if _is_local_human_owner():

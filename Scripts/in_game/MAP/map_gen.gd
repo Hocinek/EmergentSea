@@ -184,12 +184,14 @@ func is_coastal_tile(x: int, y: int) -> bool:
 		return true
 	return false
 
+## Vérifie si un emplacement de port respecte la distance minimale
 func is_valid_port_location(candidate: Vector2i) -> bool:
 	for existing_port in ports:
 		if calculate_distance(candidate, existing_port) < min_port_distance:
 			return false
 	return true
 
+## Calcule la distance euclidienne entre deux positions
 func calculate_distance(a: Vector2i, b: Vector2i) -> float:
 	var dx: float = a.x - b.x
 	var dy: float = a.y - b.y

@@ -1,6 +1,7 @@
 class_name MapManager
 extends Node2D
 
+## Permettra de signaler la fin de la génération de la map
 signal map_generated
 ## Permet de signaler qu'une case a été cliquée
 signal cell_clicked(cell: HexCell)

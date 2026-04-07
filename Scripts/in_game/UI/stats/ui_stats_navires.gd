@@ -73,9 +73,8 @@ func isVisible() -> bool:
 	return stats_visible
 
 
-# =========================
-# CRAFTING
-# =========================
+
+#region crafting
 func build_ui():
 	await get_tree().process_frame
 	ui_layer = get_tree().get_first_node_in_group("ui_layer")
@@ -129,7 +128,7 @@ func _create_ally_stats_panel():
 	cadre_ally.offset_top    = -6
 	cadre_ally.offset_bottom = 110
 	cadre_layer.add_child(cadre_ally)
-
+#endregion crafting
 
 func _create_enemy_stats_panel():
 	"""Crée le panneau de stats pour les navires ennemis (sous le panneau allié, à droite)"""
@@ -168,9 +167,7 @@ func _create_enemy_stats_panel():
 	cadre_layer.add_child(cadre_enemy)
 
 
-# =========================
-# BUILD PANEL TOOLS
-# =========================
+#region build panel tools
 func build_base() -> PanelContainer:
 	var panel = PanelContainer.new()
 	panel.visible = false
@@ -265,11 +262,9 @@ func create_vbox_title(vbox: VBoxContainer, color: Color):
 	title_label.text = text
 	title_label.add_theme_color_override("font_color", color)
 	vbox.add_child(title_label)
+#endregion build panel tools
 
-
-# =========================
-# SHOW / HIDE
-# =========================
+#region show/hide
 func show_enemy():
 	update_stats(label_list_enemy)
 	if stats_panel_enemy:
@@ -287,7 +282,7 @@ func show_ally_persistent() -> void:
 		if cadre_ally:
 			cadre_ally.visible = true
 		stats_visible = true
-		stats_timer = INF
+		stats_timer = INF # Désactive le countdown
 
 
 func show_ally():
@@ -304,6 +299,7 @@ func hide_enemy():
 		stats_panel_enemy.visible = false
 	if cadre_enemy:
 		cadre_enemy.visible = false
+	# Remettre stats_visible à false seulement si le panel allié est aussi caché
 	if not (stats_panel_ally and stats_panel_ally.visible):
 		stats_visible = false
 
@@ -334,11 +330,9 @@ func hide_all_stats():
 		hide_ally()
 	if stats_panel_enemy:
 		hide_enemy()
+#endregion show/hide
 
-
-# =========================
-# UPDATES
-# =========================
+#region updates
 func update():
 	update_stats(label_list_ally)
 	update_stats(label_list_enemy)
@@ -354,3 +348,4 @@ func update_stats(label_list: Dictionary):
 			label_list["equipage"].text = "👥 %d" % navire.nrbequipage
 		if label_list.has("nourriture"):
 			label_list["nourriture"].text = "🐟 %d" % navire.nourriture
+#endregion updates

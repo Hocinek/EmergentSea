@@ -3,6 +3,7 @@ extends Control
 const SOLO_SCENE_PATH := "res://Scenes/in_game/Main.tscn"
 const MULTI_SCENE_PATH := "res://Scenes/in_game/MainMulti.tscn"
 
+# Configuration : seules les actions commençant par ceci seront affichées
 @export var action_prefix := "input_"
 @export var allowed_actions: Array[StringName] = [
 	&"ui_up",
@@ -13,6 +14,7 @@ const MULTI_SCENE_PATH := "res://Scenes/in_game/MainMulti.tscn"
 
 var waiting_action: StringName = &""
 
+# Screens : les différents écrans pouvant être affichés
 var screen_main: Control
 var screen_lobby: Control
 var screen_options: Control
@@ -49,11 +51,14 @@ func _connect_network_signals() -> void:
 	if not network_manager.player_count_updated.is_connected(_on_player_count_updated):
 		network_manager.player_count_updated.connect(_on_player_count_updated)
 
-
+# =========================================================
+# UI BUILD
+# =========================================================
 func _build_ui() -> void:
 	for c in get_children():
 		c.queue_free()
 
+	# Background
 	var bg := ColorRect.new()
 	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	bg.color = Color(0.043, 0.063, 0.125)
@@ -100,6 +105,9 @@ func _make_button(text: String) -> Button:
 	return b
 
 
+# =========================================================
+# SCREENS
+# =========================================================
 func _make_line_edit(placeholder: String, default_text: String = "") -> LineEdit:
 	var e := LineEdit.new()
 	e.placeholder_text = placeholder
@@ -231,7 +239,9 @@ func _make_controls_screen() -> Control:
 	wrapper.add_child(d["root"])
 	return wrapper
 
-
+# =========================================================
+# NAVIGATION
+# =========================================================
 func _set_visible_screen(active: Control) -> void:
 	screen_main.visible = active == screen_main
 	screen_lobby.visible = active == screen_lobby
@@ -275,7 +285,9 @@ func _update_lobby_player_count() -> void:
 		if network_manager.is_host() and lobby_start_button != null:
 			lobby_start_button.disabled = real_peers.size() < 1
 
-
+# =========================================================
+# ACTIONS
+# =========================================================
 func _on_solo_pressed() -> void:
 	network_manager.shutdown()
 	get_tree().change_scene_to_file(SOLO_SCENE_PATH)
@@ -343,7 +355,11 @@ func _on_reset_pressed() -> void:
 	key_config_manager.reset_to_defaults(_get_rebindable_actions())
 	_rebuild_actions_ui()
 
+# =========================================================
+# REBIND UI
+# =========================================================
 
+## Récupère dynamiquement les actions depuis l'InputMap du projet
 func _get_rebindable_actions() -> Array[StringName]:
 	var list: Array[StringName] = []
 	for action in allowed_actions:
@@ -396,16 +412,18 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _apply_new_bind(action_name: StringName, event: InputEventKey) -> void:
+	# Supprimer l'ancienne touche
 	for e in InputMap.action_get_events(action_name):
 		if e is InputEventKey:
 			InputMap.action_erase_event(action_name, e)
+	# Créer le nouvel événement
 	var new_ev := InputEventKey.new()
 	new_ev.keycode = event.keycode
 	new_ev.physical_keycode = event.physical_keycode
 	new_ev.ctrl_pressed = event.ctrl_pressed
 	new_ev.alt_pressed = event.alt_pressed
 	new_ev.shift_pressed = event.shift_pressed
-	new_ev.meta_pressed = event.meta_pressed
+	new_ev.meta_pressed = event.meta_pressed # utile pour Mac
 	InputMap.action_add_event(action_name, new_ev)
 
 
@@ -413,7 +431,7 @@ func _cancel_waiting() -> void:
 	waiting_action = &""
 	hint_label.text = "Clique sur « Changer », puis appuie sur une touche. (Échap = annuler)"
 
-
+## Traduction et formatage dynamique pour l'action associée à une touche
 func _pretty_action(a: StringName) -> String:
 	var key_str = String(a).to_upper()
 	var translated = tr(key_str)
@@ -424,6 +442,7 @@ func _pretty_action(a: StringName) -> String:
 		if tmp != translated:
 			translated = tmp
 		else:
+			# Fallback si pas de traduction : "input_fish" -> "Fish" ou "ui_up" -> "Ui Up"
 			if clean_str.begins_with("ui_"):
 				clean_str = clean_str.trim_prefix("ui_")
 			translated = clean_str.replace("_", " ").capitalize()
@@ -435,6 +454,7 @@ func _keys_text(action_name: StringName) -> String:
 	for e in InputMap.action_get_events(action_name):
 		if e is InputEventKey:
 			var k := e as InputEventKey
+			# On récupère le code non-nul (priorité au physique si le logique est à 0)
 			var code = k.keycode if k.keycode != 0 else k.physical_keycode
 			if code != 0:
 				keys.append(OS.get_keycode_string(code))

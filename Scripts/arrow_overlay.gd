@@ -8,7 +8,7 @@ func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
 func _process(_delta: float) -> void:
-	if navire and navire.show_arrow and navire.is_selected:
+	if navire :
 		queue_redraw()
 
 func _draw() -> void:

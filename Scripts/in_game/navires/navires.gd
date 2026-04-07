@@ -73,7 +73,7 @@ var drawable : Drawable
 @export var fish_duration: float = 1.2
 @export var fish_yield_min: int = 1
 @export var fish_yield_max: int = 3
-
+var _arrow_overlay: ArrowOverlay = null
 var is_fishing := false
 var fish_timer := 0.0
 
@@ -183,6 +183,10 @@ func _ready():
 	DEBUG.log("Navire [%s] initialisé - Propriétaire: %s - Type: %s - Position: %s - Modèle: %s" % [
 		id, owner_name, control_type, case_actuelle, ship_model_path
 	])
+	if _arrow_overlay == null:
+		_arrow_overlay = ArrowOverlay.new()
+		_arrow_overlay.navire = self
+		ui_layer.add_child(_arrow_overlay)
 
 
 func _setup_node3d_instance() -> void:
@@ -404,6 +408,10 @@ func die() -> void:
 		player_owner.remove_navire(self)
 	DEBUG.log("Navire [%d] détruit" % id)
 	queue_free()
+	if _arrow_overlay == null:
+		_arrow_overlay = ArrowOverlay.new()
+		_arrow_overlay.navire = self
+		ui_layer.add_child(_arrow_overlay)
 
 func heal(amount: int) -> void:
 	if not is_alive():
@@ -932,11 +940,6 @@ func _draw():
 	if is_selected and _is_local_human_owner():
 		drawable.selection_circle(scale_factor)
 
-	# Flèche de déplacement (seulement pour le navire sélectionné)
-	if not show_arrow or not is_selected:
-		return
-	var local_target = target_position - global_position
-	drawable.arrow(local_target, scale_factor)
 #endregion UI
 
 

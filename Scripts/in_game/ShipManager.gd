@@ -33,6 +33,7 @@ func update_current_player(new_player : Player):
 
 #region spawn des navires
 ## Faire apparaître un bateau sur la carte
+
 ## model_path : chemin vers le .glb à utiliser (SHIP_MODEL_PLAYER par défaut)
 func spawn_navire(player: Player, position: Vector2, is_player_controlled: bool = false,model_path: String = ShipManager.SHIP_MODEL_PLAYER) -> Navires:
 	if player == null:

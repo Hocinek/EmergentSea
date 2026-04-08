@@ -191,11 +191,11 @@ func _on_map_generated():
 	# Initialiser les stocks de poissons via le FishManager
 	if fish_manager:
 		fish_manager.initialize_fish_tiles()
-	
 
 	# Navires du joueur humain → pirateShip (grand navire)
 	#var ship1 = spawn_navire_random(player1, true, SHIP_MODEL_PLAYER)
 	#var ship2 = spawn_navire_random(player1, true, SHIP_MODEL_PLAYER)
+
 	var ship1 = ship_manager.spawn_navire_random(player1, true)
 	var ship2 = ship_manager.spawn_navire_random(player1, true)
 	
@@ -206,6 +206,7 @@ func _on_map_generated():
 		ship2.id = 2
 		DEBUG.log("Ship2 créé avec succès")
 	
+
 	# Navire ennemi → smolPirateShip (petit navire)
 	#var enemy1 = spawn_navire_random(player2, false, SHIP_MODEL_ENEMY)
 	var enemy1 = ship_manager.spawn_navire_random(player2, false)
@@ -243,7 +244,6 @@ func _on_map_generated():
 			_attach_ai(enemy1)
 	
 	turn_manager.start_game([player1, player2])
-
 
 
 func _attach_ai(navire_ennemi: Navires) -> void:

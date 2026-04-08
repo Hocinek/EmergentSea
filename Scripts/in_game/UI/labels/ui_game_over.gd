@@ -5,15 +5,17 @@ var ui_layer: CanvasLayer
 
 # Panneau principal
 var game_over_panel: PanelContainer
+var label_title:  Label   # ← référence ajoutée pour pouvoir changer "Victoire" / "Défaite"
 var label_winner: Label
 var label_raison: Label
 
 # Chemin vers la scène d'accueil — modifie selon ton projet
 @export var main_menu_scene: String = "res://Scenes/accueil/MainMenu.tscn"
 
-const COLOR_BG     : Color = Color(0, 0.2, 0.4, 0.9)
-const COLOR_TEXT   : Color = Color(0.5, 0.8, 1)
-const COLOR_TITLE  : Color = Color(1, 1, 1)
+const COLOR_BG      : Color = Color(0, 0.2, 0.4, 0.9)
+const COLOR_TEXT    : Color = Color(0.5, 0.8, 1)
+const COLOR_TITLE   : Color = Color(1, 1, 1)
+const COLOR_DEFEAT  : Color = Color(1, 0.3, 0.3)   # rouge pour la défaite
 
 
 # =========================================================
@@ -36,13 +38,17 @@ func _build_ui() -> void:
 
 
 # =========================================================
-# Affichage
+# Affichage — Victoire
 # =========================================================
 
-func show_game_over(winner: Player, raison: String) -> void:
+func show_game_over(winner, raison: String) -> void:
 	if not game_over_panel:
 		DEBUG.log("[UI_GAME_OVER] Panneau non construit.", DEBUG.ERROR)
 		return
+
+	# Titre en blanc (couleur neutre)
+	label_title.text = "Partie terminée"
+	label_title.add_theme_color_override("font_color", COLOR_TITLE)
 
 	if winner != null:
 		label_winner.text = "🏆 Vainqueur : %s" % winner.player_name
@@ -50,6 +56,29 @@ func show_game_over(winner: Player, raison: String) -> void:
 	else:
 		label_winner.text = "Match nul"
 		label_raison.text  = "Aucun survivant"
+
+	game_over_panel.visible = true
+
+
+# =========================================================
+# Affichage — Défaite
+# =========================================================
+
+func show_defeat(winner, raison: String) -> void:
+	if not game_over_panel:
+		DEBUG.log("[UI_GAME_OVER] Panneau non construit.", DEBUG.ERROR)
+		return
+
+	# Titre en rouge pour signaler la défaite
+	label_title.text = "Défaite !"
+	label_title.add_theme_color_override("font_color", COLOR_DEFEAT)
+
+	if winner != null:
+		label_winner.text = "🏆 %s a gagné" % winner.player_name
+		label_raison.text  = "Victoire adverse par %s" % raison
+	else:
+		label_winner.text = "Partie terminée"
+		label_raison.text  = "Résultat indéterminé"
 
 	game_over_panel.visible = true
 
@@ -84,26 +113,26 @@ func _create_end_game_panel() -> void:
 	vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	vbox.size_flags_vertical   = Control.SIZE_EXPAND_FILL
 
-	# Titre
-	var title := Label.new()
-	title.text = "Partie terminée"
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_color_override("font_color", COLOR_TITLE)
-	title.add_theme_font_size_override("font_size", 22)
-	vbox.add_child(title)
+	# Titre — stocké dans label_title pour pouvoir le modifier à l'affichage
+	label_title = Label.new()
+	label_title.text = "Partie terminée"
+	label_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label_title.add_theme_color_override("font_color", COLOR_TITLE)
+	label_title.add_theme_font_size_override("font_size", 22)
+	vbox.add_child(label_title)
 
 	# Séparateur visuel
 	var sep := HSeparator.new()
 	vbox.add_child(sep)
 
-	# Nom du vainqueur
+	# Nom du vainqueur / message principal
 	label_winner = Label.new()
 	label_winner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	label_winner.add_theme_color_override("font_color", COLOR_TEXT)
 	label_winner.add_theme_font_size_override("font_size", 18)
 	vbox.add_child(label_winner)
 
-	# Raison de la victoire
+	# Raison du résultat
 	label_raison = Label.new()
 	label_raison.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	label_raison.add_theme_color_override("font_color", COLOR_TEXT)

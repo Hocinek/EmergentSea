@@ -28,7 +28,7 @@ func _init(gamemanager : GameManager) -> void:
 
 func update_current_player(new_player : Player):
 	self.current_player = new_player
-	var silent = true
+	var silent = false
 	select_next_ship(silent)
 
 #region spawn des navires

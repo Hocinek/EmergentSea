@@ -91,6 +91,7 @@ func _update_panel_position() -> void:
 	var panel_size := panel.size if panel.size.x > 0 else Vector2(160, 80)
 	panel.position = spos - Vector2(panel_size.x * 0.5, panel_size.y + 20)
 
+## Affiche si la case est naviguable et son type, si c'est une case poisson, affiche aussi le nombre de poissons
 func show_tile_info(tile_type: String, case_pos: Vector2i, is_visible: bool, fish_count: int = -1) -> void:
 	if not panel or not label:
 		return

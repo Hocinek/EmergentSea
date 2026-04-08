@@ -7,14 +7,6 @@ class_name GameManager
 extends Node
 
 
-# Scène du navire
-var navire_scene := preload("res://Scenes/in_game/ENTITIES/Navires.tscn")
-
-# Modèles 3D disponibles pour les navires
-const SHIP_MODEL_PLAYER := "res://Assets/navire/pirateShip.glb"
-const SHIP_MODEL_ENEMY  := "res://Assets/navire/smolPirateShip.glb"
-
-
 @onready var map
 @onready var data
 
@@ -251,60 +243,6 @@ func _on_map_generated():
 			_attach_ai(enemy1)
 	
 	turn_manager.start_game([player1, player2])
-
-
-#region gestion des navires
-## Faire apparaître un bateau sur la carte
-## model_path : chemin vers le .glb à utiliser (SHIP_MODEL_PLAYER par défaut)
-func spawn_navire(player: Player, position: Vector2, is_player_controlled: bool = false, model_path: String = SHIP_MODEL_PLAYER) -> Navires:
-	if player == null:
-		DEBUG.log("Impossible de créer un navire sans joueur propriétaire !", DEBUG.ERROR)
-		return null
-
-	var navire: Navires = navire_scene.instantiate()
-	navire.global_position = position
-	navire.is_player_controlled = is_player_controlled
-	# IMPORTANT : définir ship_model_path AVANT add_child()
-	# car _ready() → _setup_node3d_instance() lit cette propriété au démarrage
-	navire.ship_model_path = model_path
-	add_child(navire)
-	navire.set_owner_player(player)
-
-	if not navire.is_in_group("ships"):
-		navire.add_to_group("ships")
-
-	if navire.has_signal("ship_clicked"):
-		navire.ship_clicked.connect(_on_ship_clicked)
-
-	if navire.has_signal("ship_destroyed"):
-		navire.ship_destroyed.connect(_on_ship_destroyed)
-
-	if navire.has_signal("sig_open_hex_menu"):
-		navire.sig_open_hex_menu.connect(_on_open_hex_menu)
-
-	if navire.has_signal("sig_switch_ship"):
-		navire.sig_switch_ship.connect(ship_manager.select_next_ship)
-
-	if navire.has_signal("sig_inspect_case"):
-		navire.sig_inspect_case.connect(_on_inspect_case)
-
-	if data and data.has_method("addNavireToData"):
-		data.addNavireToData(navire)
-	DEBUG.log("Navire créé avec ID : %d — modèle : %s" % [navire.id, model_path] if navire.has_method("get") else "N/A")
-	return navire
-
-
-## Fait apparaître un navire sur une case océan aléatoire
-func spawn_navire_random(player: Player, is_player_controlled: bool = false, model_path: String = SHIP_MODEL_PLAYER) -> Navires:
-	var pos = Map_utils.get_random_ocean_position()
-	return spawn_navire(player, pos, is_player_controlled, model_path)
-
-
-## Fait apparaître un navire sur une case précise (coordonnées hexagonales)
-func spawn_navire_at(player: Player, case_pos: Vector2i, is_player_controlled: bool = false, model_path: String = SHIP_MODEL_PLAYER) -> Navires:
-	var wpos = Map_utils.case_vers_monde(case_pos)
-	return spawn_navire(player, wpos, is_player_controlled, model_path)
-#endregion gestion des navires
 
 
 

@@ -367,13 +367,9 @@ func _on_hex_menu_action(action: String, navire: Navires) -> void:
 # ===============================
 # INSPECTION DE CASE
 # ===============================
-<<<<<<< clean_and_refactor
-## Action : lorsqu'une case est inspectée
-func _on_inspect_case(case_pos: Vector2i) -> void:
-=======
 
+## Action : lorsqu'une case est inspectée
 func _on_inspect_case(case_pos: Vector2i, screen_pos: Vector2) -> void:
->>>>>>> test_merge
 	DEBUG.log("[GAMEMANAGER] Inspection de la case %s" % str(case_pos))
 
 	if not fog_of_war or not player1:
@@ -396,9 +392,7 @@ func _on_inspect_case(case_pos: Vector2i, screen_pos: Vector2) -> void:
 
 	_inspect_tile_info(case_pos, fog_state, screen_pos)
 
-<<<<<<< clean_and_refactor
-## Action : lorsqu'une case de pêche est inspectée
-=======
+
 
 func _inspect_tile_info(case_pos: Vector2i, fog_state: int, screen_pos: Vector2) -> void:
 	if not case_info_ui or not map_manager:
@@ -426,7 +420,7 @@ func _inspect_tile_info(case_pos: Vector2i, fog_state: int, screen_pos: Vector2)
 	case_info_ui.show_tile_info(tile_type, case_pos, is_visible, fish_count)
 	DEBUG.log("[INSPECT] Case %s → type='%s' visible=%s" % [str(case_pos), tile_type, str(is_visible)])
 
->>>>>>> test_merge
+## Action : lorsqu'une case de pêche est inspectée
 func _inspect_fish_on_case(case_pos: Vector2i) -> void:
 	if not case_info_ui or not fish_manager or not fog_of_war or not player1:
 		return

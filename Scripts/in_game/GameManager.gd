@@ -20,9 +20,6 @@ var hex_menu: HexContextMenu = null
 var player1: Player = null
 var player2: Player = null
 
-# Gestion de la sélection
-var selected_ship: Navires = null
-
 #signaux émis indirectement par ship_manager
 signal ship_selected(ship: Navires)
 signal ship_deselected()
@@ -109,6 +106,7 @@ func _setup_fog_of_war():
 func _setup_ship_manager() -> void:
 	if not turn_manager:
 		DEBUG.log("[GAMEMANAGER] TurnManager manquant, impossible de continuer !",DEBUG.ERROR)
+		return
 	if not ship_manager:
 		DEBUG.log("[GAMEMANAGER] Création dynamique de ShipManager...")
 		ship_manager = ShipManager.new(self)
@@ -277,22 +275,15 @@ func _input(event: InputEvent) -> void:
 	elif event is InputEventKey and event.pressed:
 		match event.keycode:
 			KEY_1:
-				ship_manager._select_ship_by_index(0)
+				ship_manager.select_ship_by_index(0)
 				get_viewport().set_input_as_handled()
 			KEY_2:
-				ship_manager._select_ship_by_index(1)
+				ship_manager.select_ship_by_index(1)
 				get_viewport().set_input_as_handled()
 			KEY_3:
-				ship_manager._select_ship_by_index(2)
+				ship_manager.select_ship_by_index(2)
 				get_viewport().set_input_as_handled()
 
-
-func _select_ship_by_index(index: int) -> void:
-	if not player1:
-		return
-	var player_ships = player1.get_navires()
-	if index >= 0 and index < player_ships.size():
-		ship_manager.select_ship(player_ships[index])
 
 
 # ===============================
@@ -369,7 +360,7 @@ func _on_hex_menu_action(action: String, navire: Navires) -> void:
 # ===============================
 
 ## Action : lorsqu'une case est inspectée
-func _on_inspect_case(case_pos: Vector2i, screen_pos: Vector2) -> void:
+func _on_inspect_case(case_pos: Vector2i) -> void:
 	DEBUG.log("[GAMEMANAGER] Inspection de la case %s" % str(case_pos))
 
 	if not fog_of_war or not player1:
@@ -390,11 +381,11 @@ func _on_inspect_case(case_pos: Vector2i, screen_pos: Vector2) -> void:
 		if target and is_instance_valid(target) and target.stats_panel:
 			target.stats_panel.show_stats()
 
-	_inspect_tile_info(case_pos, fog_state, screen_pos)
+	_inspect_tile_info(case_pos, fog_state)
 
 
 
-func _inspect_tile_info(case_pos: Vector2i, fog_state: int, screen_pos: Vector2) -> void:
+func _inspect_tile_info(case_pos: Vector2i, fog_state: int) -> void:
 	if not case_info_ui or not map_manager:
 		return
 

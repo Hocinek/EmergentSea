@@ -367,20 +367,24 @@ func _on_hex_menu_action(action: String, navire: Navires) -> void:
 # ===============================
 # INSPECTION DE CASE
 # ===============================
+<<<<<<< clean_and_refactor
 ## Action : lorsqu'une case est inspectée
 func _on_inspect_case(case_pos: Vector2i) -> void:
+=======
+
+func _on_inspect_case(case_pos: Vector2i, screen_pos: Vector2) -> void:
+>>>>>>> test_merge
 	DEBUG.log("[GAMEMANAGER] Inspection de la case %s" % str(case_pos))
 
 	if not fog_of_war or not player1:
 		return
 
 	var fog_state: int = fog_of_war.get_fog_state(case_pos)
-
-	# UNEXPLORED → rien
+	
 	if fog_state == FogOfWar.FogState.UNEXPLORED:
 		DEBUG.log("[INSPECT] Case %s jamais vue, inspection ignorée" % str(case_pos))
 		return
-
+		
 	# Navires sur la case
 	var ships_on_case: Array = []
 	if data and data.has_method("getNavireByPosition"):
@@ -389,12 +393,40 @@ func _on_inspect_case(case_pos: Vector2i) -> void:
 		var target: Navires = ships_on_case[0]
 		if target and is_instance_valid(target) and target.stats_panel:
 			target.stats_panel.show_stats()
-			DEBUG.log("[INSPECT] Navire %d trouvé sur la case" % target.id)
 
-	# Poissons
-	_inspect_fish_on_case(case_pos)
+	_inspect_tile_info(case_pos, fog_state, screen_pos)
 
+<<<<<<< clean_and_refactor
 ## Action : lorsqu'une case de pêche est inspectée
+=======
+
+func _inspect_tile_info(case_pos: Vector2i, fog_state: int, screen_pos: Vector2) -> void:
+	if not case_info_ui or not map_manager:
+		return
+
+	var axial: Vector2 = map_manager.grid.offset_to_axial(case_pos.x, case_pos.y)
+	var q := int(axial.x)
+	var r := int(axial.y)
+	var cell: HexCell = map_manager.grid.get_cell(q, r, -q - r)
+
+	if not cell:
+		DEBUG.log("[INSPECT] Cellule introuvable pour %s" % str(case_pos))
+		return
+		
+	var tile_type: String = cell.getTypeTerrain()
+	var is_visible: bool = (fog_state == FogOfWar.FogState.VISIBLE)
+	
+	var fish_count: int = -1
+	if tile_type == "fish" and fish_manager:
+		var info: Dictionary = fish_manager.get_stock_for_player(player1, case_pos, fog_of_war)
+		if info["known"]:
+			fish_count = info["stock"]
+
+	# screen_pos vient directement du clic — pas de conversion, pas de dérive caméra
+	case_info_ui.show_tile_info(tile_type, case_pos, is_visible, fish_count)
+	DEBUG.log("[INSPECT] Case %s → type='%s' visible=%s" % [str(case_pos), tile_type, str(is_visible)])
+
+>>>>>>> test_merge
 func _inspect_fish_on_case(case_pos: Vector2i) -> void:
 	if not case_info_ui or not fish_manager or not fog_of_war or not player1:
 		return

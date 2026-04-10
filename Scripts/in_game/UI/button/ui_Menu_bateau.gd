@@ -22,12 +22,12 @@ const ANIM_DURATION   := 0.25
 # ACTIONS — 6 boutons, répartis sur 6 angles symétriques
 # ================================
 const ACTIONS: Array = [
-	{ "id": "move",    "label": "Déplacer",     "icon": "\u27A4",  "color": Color(0.30, 0.80, 0.47), "bg": Color(0.07, 0.18, 0.10), "tip": "Puis clic gauche = destination",  "cursor": "CURSOR_CROSS"          },
-	{ "id": "attack",  "label": "Attaquer",     "icon": "\u2694",  "color": Color(0.88, 0.31, 0.31), "bg": Color(0.18, 0.07, 0.07), "tip": "Puis clic sur un ennemi",         "cursor": "CURSOR_CROSS"          },
+	{ "id": "move",    "label": "Déplacer\n 1 ⚡ /case",     "icon": "\u27A4",  "color": Color(0.30, 0.80, 0.47), "bg": Color(0.07, 0.18, 0.10), "tip": "Puis clic gauche = destination",  "cursor": "CURSOR_CROSS"          },
+	{ "id": "attack",  "label": "Attaquer\n  10 ⚡ ",     "icon": "\u2694",  "color": Color(0.88, 0.31, 0.31), "bg": Color(0.18, 0.07, 0.07), "tip": "Puis clic sur un ennemi",         "cursor": "CURSOR_CROSS"          },
 	{ "id": "inspect", "label": "Inspecter",    "icon": "\u25CE",  "color": Color(0.63, 0.44, 0.91), "bg": Color(0.14, 0.08, 0.22), "tip": "Puis clic sur une case",          "cursor": "CURSOR_HELP"           },
 	{ "id": "stats",   "label": "Statistiques", "icon": "\u2261",  "color": Color(0.31, 0.69, 0.82), "bg": Color(0.07, 0.12, 0.20), "tip": "Affiche / cache les stats",       "cursor": "CURSOR_POINTING_HAND"  },
 	{ "id": "switch",  "label": "Changer",      "icon": "\u21C4",  "color": Color(0.88, 0.56, 0.25), "bg": Color(0.20, 0.12, 0.05), "tip": "Sélectionne le navire suivant",   "cursor": "CURSOR_POINTING_HAND"  },
-	{ "id": "fish",    "label": "Pêcher",       "icon": "",           "color": Color(0.25, 0.75, 0.85), "bg": Color(0.05, 0.18, 0.22), "tip": "Lance une session de pêche", "cursor": "CURSOR_POINTING_HAND"  },
+	{ "id": "fish",    "label": "Pêcher\n 1 ⚡",       "icon": "",           "color": Color(0.25, 0.75, 0.85), "bg": Color(0.05, 0.18, 0.22), "tip": "Lance une session de pêche", "cursor": "CURSOR_POINTING_HAND"  },
 ]
 
 # Bouton central retour
@@ -204,16 +204,17 @@ func _draw_action_hex(index: int, scale_t: float) -> void:
 				Color.WHITE
 			)
 
-	if font_size_label >= 4:
-		draw_string(
+		if font_size_label >= 5:
+			draw_multiline_string(
 			ThemeDB.fallback_font,
 			Vector2(hex_pos.x - hex_r, label_y),
 			action["label"],
 			HORIZONTAL_ALIGNMENT_CENTER,
-			int(hex_r * 2),
+			int(hex_r * 2),   # largeur max
 			font_size_label,
+			-1,               # nb lignes illimité
 			action["color"]
-		)
+	)
 
 # ================================
 # HEXAGONE CENTRAL — Retour

@@ -41,7 +41,7 @@ func _build_ui() -> void:
 # Affichage — Victoire
 # =========================================================
 
-func show_game_over(winner, raison: String) -> void:
+func show_game_over(winner: Player, raison: String) -> void:
 	if not game_over_panel:
 		DEBUG.log("[UI_GAME_OVER] Panneau non construit.", DEBUG.ERROR)
 		return
@@ -64,7 +64,7 @@ func show_game_over(winner, raison: String) -> void:
 # Affichage — Défaite
 # =========================================================
 
-func show_defeat(winner, raison: String) -> void:
+func show_defeat(winner: Player, raison: String) -> void:
 	if not game_over_panel:
 		DEBUG.log("[UI_GAME_OVER] Panneau non construit.", DEBUG.ERROR)
 		return

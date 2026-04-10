@@ -2,6 +2,7 @@ class_name Navires
 extends Node2D
 
 # Permettra de signaler au moteur différents évènements
+#region signaux
 signal sig_show_stats
 signal sig_navire_died(navire: Navires)
 signal sig_navire_damaged(navire: Navires, damage: int)
@@ -11,7 +12,7 @@ signal sig_show_fishing
 signal sig_inspect_case(case_pos: Vector2i, screen_pos: Vector2)
 signal sig_open_hex_menu(navire: Navires, screen_pos: Vector2)
 signal sig_switch_ship()
-
+#endregion signaux
 
 @export var attack_sound: AudioStream = null
 var _audio_player: AudioStreamPlayer2D = null
@@ -24,6 +25,7 @@ var current_input_mode: InputMode = InputMode.NONE
 # =========================
 # PROPRIÉTAIRE ET IDENTITÉ
 # =========================
+#region identité
 ## Référence directe au joueur propriétaire
 @export var player_owner: Player = null
 
@@ -39,6 +41,8 @@ var is_visible_to_human: bool = true
 var fog_of_war_ref: FogOfWar = null
 var pending_path := []
 var _confirm_ui: UI_confirm_deplacement = null
+#endregion identité
+
 # =========================
 # MODÈLE 3D
 # =========================
@@ -51,6 +55,7 @@ var _confirm_ui: UI_confirm_deplacement = null
 # =========================
 # STATS
 # =========================
+#region stats
 var stats_panel : UI_stats_navire
 @export var vie: int = 10
 @export var maxvie: int = 10
@@ -67,16 +72,19 @@ var stats_panel : UI_stats_navire
 @onready var data := get_tree().get_first_node_in_group("shared_entities")
 
 
+
 # Référence au fog manager pour mise à jour en temps réels
 var fog_manager: FogManager = null
 var match_context: MatchContext = null
 var network_manager: NetworkManager = null
 
 var drawable : Drawable
+#endregion stats
 
 # =========================
 # PÊCHE
 # =========================
+#region pêche
 @export var nourriture: int = 0
 @export var fish_energy_cost: int = 1
 @export var fish_duration: float = 1.2
@@ -85,10 +93,12 @@ var drawable : Drawable
 var _arrow_overlay: ArrowOverlay = null
 var is_fishing := false
 var fish_timer := 0.0
+#endregion pêche
 
 # =========================
 # FEEDBACK PÊCHE
 # =========================
+#region feedback pêche
 var fish_feedback_label: UI_fish_navires
 @export var fish_feedback_duration: float = 0.8
 var fish_feedback_timer: float = 0.0
@@ -97,19 +107,23 @@ var stats_timer := 0.0
 # stats_visible = true signifie que le joueur a VOLONTAIREMENT activé l'affichage
 # Les stats restent visibles même si on change de sélection, jusqu'à désactivation manuelle
 var stats_visible := false
+#endregion feedback pêche
 
 # =========================
 # DÉPLACEMENT
 # =========================
+#region déplacement
 var path := []
 var is_moving := false
 var case_actuelle: Vector2i
 var target_position: Vector2 = Vector2.ZERO
 var show_arrow: bool = false
+#endregion déplacement
 
 # =========================
 # ROTATION DU BATEAU
 # =========================
+#region rotation du bateau
 ## Angle cible vers lequel le bateau doit se tourner (en radians)
 var target_rotation_angle: float = 0.0
 ## Vitesse de rotation en radians/seconde
@@ -130,6 +144,7 @@ var _pivot_local: Vector2 = Vector2.ZERO
 
 ## Référence au Node3D pirateShip — tourné via Transform3D axe Y uniquement
 var _pirate_ship_3d: Node3D = null
+#endregion rotation du bateau
 
 # =========================
 # DÉCALAGE VISUEL DU SPRITE
@@ -470,7 +485,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		var mouse_pos: Vector2 = get_global_mouse_position()
 		var distance: float    = global_position.distance_to(mouse_pos)
 
-		if event.button_index == MOUSE_BUTTON_LEFT:
+		if event.button_index == MOUSE_BUTTON_RIGHT:
 			# MODE ACTIF
 			# Seulement le navire sélectionné exécute l'action ET absorbe le clic.
 			# Les navires non-sélectionnés ignorent complètement ce bloc.
@@ -547,7 +562,7 @@ func _unhandled_input(event: InputEvent) -> void:
 				else:
 					DEBUG.log("Case cible NON navigable !")
 
-		elif event.button_index == MOUSE_BUTTON_RIGHT:
+		elif event.button_index == MOUSE_BUTTON_LEFT:
 
 			# Seul le navire sélectionné traite le clic droit
 			if not is_selected:

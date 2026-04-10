@@ -121,5 +121,16 @@ func _unhandled_input(event: InputEvent) -> void:
 			var terrain = clicked_cell.getTypeTerrain()
 			# Si c'est un port et qu'il y a bien une instance de port attachée
 			if terrain == "port" and clicked_cell.port_instance != null:
-				clicked_cell.port_instance.on_clicked()
-				get_viewport().set_input_as_handled()
+				var port = clicked_cell.port_instance
+				var game_manager = get_tree().get_first_node_in_group("game_manager")
+				# Port ennemi ou neutre => tenter une attaque avec le navire sélectionné
+				if game_manager and not port.is_owned_by(game_manager.player1):
+					var selected = game_manager.selected_ship
+					if selected and port.can_attack_position(selected.case_actuelle):
+						port.take_damage(selected.attack_damage if selected.has_method("get") else 20, game_manager.player1)
+					else:
+						DEBUG.log("Navire trop loin pour attaquer ce port")
+				else:
+					# Port allié => ouvrir menu achat/réparation
+					port.on_clicked()
+					get_viewport().set_input_as_handled()

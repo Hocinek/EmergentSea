@@ -133,6 +133,18 @@ func _initialize_host_match() -> void:
 		push_error("[MULTI GM] Échec de création des joueurs")
 		return
 
+# Assigner un port de départ à chaque joueur
+	var all_ports = get_tree().get_nodes_in_group("ports")
+	if all_ports.size() > 1:
+		all_ports[0].set_as_owner(player1)
+		all_ports[0].current_hp = all_ports[0].max_hp
+		all_ports[1].set_as_owner(player2)
+		all_ports[1].current_hp = all_ports[1].max_hp
+
+	for port in all_ports:
+		if port.has_signal("port_captured"):
+			port.port_captured.connect(_on_port_captured)
+
 	var ship1 = spawn_navire_random(player1, true, 1)
 	var ship2 = spawn_navire_random(player2, false, 101)
 
@@ -163,7 +175,18 @@ func _sync_initial_state_to_clients() -> void:
 			"player_name": p.player_name,
 			"is_human": p.is_human
 		})
-
+	
+	#Assignation des ports
+	var ports_data: Array = []
+	for port in get_tree().get_nodes_in_group("ports"):
+		if port is Ports:
+			ports_data.append({
+				"port_id": port.id,
+				"player_id": port.player_owner.player_id if port.player_owner else -1,
+				"pos_x": port.global_position.x,
+				"pos_y": port.global_position.y
+			})
+	
 	var ships_data: Array = []
 	for ship in get_tree().get_nodes_in_group("ships"):
 		if ship is Navires and ship.player_owner != null:
@@ -178,11 +201,10 @@ func _sync_initial_state_to_clients() -> void:
 	for p in players_manager.get_all_players():
 		turn_order.append(p.player_id)
 
-	_rpc_receive_initial_state.rpc(players_data, ships_data, turn_order)
-
+	_rpc_receive_initial_state.rpc(players_data, ships_data, turn_order, ports_data)
 
 @rpc("any_peer", "call_remote", "reliable")
-func _rpc_receive_initial_state(players_data: Array, ships_data: Array, turn_order: Array) -> void:
+func _rpc_receive_initial_state(players_data: Array, ships_data: Array, turn_order: Array, ports_data: Array) -> void:
 	_refresh_refs()
 
 	if players_manager == null or turn_manager == null or match_context == null:
@@ -235,6 +257,21 @@ func _rpc_receive_initial_state(players_data: Array, ships_data: Array, turn_ord
 	if fog_manager and fog_manager.has_method("update_fog"):
 		fog_manager.update_fog()
 
+	var all_ports = get_tree().get_nodes_in_group("ports")
+	for port in all_ports:
+		if port.has_signal("port_captured"):
+			if not port.port_captured.is_connected(_on_port_captured):
+				port.port_captured.connect(_on_port_captured)
+
+	for pd in ports_data:
+		for port in get_tree().get_nodes_in_group("ports"):
+			if port is Ports and port.global_position.x == pd["pos_x"] and port.global_position.y == pd["pos_y"]:
+				if pd["player_id"] != -1:
+					var owner = players_manager.get_player_by_id(pd["player_id"])
+					if owner:
+						port.set_as_owner(owner)
+						port.current_hp = port.max_hp
+					
 	if local_ship != null:
 		select_ship(local_ship)
 
@@ -360,3 +397,18 @@ func select_port(port) -> void:
 func deselect_port() -> void:
 	selected_port = null
 	port_deselected.emit()
+	
+	
+# ===============================
+# Gestion Port
+# ===============================
+	
+func _on_port_captured(port: Ports, new_owner: Player, old_owner: Player) -> void:
+	DEBUG.log("Port [%d] capturé : %s → %s" % [
+		port.id,
+		old_owner.player_name if old_owner else "NEUTRE",
+		new_owner.player_name if new_owner else "NEUTRE"
+	])
+	if fog_manager:
+		fog_manager.update_fog()
+		

@@ -36,7 +36,12 @@ var stats_panel : UI_stats_port
 
 @onready var ui_layer: CanvasLayer = get_tree().get_first_node_in_group("ui_layer")
 @onready var data := get_tree().get_first_node_in_group("shared_entities")
-@onready var players_manager : PlayersManager = get_tree().get_first_node_in_group("players_manager")
+
+@export var max_hp: int = 20
+var current_hp: int = 20
+@export var attack_damage: int = 2
+@export var attack_range: int = 2  # en cases
+signal port_captured(port: Ports, new_owner: Player, old_owner: Player)
 
 # AJOUT : Référence au fog manager pour mise à jour en temps réel
 var fog_manager: FogManager = null
@@ -67,6 +72,7 @@ func _ready():
 	
 	match_context = get_tree().get_first_node_in_group("match_context")
 	case_actuelle = Map_utils.monde_vers_case(global_position)
+	current_hp = max_hp
 	
 	# Initialisation de l'UI
 	_init_stats_ui()
@@ -164,8 +170,38 @@ func on_clicked():
 # =========================
 # COMBAT
 # =========================
-### Réfléchir à l'implémentation d'une attaque/défense de la part des villes ?
 
+func take_damage(amount: int, attacker: Player) -> void:
+	current_hp -= amount
+	DEBUG.log("Port [%d] reçoit %d dégâts → %d/%d PV" % [id, amount, current_hp, max_hp])
+	if current_hp <= 0:
+		current_hp = 0
+		_on_captured(attacker)
+
+func _on_captured(new_owner: Player) -> void:
+	var old_owner = player_owner
+	set_as_owner(new_owner)
+	port_captured.emit(self, new_owner, old_owner)
+	DEBUG.log("Port [%d] capturé par %s !" % [id, new_owner.player_name if new_owner else "NEUTRE"])
+
+func repair_ship(navire) -> void:
+	navire.current_hp = min(navire.current_hp + 5, navire.max_hp)
+	DEBUG.log("Navire [%d] réparé au port [%d]" % [navire.id, id])
+
+func can_attack_position(target_pos: Vector2i) -> bool:
+	var dist = (target_pos - case_actuelle).length()
+	return dist <= attack_range
+
+func try_attack_ship(navire) -> void:
+	if can_attack_position(navire.case_actuelle):
+		navire.take_damage(attack_damage)
+		DEBUG.log("Port [%d] attaque navire [%d] pour %d dégâts" % [id, navire.id, attack_damage])
+
+func is_neutral() -> bool:
+	return player_owner == null
+
+func heal(amount: int) -> void:
+	current_hp = min(current_hp + amount, max_hp)
 
 # =========================
 # HELPER FUNCTIONS

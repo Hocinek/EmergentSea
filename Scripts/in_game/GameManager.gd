@@ -180,6 +180,19 @@ func _on_map_generated():
 	
 	DEBUG.log("Joueurs créés avec succès")
 	
+# Assigner un port de départ à chaque joueur
+	var all_ports = get_tree().get_nodes_in_group("ports")
+	if all_ports.size() > 1:
+		all_ports[0].set_as_owner(player1)
+		all_ports[0].current_hp = all_ports[0].max_hp
+		all_ports[1].set_as_owner(player2)
+		all_ports[1].current_hp = all_ports[1].max_hp
+		DEBUG.log("Ports de départ assignés")
+
+	for port in all_ports:
+		if port.has_signal("port_captured"):
+			port.port_captured.connect(_on_port_captured)
+	
 	# Initialiser les stocks de poissons via le FishManager
 	if fish_manager:
 		fish_manager.initialize_fish_tiles()
@@ -566,3 +579,18 @@ func _world_to_screen(world_pos: Vector2) -> Vector2:
 	if not cam:
 		return world_pos
 	return viewport.get_canvas_transform() * world_pos
+
+
+# ===============================
+# Gestion Port
+# ===============================
+	
+func _on_port_captured(port: Ports, new_owner: Player, old_owner: Player) -> void:
+	DEBUG.log("Port [%d] capturé : %s → %s" % [
+		port.id,
+		old_owner.player_name if old_owner else "NEUTRE",
+		new_owner.player_name if new_owner else "NEUTRE"
+	])
+	if fog_manager:
+		fog_manager.update_fog()
+		

@@ -11,9 +11,11 @@ var current_player = null
 var state: MultiplayerTurnState.State = MultiplayerTurnState.State.IDLE
 var match_context: MatchContext = null
 var network_manager: NetworkManager = null
+var game_over_panel : UI_game_over
 
 
 func _enter_tree() -> void:
+	name = "MultiplayerTurnManager" 
 	add_to_group("turn_manager")
 
 
@@ -91,6 +93,12 @@ func _process_end_turn() -> void:
 	var previous_player = current_player
 	turn_ended.emit(previous_player)
 
+	# Vérification des conditions de victoire — hôte uniquement, puis broadcast si game over
+	if network_manager != null and network_manager.is_host():
+		fin_de_partie()
+		if state == MultiplayerTurnState.State.GAME_OVER:
+			return
+
 	var current_index := players.find(current_player)
 	if current_index == -1:
 		current_index = 0
@@ -143,6 +151,10 @@ func end_turn() -> void:
 
 	var previous_player = current_player
 	turn_ended.emit(previous_player)
+
+	fin_de_partie()
+	if state == MultiplayerTurnState.State.GAME_OVER:
+		return
 
 	var current_index := players.find(current_player)
 	if current_index == -1:
@@ -204,3 +216,89 @@ func can_navire_act(navire) -> bool:
 		match_context.is_local_player(navire.player_owner.player_id)
 		and match_context.is_local_turn()
 	)
+
+
+# =========================================================
+# Conditions de victoire
+# =========================================================
+
+func somme_poisson(player) -> int:
+	var total := 0
+	for navire in player.navires:
+		total += navire.nourriture
+	return total
+
+
+func somme_navire(player) -> int:
+	return player.navires.size()
+
+
+func _filter_alive_players(list_in: Array) -> Array:
+	var out: Array = []
+	for p in list_in:
+		if p != null and is_instance_valid(p) and p.has_method("has_alive_navires") and p.has_alive_navires():
+			out.append(p)
+	return out
+
+
+# Appelée uniquement par l'hôte (ou en local via end_turn).
+# Si une condition est remplie, broadcaste le game over à tous les peers via RPC.
+func fin_de_partie() -> void:
+	players = _filter_alive_players(players)
+
+	for player in players:
+		var raison := ""
+		if somme_poisson(player) >= 150:
+			raison = "accumulation de 150 poissons"
+		elif somme_navire(player) >= 30:
+			raison = "accumulation de 30 navires"
+		if raison != "":
+			DEBUG.log("Le joueur %s a gagné par %s." % [player.player_name, raison])
+			_rpc_sync_game_over.rpc(player.player_id, raison)
+			return
+
+	if players.size() == 1:
+		_rpc_sync_game_over.rpc(players[0].player_id, "annihilation des adversaires")
+
+
+# L'hôte broadcaste le game over sur tous les peers + lui-même (call_local).
+# Chaque peer compare le winner_player_id à son propre local_player_id
+# pour afficher l'écran victoire ou défaite approprié.
+@rpc("any_peer", "call_local", "reliable")
+func _rpc_sync_game_over(winner_player_id: int, raison: String) -> void:
+	if match_context == null:
+		match_context = get_tree().get_first_node_in_group("match_context")
+
+	var players_manager = get_tree().get_first_node_in_group("players_manager")
+	if players_manager == null:
+		push_error("[MULTI TURN] PlayersManager introuvable pour game over")
+		_trigger_game_over(null, raison, false)
+		return
+
+	var winner = players_manager.get_player_by_id(winner_player_id)
+	if winner == null:
+		push_error("[MULTI TURN] Joueur gagnant %d introuvable" % winner_player_id)
+
+	# Chaque peer sait s'il a gagné ou perdu en comparant son ID local
+	var local_id := match_context.local_player_id if match_context != null else -1
+	var is_winner := (local_id == winner_player_id)
+
+	DEBUG.log("[MULTI TURN] Game over reçu — gagnant player_id: %d, local: %d, victoire: %s, raison: %s" % [
+		winner_player_id, local_id, str(is_winner), raison
+	])
+	_trigger_game_over(winner, raison, is_winner)
+
+
+# Déclenche la fin de partie localement.
+# is_winner = true  → écran de victoire
+# is_winner = false → écran de défaite
+func _trigger_game_over(winner, raison: String, is_winner: bool = true) -> void:
+	state = MultiplayerTurnState.State.GAME_OVER
+	game_over.emit(winner)
+	if game_over_panel != null:
+		if is_winner:
+			game_over_panel.show_game_over(winner, raison)  # écran victoire
+		else:
+			game_over_panel.show_defeat(winner, raison)     # écran défaite
+	else:
+		DEBUG.log("[MULTI TURN] game_over_panel est null — assigne-le depuis le GameManager.", DEBUG.ERROR)

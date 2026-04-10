@@ -65,7 +65,7 @@ var stats_panel : UI_stats_navire
 
 @onready var ui_layer: CanvasLayer = get_tree().get_first_node_in_group("ui_layer")
 @onready var data := get_tree().get_first_node_in_group("shared_entities")
-@onready var players_manager : PlayersManager = get_tree().get_first_node_in_group("players_manager")
+
 
 # Référence au fog manager pour mise à jour en temps réels
 var fog_manager: FogManager = null

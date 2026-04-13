@@ -10,6 +10,7 @@ signal sig_show_fishing
 signal sig_inspect_case(case_pos: Vector2i)
 signal sig_open_hex_menu(navire: Navires, screen_pos: Vector2)
 signal sig_switch_ship()
+signal sig_navire_moved(navire: Navires)
 
 
 @export var attack_sound: AudioStream = null
@@ -45,8 +46,8 @@ var fog_of_war_ref: FogOfWar = null
 var stats_panel : UI_stats_navire
 @export var vie: int = 10
 @export var maxvie: int = 10
-@export var energie: int = 20
-@export var maxenergie: int = 20
+@export var energie: int = 30
+@export var maxenergie: int = 30
 @export var vitesse: float = 800.0
 @export var nrbequipage: int = 0
 @export var interaction_radius: float = 80.0
@@ -798,6 +799,7 @@ func _process_movement(delta: float) -> void:
 			show_arrow = false
 			queue_redraw()
 			DEBUG.log("Navire [%d] DESTINATION FINALE atteinte!" % id)
+			emit_signal("sig_navire_moved", self)  # Signale la fin du déplacement (utilisé par le tutoriel)
 	else:
 		global_position += direction.normalized() * vitesse * delta
 #endregion process

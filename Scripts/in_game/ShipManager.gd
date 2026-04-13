@@ -84,7 +84,7 @@ func spawn_navire_at(player: Player, case_pos: Vector2i, is_player_controlled: b
 
 
 #region gestion de la selection
-func _select_ship_by_index(index: int) -> void:
+func select_ship_by_index(index: int) -> void:
 	if not current_player:
 		return
 	var player_ships = current_player.get_navires()

@@ -9,7 +9,7 @@ signal sig_navire_damaged(navire: Navires, damage: int)
 signal ship_clicked(ship: Navires)
 signal ship_destroyed(ship: Navires)
 signal sig_show_fishing
-signal sig_inspect_case(case_pos: Vector2i, screen_pos: Vector2)
+signal sig_inspect_case(case_pos: Vector2i)
 signal sig_open_hex_menu(navire: Navires, screen_pos: Vector2)
 signal sig_switch_ship()
 #endregion signaux
@@ -153,6 +153,8 @@ var _pirate_ship_3d: Node3D = null
 ## global_position (= l'ancre logique utilisée pour déterminer la case occupée).
 @export var hull_offset: Vector2 = Vector2.ZERO
 
+var rpc_navire : RPC_Navires = null
+
 # =========================
 # CAMÉRA 2D
 # =========================
@@ -168,6 +170,7 @@ func _ready():
 	print_tree()
 	match_context = get_tree().get_first_node_in_group("match_context")
 	network_manager = get_tree().get_first_node_in_group("network_manager")
+	rpc_navire = RPC_Navires.new(self)
   
 	case_actuelle = Map_utils.monde_vers_case(global_position)
 
@@ -524,7 +527,7 @@ func _unhandled_input(event: InputEvent) -> void:
 
 					InputMode.INSPECT:
 						var target_case: Vector2i = Map_utils.monde_vers_case(mouse_pos)
-						emit_signal("sig_inspect_case", target_case, get_viewport().get_mouse_position())
+						emit_signal("sig_inspect_case", target_case)
 						DEBUG.log("Inspection de la case %s" % str(target_case))
 						set_input_mode(InputMode.NONE)
 						get_viewport().set_input_as_handled()

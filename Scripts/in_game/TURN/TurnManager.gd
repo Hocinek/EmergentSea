@@ -13,9 +13,6 @@ var current_player: Player = null
 var state: TurnState.State = TurnState.State.IDLE
 var game_over_panel : UI_game_over
 
-# Durée "freeze" simulée pour l'IA (tant que tu n'as pas le vrai code IA)
-@export var ai_turn_delay_sec: float = 1.5
-
 
 func _enter_tree() -> void:
 	add_to_group("turn_manager")

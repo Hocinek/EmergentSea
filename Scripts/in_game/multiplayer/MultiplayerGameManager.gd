@@ -43,7 +43,21 @@ func _ready() -> void:
 	_refresh_refs()
 	_setup_fog_of_war()
 	_setup_hex_menu()
+	await _setup_game_over_ui() 
 
+func _setup_game_over_ui() -> void:
+	var ui_game_over := UI_game_over.new()
+	ui_game_over.name = "UI_game_over"
+	add_child(ui_game_over)
+	await ui_game_over.init()
+
+	if turn_manager == null:
+		turn_manager = get_tree().get_first_node_in_group("turn_manager")
+
+	if turn_manager:
+		turn_manager.game_over_panel = ui_game_over
+	else:
+		push_error("[MULTI GM] Impossible d'assigner UI_game_over : TurnManager null")
 
 func _refresh_refs() -> void:
 	players_manager = get_tree().get_first_node_in_group("players_manager")

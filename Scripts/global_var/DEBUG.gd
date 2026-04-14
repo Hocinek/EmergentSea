@@ -1,7 +1,7 @@
 extends Node
 class_name DEBUG
 
-const ENABLED = true
+const ENABLED : bool = true
 enum {
 	INFO,
 	ERROR,

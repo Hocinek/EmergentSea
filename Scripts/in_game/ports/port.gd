@@ -39,8 +39,8 @@ var stats_panel : UI_stats_port
 
 @export var max_hp: int = 20
 var current_hp: int = 20
-@export var attack_damage: int = 2
-@export var attack_range: int = 2  # en cases
+@export var attack_damage: int = 1
+@export var attack_range: int = 3  # en cases
 signal port_captured(port: Ports, new_owner: Player, old_owner: Player)
 
 # AJOUT : Référence au fog manager pour mise à jour en temps réel
@@ -189,7 +189,18 @@ func repair_ship(navire) -> void:
 	DEBUG.log("Navire [%d] réparé au port [%d]" % [navire.id, id])
 
 func can_attack_position(target_pos: Vector2i) -> bool:
-	var dist = (target_pos - case_actuelle).length()
+	var map_manager = get_tree().get_first_node_in_group("Map_manager")
+	if not map_manager:
+		return false
+	
+	var a1 = map_manager.grid.offset_to_axial(case_actuelle.x, case_actuelle.y)
+	var a2 = map_manager.grid.offset_to_axial(target_pos.x, target_pos.y)
+	
+	var dq = int(a2.x) - int(a1.x)
+	var dr = int(a2.y) - int(a1.y)
+	var ds = (-dq - dr)  
+	var dist = int((abs(dq) + abs(dr) + abs(ds)) / 2)
+	
 	return dist <= attack_range
 
 func try_attack_ship(navire) -> void:
@@ -202,6 +213,30 @@ func is_neutral() -> bool:
 
 func heal(amount: int) -> void:
 	current_hp = min(current_hp + amount, max_hp)
+	
+
+## Attaque tous les navires à portée qui n'appartiennent pas au propriétaire du port.
+## Appelé une fois à la fin de chaque tour.
+func attack_nearby_ships(current_player: Player) -> void:
+	# Le port attaque si : il est neutre OU s'il appartient à un joueur différent du joueur actif
+	if player_owner != null and player_owner == current_player:
+		return  # Port ami => pas d'attaque
+	
+	var all_ships = get_tree().get_nodes_in_group("ships")
+	for navire in all_ships:
+		if not is_instance_valid(navire) or not navire.is_alive():
+			continue
+		# N'attaque que les navires du joueur actif (ceux qui viennent de jouer)
+		if navire.player_owner != current_player:
+			continue
+		if can_attack_position(navire.case_actuelle):
+			navire.take_damage(attack_damage)
+			DEBUG.log("Port [%d] (%s) attaque navire [%d] pour %d dégâts" % [
+				id,
+				"NEUTRE" if is_neutral() else player_owner.player_name,
+				navire.id,
+				attack_damage
+			])
 
 # =========================
 # HELPER FUNCTIONS

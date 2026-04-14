@@ -174,6 +174,7 @@ func on_clicked():
 func take_damage(amount: int, attacker: Player) -> void:
 	current_hp -= amount
 	DEBUG.log("Port [%d] reçoit %d dégâts → %d/%d PV" % [id, amount, current_hp, max_hp])
+	
 	if current_hp <= 0:
 		current_hp = 0
 		_on_captured(attacker)

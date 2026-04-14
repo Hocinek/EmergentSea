@@ -614,23 +614,38 @@ func attempt_shoot(target_case: Vector2i) -> void:
 	if not is_in_range(target_case):
 		DEBUG.log("Cible hors de portée!")
 		return
+			
+	# Tenter d'attaquer un port sur cette case
+	var port = _get_port_at(target_case)
+	if port != null and port.player_owner != player_owner :
+		port.take_damage(dgt_tir, player_owner)
+		energie = max(energie -10, 0)
+		if _audio_player and attack_sound :
+			_audio_player.play()
+		take_damage(0) #Désolé Desiar mais j'arrive pas à résoudre un bug donc faudra se contenter de ça
+		DEBUG.log("Navire [%d] attaque port [%d] pour %d dégâts" % [id, port.id, dgt_tir])
+		return
+		
 	# Récupérer les navires sur la case cible
 	var target_ships = get_ships_at_position(target_case)
 	if target_ships.is_empty():
 		DEBUG.log("Aucune cible sur cette case!")
 		return
+		
 	# Tirer sur tous les navires ennemis présents
 	var hit_count = 0
 	for target_ship in target_ships:
 		if target_ship.is_enemy_of(self):
 			shoot_at(target_ship)
 			hit_count += 1
+			
 	if hit_count > 0:
 		energie = max(energie - 10, 0)
 		DEBUG.log("Tir effectué sur %d cible(s)!" % hit_count)
-		stats_panel.show_ally()
+		take_damage(0) #Désolé Desiar mais j'arrive pas à résoudre un bug donc faudra se contenter de ça
 	else:
 		DEBUG.log("Aucun ennemi sur cette case!")
+	
 
 ## Tire sur un navire spécifique
 func shoot_at(target: Navires) -> void:
@@ -715,6 +730,33 @@ func get_ship_at_position(pos: Vector2) -> Navires:
 ## Retourne la position du navire en coordonnées de case
 func getPosition() -> Vector2i:
 	return case_actuelle
+	
+## Retourne le port présent sur la case donnée, ou null si aucun port n'y est.
+func _get_port_at(target_case: Vector2i) -> Node2D:
+	# Vérification rapide du type de terrain dans le tableau brut
+	if Map_data.tiles[target_case.y][target_case.x] != "port":
+		return null
+
+	# Récupérer le MapManager et sa grille
+	var map_manager = get_tree().get_first_node_in_group("Map_manager")
+	if map_manager == null or not "grid" in map_manager:
+		DEBUG.log("Navire [%d] - _get_port_at : Map_manager/grid introuvable !" % id, DEBUG.ERROR)
+		return null
+
+	var grid: HexGrid = map_manager.grid
+
+	# Convertir offset → axial pour accéder à la bonne clé dans cells{}
+	var axial: Vector2 = grid.offset_to_axial(target_case.x, target_case.y)
+	var q := int(axial.x)
+	var r := int(axial.y)
+	var cell: HexCell = grid.get_cell(q, r, -q - r)
+
+	if cell == null:
+		DEBUG.log("Navire [%d] - _get_port_at : cellule axiale (%d,%d) introuvable" % [id, q, r], DEBUG.WARNING)
+		return null
+
+	return cell.port_instance
+	
 #endregion utils
 
 

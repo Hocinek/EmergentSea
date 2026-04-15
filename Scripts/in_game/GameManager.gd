@@ -40,6 +40,9 @@ var ship_manager: ShipManager = null
 # UI d'inspection de case
 var case_info_ui: UI_case_info = null
 
+# UI d'aide — bouton "?" et panneau des commandes
+var aide_ui: UI_aide = null
+
 
 # Ce qui sera dans cette fonction sera exécuté en premier (avant que le reste soit prêt)
 func _enter_tree():
@@ -71,6 +74,7 @@ func _ready():
 	# Créer le HexContextMenu 
 	_setup_hex_menu()
 	_setup_case_info_ui()
+	_setup_aide_ui()
 	# Préparer la fin de partie
 	_setup_game_over_ui()
 	# Récupérer le PlayersManager
@@ -155,6 +159,15 @@ func _setup_case_info_ui() -> void:
 	case_info_ui.setup()
 	DEBUG.log("[GAMEMANAGER] UI_case_info créé")
 
+
+func _setup_aide_ui() -> void:
+	aide_ui = UI_aide.new()
+	aide_ui.name = "UI_aide"
+	add_child(aide_ui)
+	await aide_ui.setup()
+	DEBUG.log("[GAMEMANAGER] UI_aide créé")
+
+
 func _setup_game_over_ui() -> void:
 	var ui_game_over := UI_game_over.new()
 	ui_game_over.name = "UI_game_over"
@@ -206,9 +219,18 @@ func _on_map_generated():
 	
 
 	# Navire ennemi → smolPirateShip (petit navire)
-	#var enemy1 = spawn_navire_random(player2, false, SHIP_MODEL_ENEMY)
-	var enemy1 = ship_manager.spawn_navire_random(player2, false)
-	
+	# En mode tutoriel : spawner l'ennemi près du joueur pour faciliter l'apprentissage
+	# En mode normal : spawn aléatoire comme avant
+	var enemy1
+	if tutorial_manager.is_tutorial_mode:
+		var case_ship1 = Map_utils.monde_vers_case(ship1.global_position)
+		var case_proche = case_ship1 + Vector2i(2, 0)
+		if Map_utils.is_case_navigable(case_proche):
+			enemy1 = spawn_navire_at(player2, case_proche, false, SHIP_MODEL_ENEMY)
+		else:
+			enemy1 = spawn_navire_random(player2, false, SHIP_MODEL_ENEMY)
+	else:
+		enemy1 = spawn_navire_random(player2, false, SHIP_MODEL_ENEMY)
 	if enemy1:
 		enemy1.id = 101
 		DEBUG.log("Enemy1 créé avec succès avec l'id "+str(enemy1.id))

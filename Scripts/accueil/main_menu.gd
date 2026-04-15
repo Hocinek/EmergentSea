@@ -125,13 +125,17 @@ func _make_main_screen() -> Control:
 	var btn_options := _make_button("Options")
 	var btn_quit := _make_button("Quitter")
 
+	var btn_tuto := _make_button("Tutoriel")
+
 	btn_solo.pressed.connect(_on_solo_pressed)
 	btn_multi.pressed.connect(_on_multi_pressed)
+	btn_tuto.pressed.connect(_on_tuto_pressed)
 	btn_options.pressed.connect(_show_options)
 	btn_quit.pressed.connect(func(): get_tree().quit())
 
 	v.add_child(btn_solo)
 	v.add_child(btn_multi)
+	v.add_child(btn_tuto)
 	v.add_child(btn_options)
 	v.add_child(btn_quit)
 
@@ -290,6 +294,12 @@ func _update_lobby_player_count() -> void:
 # =========================================================
 func _on_solo_pressed() -> void:
 	network_manager.shutdown()
+	get_tree().change_scene_to_file(SOLO_SCENE_PATH)
+
+
+func _on_tuto_pressed() -> void:
+	network_manager.shutdown()
+	tutorial_manager.is_tutorial_mode = true
 	get_tree().change_scene_to_file(SOLO_SCENE_PATH)
 
 

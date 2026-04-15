@@ -170,7 +170,7 @@ func _ready():
 	print_tree()
 	match_context = get_tree().get_first_node_in_group("match_context")
 	network_manager = get_tree().get_first_node_in_group("network_manager")
-	rpc_navire = RPC_Navires.new(self)
+	#rpc_navire = RPC_Navires.new(self)
   
 	case_actuelle = Map_utils.monde_vers_case(global_position)
 

@@ -239,11 +239,11 @@ func _on_map_generated():
 		var case_ship1 = Map_utils.monde_vers_case(ship1.global_position)
 		var case_proche = case_ship1 + Vector2i(2, 0)
 		if Map_utils.is_case_navigable(case_proche):
-			enemy1 = spawn_navire_at(player2, case_proche, false, SHIP_MODEL_ENEMY)
+			enemy1 = ship_manager.spawn_navire_at(player2, case_proche, false)
 		else:
-			enemy1 = spawn_navire_random(player2, false, SHIP_MODEL_ENEMY)
+			enemy1 = ship_manager.spawn_navire_random(player2, false)
 	else:
-		enemy1 = spawn_navire_random(player2, false, SHIP_MODEL_ENEMY)
+		enemy1 = ship_manager.spawn_navire_random(player2, false)
 	if enemy1:
 		enemy1.id = 101
 		DEBUG.log("Enemy1 créé avec succès avec l'id "+str(enemy1.id))

@@ -18,7 +18,7 @@ var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 var noise: FastNoiseLite = FastNoiseLite.new()
 var height_map := []
 var islands := []
-var ports := []
+var ports := [] # Liste des ports générés
 
 func _init():
 	pass
@@ -119,6 +119,7 @@ func generate_tiles():
 			else:
 				Map_data.tiles[y][x] = "mountain"
 
+## Computes and stores all water tiles connected to the map borders (ocean).
 func compute_ocean_cases() -> void:
 	Map_data.ocean_cases.clear()
 	var visited := {}
@@ -140,6 +141,7 @@ func compute_ocean_cases() -> void:
 			if not visited.has(n):
 				queue.append(n)
 
+## Génère des ports sur les côtes avec distance minimale entre eux
 func generate_ports() -> void:
 	ports.clear()
 	var coastal_tiles: Array = []
@@ -163,11 +165,13 @@ func generate_ports() -> void:
 			DEBUG.log("Port placé à : " + str(candidate))
 	DEBUG.log("Ports générés : " + str(ports.size()) + "/" + str(port_count))
 
+## Synchronise les ports avec Map_data (appelé après generate_ports)
 func sync_ports_to_map_data() -> void:
 	Map_data.ports.clear()
 	for port in ports:
 		Map_data.ports.append(port)
 
+## Vérifie si une case est côtière (terre avec eau adjacente)
 func is_coastal_tile(x: int, y: int) -> bool:
 	var pos: Vector2i = Vector2i(x, y)
 	if not Map_utils.is_case_valid(pos):
@@ -175,20 +179,19 @@ func is_coastal_tile(x: int, y: int) -> bool:
 	var tile_type: String = Map_data.tiles[y][x]
 	if tile_type == "water" or tile_type == "deepwater":
 		return false
-	var neighbors: Array = [Vector2i(x+1,y), Vector2i(x-1,y), Vector2i(x,y+1), Vector2i(x,y-1)]
-	for neighbor in neighbors:
-		if Map_utils.is_case_valid(neighbor):
-			var neighbor_type: String = Map_data.tiles[neighbor.y][neighbor.x]
-			if neighbor_type == "water" or neighbor_type == "deepwater":
-				return true
+	var water_neighbor: Array[Vector2i] = Map_utils.get_neighbors(pos)
+	if water_neighbor != []:
+		return true
 	return false
 
+## Vérifie si un emplacement de port respecte la distance minimale
 func is_valid_port_location(candidate: Vector2i) -> bool:
 	for existing_port in ports:
 		if calculate_distance(candidate, existing_port) < min_port_distance:
 			return false
 	return true
 
+## Calcule la distance euclidienne entre deux positions
 func calculate_distance(a: Vector2i, b: Vector2i) -> float:
 	var dx: float = a.x - b.x
 	var dy: float = a.y - b.y

@@ -1,26 +1,30 @@
 class_name UI_case_info
 extends Node
 
-# =========================
-# UI_case_info
-# Affiche une bulle d'info flottante sur une case inspectée.
-#
-# VISIBLE  → valeur exacte, bleu  "🐟 42 poissons"
-# EXPLORED → dernière valeur vue, gris  "🐟 42 poissons (dernière observation)"
-# UNEXPLORED → rien (jamais appelé depuis GameManager)
-# =========================
 
 var ui_layer: CanvasLayer
-var panel: PanelContainer
+var panel: Control
+var bg_texture: TextureRect
 var label: Label
-
 var timer: float = 0.0
 const DURATION: float = 3.5
 
-const COLOR_BG_VISIBLE:  Color = Color(0.0,  0.25, 0.35, 0.92)
-const COLOR_TXT_VISIBLE: Color = Color(0.5,  0.9,  1.0)
-const COLOR_BG_EXPLORED: Color = Color(0.18, 0.18, 0.18, 0.88)
+# Position monde de la case inspectée — mise à jour à chaque _process
+var _world_pos: Vector2 = Vector2.ZERO
+
+const COLOR_TXT_VISIBLE: Color = Color(1.0, 1.0, 1.0, 1.0)
 const COLOR_TXT_EXPLORED:Color = Color(0.65, 0.65, 0.65)
+
+const TILE_INFO: Dictionary = {
+	"water":     { "label": "🌊 Eau",          "navigable": true  },
+	"deepwater": { "label": "🌊 Eau profonde",  "navigable": true  },
+	"port":      { "label": "⚓ Port",           "navigable": false  },
+	"fish":      { "label": "🐟 Zone de pêche", "navigable": true  },
+	"sand":      { "label": "🏖️ Sable",         "navigable": false },
+	"earth":     { "label": "🌿 Terre",          "navigable": false },
+	"forest":    { "label": "🌲 Forêt",          "navigable": false },
+	"mountain":  { "label": "⛰️ Montagne",       "navigable": false },
+}
 
 func _init() -> void:
 	pass
@@ -31,66 +35,95 @@ func setup() -> void:
 	if not ui_layer:
 		DEBUG.log("[UI_case_info] ui_layer introuvable !", DEBUG.ERROR)
 		return
+	ui_layer.follow_viewport_enabled = false
 	_build_ui()
 
 func _build_ui() -> void:
-	panel = PanelContainer.new()
-	panel.visible = false
-	_apply_style(COLOR_BG_VISIBLE)
+	# Charger la texture en premier pour connaître sa taille native
+	var tex: Texture2D = load("res://textures/CarteInspection.png")
+	
+	if not tex:
+		DEBUG.log("[UI_case_info] CarteInspection.png introuvable dans textures/ !", DEBUG.ERROR)
 
+	# TextureRect affiché à sa taille native — c'est lui le "panel"
+	bg_texture = TextureRect.new()
+	bg_texture.texture = tex
+	bg_texture.stretch_mode = TextureRect.STRETCH_KEEP  # taille native, pas de redim
+	bg_texture.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	bg_texture.visible = false
+
+	# Label positionné en absolu par-dessus, aux mêmes dimensions que la texture
 	label = Label.new()
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.vertical_alignment   = VERTICAL_ALIGNMENT_CENTER
 	label.add_theme_color_override("font_color", COLOR_TXT_VISIBLE)
 	label.add_theme_color_override("font_outline_color", Color.BLACK)
 	label.add_theme_constant_override("outline_size", 4)
 	label.add_theme_font_size_override("font_size", 18)
+	# Le label recouvre exactement la texture
+	if tex:
+		label.size = tex.get_size()
+	label.position = Vector2.ZERO
 
-	panel.add_child(label)
-	ui_layer.add_child(panel)
+	bg_texture.add_child(label)
+	ui_layer.add_child(bg_texture)
 
-func _apply_style(bg: Color) -> void:
-	var style := StyleBoxFlat.new()
-	style.bg_color = bg
-	style.corner_radius_top_left    = 8
-	style.corner_radius_top_right   = 8
-	style.corner_radius_bottom_left = 8
-	style.corner_radius_bottom_right= 8
-	style.content_margin_left   = 12
-	style.content_margin_right  = 12
-	style.content_margin_top    = 7
-	style.content_margin_bottom = 7
-	panel.add_theme_stylebox_override("panel", style)
+	# On pointe panel sur bg_texture pour que le reste du code fonctionne sans changement
+	panel = bg_texture
 
 func _process(delta: float) -> void:
-	if timer > 0.0:
-		timer -= delta
-		if timer <= 0.0:
-			panel.visible = false
+	if timer <= 0.0:
+		return
+	timer -= delta
+	if timer <= 0.0:
+		panel.visible = false
+		return
+	# Recalculer la position écran à chaque frame depuis la position monde
+	_update_panel_position()
 
-# =========================
-# API publique
-# =========================
+func _update_panel_position() -> void:
+	if not panel:
+		return
+	var viewport := get_viewport()
+	if not viewport:
+		return
+	var spos: Vector2 = viewport.get_canvas_transform() * _world_pos
+	var panel_size := panel.size if panel.size.x > 0 else Vector2(160, 80)
+	panel.position = spos - Vector2(panel_size.x * 0.5, panel_size.y + 20)
 
-## Affiche le nombre de poissons à la position écran donnée.
-## is_visible = true  → case VISIBLE  (valeur exacte, style bleu)
-## is_visible = false → case EXPLORED (dernière valeur, style gris)
-func show_fish_info(fish_count: int, screen_pos: Vector2, is_visible: bool) -> void:
+## Affiche si la case est naviguable et son type, si c'est une case poisson, affiche aussi le nombre de poissons
+func show_tile_info(tile_type: String, case_pos: Vector2i, is_visible: bool, fish_count: int = -1) -> void:
 	if not panel or not label:
 		return
 
+	var info: Dictionary = TILE_INFO.get(tile_type, {
+		"label": "❓ " + tile_type,
+		"navigable": false
+	})
+
+	var lines: Array[String] = []
+	lines.append(info["label"])
+	if info["navigable"]:
+		lines.append("⚓ Navigable")
+	else:
+		lines.append("✗ Non navigable")
+	if fish_count >= 0:
+		lines.append("🐟 %d poissons" % fish_count)
+	if not is_visible:
+		lines.append("(dernière observation)")
+
+	label.text = "\n".join(lines)
+
+	# Teinte du texte selon visibilité (la texture reste la même)
 	if is_visible:
-		label.text = "🐟 %d poissons" % fish_count
-		_apply_style(COLOR_BG_VISIBLE)
 		label.add_theme_color_override("font_color", COLOR_TXT_VISIBLE)
 	else:
-		label.text = "🐟 %d poissons\n(dernière observation)" % fish_count
-		_apply_style(COLOR_BG_EXPLORED)
 		label.add_theme_color_override("font_color", COLOR_TXT_EXPLORED)
 
+	_world_pos = Map_utils.case_vers_monde(case_pos)
 	panel.visible = true
-	await get_tree().process_frame  # laisser Godot calculer la taille du panel
-	panel.position = screen_pos - Vector2(panel.size.x * 0.5, panel.size.y + 20)
 	timer = DURATION
+	_update_panel_position()
 
 func hide_info() -> void:
 	if panel:

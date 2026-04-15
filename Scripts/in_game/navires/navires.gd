@@ -1,6 +1,8 @@
 class_name Navires
 extends Node2D
 
+# Permettra de signaler au moteur différents évènements
+#region signaux
 signal sig_show_stats
 signal sig_navire_died(navire: Navires)
 signal sig_navire_damaged(navire: Navires, damage: int)
@@ -12,6 +14,7 @@ signal sig_open_hex_menu(navire: Navires, screen_pos: Vector2)
 signal sig_switch_ship()
 signal sig_navire_moved(navire: Navires)
 
+#endregion signaux
 
 @export var attack_sound: AudioStream = null
 var _audio_player: AudioStreamPlayer2D = null
@@ -24,12 +27,23 @@ var current_input_mode: InputMode = InputMode.NONE
 # =========================
 # PROPRIÉTAIRE ET IDENTITÉ
 # =========================
+#region identité
+## Référence directe au joueur propriétaire
 @export var player_owner: Player = null
+
+## ID unique du navire
 @export var id: int = 0
+
+## Détermine si c'est le navire contrôlé par le joueur humain actuel
 var is_player_controlled: bool = false
+
+## Indique si ce navire est actuellement sélectionné
 var is_selected: bool = false
 var is_visible_to_human: bool = true
 var fog_of_war_ref: FogOfWar = null
+var pending_path := []
+var _confirm_ui: UI_confirm_deplacement = null
+#endregion identité
 
 # =========================
 # MODÈLE 3D
@@ -43,6 +57,7 @@ var fog_of_war_ref: FogOfWar = null
 # =========================
 # STATS
 # =========================
+#region stats
 var stats_panel : UI_stats_navire
 @export var vie: int = 10
 @export var maxvie: int = 10
@@ -52,34 +67,40 @@ var stats_panel : UI_stats_navire
 @export var nrbequipage: int = 0
 @export var interaction_radius: float = 80.0
 @export var stats_duration: float = 2.5
-@export var tir: int = 10
-@export var dgt_tir: int = 2
+@export var tir: int = 10		# Portée d'un tir
+@export var dgt_tir: int = 2	# Dégâts d'un tir
 
 @onready var ui_layer: CanvasLayer = get_tree().get_first_node_in_group("ui_layer")
 @onready var data := get_tree().get_first_node_in_group("shared_entities")
-@onready var players_manager = get_tree().get_first_node_in_group("players_manager")
 
+
+
+# Référence au fog manager pour mise à jour en temps réels
 var fog_manager: FogManager = null
 var match_context: MatchContext = null
 var network_manager: NetworkManager = null
 
 var drawable : Drawable
+#endregion stats
 
 # =========================
 # PÊCHE
 # =========================
+#region pêche
 @export var nourriture: int = 0
 @export var fish_energy_cost: int = 1
 @export var fish_duration: float = 1.2
 @export var fish_yield_min: int = 1
 @export var fish_yield_max: int = 3
-
+var _arrow_overlay: ArrowOverlay = null
 var is_fishing := false
 var fish_timer := 0.0
+#endregion pêche
 
 # =========================
 # FEEDBACK PÊCHE
 # =========================
+#region feedback pêche
 var fish_feedback_label: UI_fish_navires
 @export var fish_feedback_duration: float = 0.8
 var fish_feedback_timer: float = 0.0
@@ -88,19 +109,23 @@ var stats_timer := 0.0
 # stats_visible = true signifie que le joueur a VOLONTAIREMENT activé l'affichage
 # Les stats restent visibles même si on change de sélection, jusqu'à désactivation manuelle
 var stats_visible := false
+#endregion feedback pêche
 
 # =========================
 # DÉPLACEMENT
 # =========================
+#region déplacement
 var path := []
 var is_moving := false
 var case_actuelle: Vector2i
 var target_position: Vector2 = Vector2.ZERO
 var show_arrow: bool = false
+#endregion déplacement
 
 # =========================
 # ROTATION DU BATEAU
 # =========================
+#region rotation du bateau
 ## Angle cible vers lequel le bateau doit se tourner (en radians)
 var target_rotation_angle: float = 0.0
 ## Vitesse de rotation en radians/seconde
@@ -121,6 +146,7 @@ var _pivot_local: Vector2 = Vector2.ZERO
 
 ## Référence au Node3D pirateShip — tourné via Transform3D axe Y uniquement
 var _pirate_ship_3d: Node3D = null
+#endregion rotation du bateau
 
 # =========================
 # DÉCALAGE VISUEL DU SPRITE
@@ -128,6 +154,8 @@ var _pirate_ship_3d: Node3D = null
 ## Décale le Sprite2D pour que le centre VISUEL du bateau coïncide avec
 ## global_position (= l'ancre logique utilisée pour déterminer la case occupée).
 @export var hull_offset: Vector2 = Vector2.ZERO
+
+var rpc_navire : RPC_Navires = null
 
 # =========================
 # CAMÉRA 2D
@@ -144,6 +172,7 @@ func _ready():
 	print_tree()
 	match_context = get_tree().get_first_node_in_group("match_context")
 	network_manager = get_tree().get_first_node_in_group("network_manager")
+	rpc_navire = RPC_Navires.new(self)
   
 	case_actuelle = Map_utils.monde_vers_case(global_position)
 
@@ -172,13 +201,10 @@ func _ready():
 	fog_of_war_ref = get_tree().get_first_node_in_group("fog_of_war")
 	if fog_of_war_ref:
 		DEBUG.log("Navire [%d] - FogOfWar connecté pour visibilité" % id)
-	_audio_player = AudioStreamPlayer2D.new()
-	add_child(_audio_player)
-	if attack_sound:
-		_audio_player.stream = attack_sound
-	# Dans _ready(), après _setup_node3d_instance()
 	attack_sound = load("res://son/sf_canon_01.mp3")
 	_audio_player = AudioStreamPlayer2D.new()
+	_audio_player.stream = attack_sound
+	_audio_player.volume_db = 10.0
 	add_child(_audio_player)
 	# Debug
 	var owner_name = player_owner.player_name if player_owner else "AUCUN"
@@ -186,6 +212,10 @@ func _ready():
 	DEBUG.log("Navire [%s] initialisé - Propriétaire: %s - Type: %s - Position: %s - Modèle: %s" % [
 		id, owner_name, control_type, case_actuelle, ship_model_path
 	])
+	if _arrow_overlay == null:
+		_arrow_overlay = ArrowOverlay.new()
+		_arrow_overlay.navire = self
+		ui_layer.add_child(_arrow_overlay)
 
 
 func _setup_node3d_instance() -> void:
@@ -303,6 +333,7 @@ func _init_stats_ui():
 
 
 #region camera
+## Configure la caméra pour suivre le navire si c'est celui du joueur
 func _setup_camera() -> void:
 	if not is_selected:
 		return
@@ -319,6 +350,7 @@ func _get_camera_zoom() -> float:
 
 
 #region gestion proprietaire
+## Définit le joueur propriétaire de ce navire
 func set_owner_player(player: Player) -> void:
 	if player_owner != null and player_owner.has_method("remove_navire"):
 		player_owner.remove_navire(self)
@@ -327,6 +359,7 @@ func set_owner_player(player: Player) -> void:
 		player.add_navire(self)
 	_setup_input_handling()
 
+## Retourne le joueur propriétaire du navire
 func get_owner_player() -> Player:
 	return player_owner
 
@@ -343,9 +376,11 @@ func _is_local_human_owner() -> bool:
 		return player_owner.is_local
 	return true
 
+## Vérifie si ce navire appartient au joueur spécifié
 func is_owned_by(player: Player) -> bool:
 	return player_owner == player
 
+## Vérifie si ce navire est ennemi d'un autre navire
 func is_enemy_of(other_navire: Navires) -> bool:
 	if player_owner == null or other_navire.player_owner == null:
 		return false
@@ -354,12 +389,15 @@ func is_enemy_of(other_navire: Navires) -> bool:
 
 
 #region gestion selection
-func set_selected(selected: bool) -> void:
+## Définit si ce navire est sélectionné
+func set_selected(selected: bool, silent:bool = false) -> void:
+	"""Définit si ce navire est sélectionné"""
 	is_selected = selected
 	queue_redraw()
 	# Activer/désactiver la caméra selon la sélection
-	if selected and _is_local_human_owner():
-		_setup_camera()
+	if selected and player_owner and player_owner.is_human:
+		if(!silent):
+			_setup_camera()
 		if stats_panel:
 			stats_panel.show_ally()
 	else:
@@ -377,9 +415,11 @@ func toggle_stats() -> void:
 
 
 #region gestion etat navire
+## Vérifie si le navire est encore en vie
 func is_alive() -> bool:
 	return vie > 0
 
+## Applique des dégâts au navire
 func take_damage(damage: int) -> void:
 	if not is_alive():
 		return
@@ -389,6 +429,7 @@ func take_damage(damage: int) -> void:
 	if vie <= 0:
 		die()
 
+## Gère la mort du navire
 func die() -> void:
 	DEBUG.log("Navire [%d] en train de mourir..." % id)
 	# IMPORTANT : Émettre le signal AVANT toute modification
@@ -407,7 +448,12 @@ func die() -> void:
 		player_owner.remove_navire(self)
 	DEBUG.log("Navire [%d] détruit" % id)
 	queue_free()
+	if _arrow_overlay == null:
+		_arrow_overlay = ArrowOverlay.new()
+		_arrow_overlay.navire = self
+		ui_layer.add_child(_arrow_overlay)
 
+## Soigne le navire
 func heal(amount: int) -> void:
 	if not is_alive():
 		return
@@ -415,6 +461,7 @@ func heal(amount: int) -> void:
 	if is_selected:
 		stats_panel.show_ally()
 
+## Réinitialise l'énergie au maximum
 func reset_energie() -> void:
 	energie = maxenergie
 #endregion gestion etat navire
@@ -445,7 +492,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		var mouse_pos: Vector2 = get_global_mouse_position()
 		var distance: float    = global_position.distance_to(mouse_pos)
 
-		if event.button_index == MOUSE_BUTTON_LEFT:
+		if event.button_index == MOUSE_BUTTON_RIGHT:
 			# MODE ACTIF
 			# Seulement le navire sélectionné exécute l'action ET absorbe le clic.
 			# Les navires non-sélectionnés ignorent complètement ce bloc.
@@ -456,19 +503,19 @@ func _unhandled_input(event: InputEvent) -> void:
 					InputMode.MOVE:
 						var clicked_ship := get_ship_at_position(mouse_pos)
 						if not clicked_ship:
-							var target_case: Vector2i = Map_utils.monde_vers_case(mouse_pos)
-							if Map_utils.is_case_navigable(target_case):
-								path = Pathfinder.calculer_chemin(case_actuelle, target_case)
-								if not path.is_empty():
-									DEBUG.log("Chemin: " + str(path))
-									is_moving       = true
-									target_position = mouse_pos
-									show_arrow      = true
-									queue_redraw()
-								else:
-									DEBUG.log("Chemin vide !")
+							if energie <= 0:
+								DEBUG.log("Navire [%d] — Pas assez d'énergie pour se déplacer!" % id)
 							else:
-								DEBUG.log("Case non navigable !")
+								var target_case: Vector2i = Map_utils.monde_vers_case(mouse_pos)
+								if Map_utils.is_case_navigable(target_case):
+									var computed_path = Pathfinder.calculer_chemin(case_actuelle, target_case)
+									if not computed_path.is_empty():
+										DEBUG.log("Chemin: " + str(computed_path))
+										_request_move_confirmation(computed_path)
+									else:
+										DEBUG.log("Chemin vide !")
+								else:
+									DEBUG.log("Case non navigable !")
 						set_input_mode(InputMode.NONE)
 						get_viewport().set_input_as_handled()
 						return
@@ -512,22 +559,26 @@ func _unhandled_input(event: InputEvent) -> void:
 					return
 				var target_case: Vector2i = Map_utils.monde_vers_case(mouse_pos)
 				if Map_utils.is_case_navigable(target_case):
-					path = Pathfinder.calculer_chemin(case_actuelle, target_case)
-					if not path.is_empty():
-						DEBUG.log("Chemin: " + str(path))
-						is_moving       = true
-						target_position = mouse_pos
-						show_arrow      = true
-						queue_redraw()
+					var computed_path = Pathfinder.calculer_chemin(case_actuelle, target_case)
+					if not computed_path.is_empty():
+						DEBUG.log("Chemin: " + str(computed_path))
+						_request_move_confirmation(computed_path)
 						get_viewport().set_input_as_handled()
 					else:
 						DEBUG.log("Chemin vide !")
 				else:
 					DEBUG.log("Case cible NON navigable !")
-		elif event.button_index == MOUSE_BUTTON_RIGHT:
+
+		elif event.button_index == MOUSE_BUTTON_LEFT:
 
 			# Seul le navire sélectionné traite le clic droit
 			if not is_selected:
+				return
+
+			# Annuler une confirmation en attente
+			if not pending_path.is_empty():
+				_cancel_pending_move()
+				get_viewport().set_input_as_handled()
 				return
 
 			# Annuler un mode en cours
@@ -555,8 +606,12 @@ func _unhandled_input(event: InputEvent) -> void:
 	if not is_selected:
 		return
 
-	# Echap → annuler le mode actif
+	# Echap → annuler la confirmation en attente ou le mode actif
 	if event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE:
+		if not pending_path.is_empty():
+			_cancel_pending_move()
+			get_viewport().set_input_as_handled()
+			return
 		if current_input_mode != InputMode.NONE:
 			set_input_mode(InputMode.NONE)
 			get_viewport().set_input_as_handled()
@@ -600,6 +655,7 @@ func attempt_shoot(target_case: Vector2i) -> void:
 	else:
 		DEBUG.log("Aucun ennemi sur cette case!")
 
+## Tire sur un navire spécifique
 func shoot_at(target: Navires) -> void:
 	if target == null or not target.is_alive():
 		return
@@ -659,6 +715,7 @@ func is_in_range(target_case: Vector2i) -> bool:
 	var chemin := Pathfinder.calculer_chemin(case_actuelle, target_case)
 	return chemin.size() <= tir
 
+## Récupère tous les navires présents sur une case
 func get_ships_at_position(target_case: Vector2i) -> Array[Navires]:
 	var ships: Array[Navires] = []
 	if data and data.has_method("getNavireByPosition"):
@@ -668,6 +725,7 @@ func get_ships_at_position(target_case: Vector2i) -> Array[Navires]:
 				ships.append(ship)
 	return ships
 
+## Récupère le navire à une position donnée (dans le rayon d'interaction)
 func get_ship_at_position(pos: Vector2) -> Navires:
 	var all_ships = get_tree().get_nodes_in_group("ships")
 	for ship in all_ships:
@@ -677,6 +735,7 @@ func get_ship_at_position(pos: Vector2) -> Navires:
 				return ship
 	return null
 
+## Retourne la position du navire en coordonnées de case
 func getPosition() -> Vector2i:
 	return case_actuelle
 #endregion utils
@@ -708,6 +767,7 @@ func _compute_target_rotation(direction: Vector2) -> float:
 
 #region process
 func _process(delta):
+	# Animation de la sélection et de la flèche
 	if is_selected or show_arrow:
 		queue_redraw()
 
@@ -726,6 +786,7 @@ func _process(delta):
 	if player_owner and not _is_local_human_owner():
 		_update_visibility_in_fog()
 
+## Gère le déplacement du navire
 func _process_movement(delta: float) -> void:
 	if multiplayer.has_multiplayer_peer():
 		_rpc_sync_position.rpc(case_actuelle.x, case_actuelle.y, global_position.x, global_position.y, target_rotation_angle)
@@ -769,6 +830,13 @@ func _process_movement(delta: float) -> void:
 
 		DEBUG.log("Navire [%d] arrivé à %s - Cases restantes: %d" % [id, case_actuelle, path.size()])
 		DEBUG.log("old_case: %s, case_actuelle: %s, changé: %s" % [old_case, case_actuelle, old_case != case_actuelle])
+		if energie <= 0:
+			is_moving  = false
+			show_arrow = false
+			path.clear()
+			queue_redraw()
+			DEBUG.log("Navire [%d] — Énergie épuisée, arrêt du déplacement" % id)
+			return
 		if player_owner:
 			DEBUG.log("player_owner existe: %s, is_human: %s, is_local: %s" % [player_owner.player_name, player_owner.is_human, player_owner.is_local])
 		else:
@@ -804,14 +872,72 @@ func _process_movement(delta: float) -> void:
 		global_position += direction.normalized() * vitesse * delta
 #endregion process
 
+#region confirmation déplacement
+func _request_move_confirmation(computed_path: Array) -> void:
+	# Fermer une confirmation précédente si elle traîne
+	_cancel_pending_move()
+
+	# ── TRONQUER le chemin si l'énergie est insuffisante ──
+	# Le joueur ne peut avancer que d'autant de cases qu'il a d'énergie.
+	var affordable_path: Array = computed_path
+	if computed_path.size() > energie:
+		affordable_path = computed_path.slice(0, energie)
+		DEBUG.log("Navire [%d] — Chemin tronqué à %d cases (énergie: %d)" % [id, affordable_path.size(), energie])
+
+	pending_path = affordable_path
+	var cost: int = affordable_path.size()  # coût réel = cases effectivement parcourables
+
+	if not _confirm_ui:
+		_confirm_ui = UI_confirm_deplacement.new()
+		_confirm_ui.confirmed.connect(_on_move_confirmed)
+		_confirm_ui.cancelled.connect(_on_move_cancelled)
+		ui_layer.add_child(_confirm_ui)
+
+	# Positionner la bulle près du navire (en coordonnées écran)
+	var canvas_xform := get_canvas_transform()
+	var screen_pos: Vector2 = canvas_xform * global_position
+	_confirm_ui.show_for(affordable_path.size(), cost, screen_pos)
+
+	# Dessiner la flèche vers la destination réellement atteignable
+	show_arrow = true
+	target_position = Map_utils.case_vers_monde(affordable_path.back())
+	queue_redraw()
+	DEBUG.log("Navire [%d] — Confirmation demandée : %d case(s) pour %d ⚡" % [id, affordable_path.size(), cost])
+
+func _on_move_confirmed() -> void:
+	if pending_path.is_empty():
+		return
+	path           = pending_path
+	pending_path   = []
+	is_moving      = true
+	show_arrow     = true
+	target_position = Map_utils.case_vers_monde(path.back())
+	queue_redraw()
+	DEBUG.log("Navire [%d] — Déplacement confirmé, %d cases" % [id, path.size()])
+
+func _on_move_cancelled() -> void:
+	_cancel_pending_move()
+	DEBUG.log("Navire [%d] — Déplacement annulé" % id)
+
+func _cancel_pending_move() -> void:
+	pending_path = []
+	if _confirm_ui and is_instance_valid(_confirm_ui):
+		_confirm_ui.hide_ui()
+	show_arrow = false
+	queue_redraw()
+#endregion confirmation déplacement
+
+
 
 #region UI
+## Cache les stats de tous les navires
 func hide_all_ships_stats():
 	var all_ships = get_tree().get_nodes_in_group("ships")
 	for ship in all_ships:
 		if ship is Navires:
 			ship.hide_all_stats()
 
+## Met à jour le fog of war autour de ce navire
 func _update_fog_of_war() -> void:
 	DEBUG.log("[NAVIRE %d] _update_fog_of_war() APPELÉE !" % id)
 	if not _is_local_human_owner():
@@ -819,12 +945,12 @@ func _update_fog_of_war() -> void:
 		return
 	DEBUG.log("[NAVIRE %d] Actualisation du fog à la position %s" % [id, case_actuelle])
 	if not fog_manager:
-		DEBUG.log("[NAVIRE %d] ERREUR - fog_manager est NULL, tentative de récupération..." % id)
+		DEBUG.log("[NAVIRE %d] ERREUR - fog_manager est NULL, tentative de récupération..." % id,DEBUG.WARNING)
 		fog_manager = get_tree().get_first_node_in_group("fog_manager")
 		if fog_manager:
 			DEBUG.log("[NAVIRE %d] fog_manager récupéré avec succès" % id)
 		else:
-			DEBUG.log("[NAVIRE %d] ERREUR CRITIQUE - fog_manager introuvable !" % id)
+			DEBUG.log("[NAVIRE %d] ERREUR CRITIQUE - fog_manager introuvable !" % id, DEBUG.ERROR)
 	if fog_manager:
 		DEBUG.log("[NAVIRE %d] fog_manager existe, vérification de force_update..." % id)
 		if fog_manager.has_method("force_update"):
@@ -832,7 +958,7 @@ func _update_fog_of_war() -> void:
 			fog_manager.force_update()
 			return
 		else:
-			DEBUG.log("[NAVIRE %d] ✗ fog_manager n'a pas la méthode force_update !" % id)
+			DEBUG.log("[NAVIRE %d] ✗ fog_manager n'a pas la méthode force_update !" % id,DEBUG.WARNING)
 	DEBUG.log("[NAVIRE %d] Fallback - tentative via FogOfWar direct" % id)
 	var fog_of_war = get_tree().get_first_node_in_group("fog_of_war")
 	if fog_of_war:
@@ -841,10 +967,11 @@ func _update_fog_of_war() -> void:
 			DEBUG.log("[NAVIRE %d] ✓ Appel de fog_of_war.reveal_around_position(%s)" % [id, case_actuelle])
 			fog_of_war.reveal_around_position(case_actuelle)
 		else:
-			DEBUG.log("[NAVIRE %d] ✗ FogOfWar n'a pas la méthode reveal_around_position !" % id)
+			DEBUG.log("[NAVIRE %d] ✗ FogOfWar n'a pas la méthode reveal_around_position !" % id, DEBUG.WARNING)
 	else:
-		DEBUG.log("[NAVIRE %d] ✗ FogOfWar introuvable !" % id)
+		DEBUG.log("[NAVIRE %d] ✗ FogOfWar introuvable !" % id,DEBUG.ERROR)
 
+## Met à jour la visibilité de ce navire basée sur le fog of war
 func _update_visibility_in_fog() -> void:
   # Met à jour la visibilité de ce navire basée sur le fog of war
 	if _is_local_human_owner():
@@ -865,11 +992,6 @@ func _draw():
 	if is_selected and _is_local_human_owner():
 		drawable.selection_circle(scale_factor)
 
-	# Flèche de déplacement (seulement pour le navire sélectionné)
-	if not show_arrow or not is_selected:
-		return
-	var local_target = target_position - global_position
-	drawable.arrow(local_target, scale_factor)
 #endregion UI
 
 

@@ -120,7 +120,7 @@ func _make_main_screen() -> Control:
 	var d := _make_panel("EmergentSea")
 	var v: VBoxContainer = d["vbox"]
 
-	var btn_solo := _make_button("Solo contre IA")
+	var btn_solo := _make_button("Solo")
 	var btn_multi := _make_button("Multijoueur")
 	var btn_options := _make_button("Options")
 	var btn_quit := _make_button("Quitter")

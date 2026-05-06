@@ -14,14 +14,13 @@ extends Node
 #
 # ÉTAPES :
 #   0 - But du jeu (popup, avance sur clic)
-#   1 - Naviguer sur la carte (popup, avance sur clic)
-#   2 - Déplacer un navire (attend le déplacement)
-#   3 - Ouvrir le menu hexagonal (attend clic droit)
-#   4 - Pêcher (attend la fin d'une pêche)
-#   5 - Attaquer un ennemi (attend un tir)
-#   6 - Fin de tour (attend le clic sur le bouton)
-#   7 - Brouillard de guerre (popup, avance sur clic)
-#   8 - Fin du tutoriel
+#   1 - Déplacer un navire (attend le déplacement)
+#   2 - Ouvrir le menu hexagonal (attend clic droit)
+#   3 - Pêcher (attend la fin d'une pêche)
+#   4 - Attaquer un ennemi (attend un tir)
+#   5 - Fin de tour (attend le clic sur le bouton)
+#   6 - Brouillard de guerre (popup, avance sur clic)
+#   7 - Fin du tutoriel
 # =========================
 
 # =========================
@@ -45,11 +44,6 @@ var label_title: Label = null
 var label_body: Label = null
 var btn_next: Button = null
 
-# Drag du panneau
-var _dragging: bool = false
-var _drag_offset: Vector2 = Vector2.ZERO
-var _title_bar: Panel = null
-
 # =========================
 # CONSTANTES VISUELLES
 # =========================
@@ -71,13 +65,8 @@ const ETAPES: Array = [
 		true
 	],
 	[
-		"🎥 Naviguer sur la carte",
-		"Vous pouvez vous déplacer sur la carte avec les touches fléchées ⬆️⬇️⬅️➡️.\n\nPour zoomer/dézoomer, utilisez la molette de la souris 🖱️.\n\n➡️ Essayez de naviguer sur la carte, puis cliquez sur « Suivant ».",
-		true
-	],
-	[
 		"🚢 Déplacer un navire",
-		"Cliquez gauche sur une case bleue (navigable) pour déplacer votre navire sélectionné.\n\nVous pouvez aussi faire un clic droit sur votre navire → « Déplacer ».\n\nSe déplacer coûte 1⚡ par case.\n\n➡️ Déplacez votre navire pour continuer.",
+		"Cliquez gauche sur une case bleue (navigable) pour déplacer votre navire sélectionné.\n\nVous pouvez aussi faire un clic droit sur votre navire → « Déplacer ».\n\n➡️ Déplacez votre navire pour continuer.",
 		false
 	],
 	[
@@ -87,17 +76,17 @@ const ETAPES: Array = [
 	],
 	[
 		"🐟 Pêcher",
-		"La pêche vous permet de collecter de la nourriture (🐟).\n\nOuvrez le menu hexagonal → « Pêcher », ou utilisez la touche F.\n\nLes zones de pêche rapportent plus que l'eau libre. Pêcher coûte 1⚡.\n\n➡️ Pêchez pour continuer.",
+		"La pêche vous permet de collecter de la nourriture (🐟).\n\nOuvrez le menu hexagonal → « Pêcher », ou utilisez la touche dédiée.\n\nLes zones de pêche rapportent plus que l'eau libre.\n\n➡️ Pêchez pour continuer.",
 		false
 	],
 	[
 		"⚔️ Attaquer un ennemi",
-		"Faites un clic droit sur une case ennemie pour tirer dessus.\n\nVous pouvez aussi passer par le menu → « Attaquer » puis cliquer sur la case cible.\n\nAttention : tirer coûte 10⚡. Se déplacer coûte 1⚡ par case. Pêcher coûte 1⚡.\n\n➡️ Attaquez un navire ennemi pour continuer.",
+		"Faites un clic droit sur une case ennemie pour tirer dessus.\n\nVous pouvez aussi passer par le menu → « Attaquer » puis cliquer sur la case cible.\n\nAttention : tirer coûte de l'énergie ⚡.\n\n➡️ Attaquez un navire ennemi pour continuer.",
 		false
 	],
 	[
 		"🔄 Fin de tour",
-		"Quand vous avez terminé vos actions, cliquez sur le bouton « Fin du tour » en bas à droite de l'écran.\n\nL'énergie ⚡ de vos navires sera restaurée au début de votre prochain tour.\n\n➡️ Appuyez sur le bouton « Fin du tour » pour continuer.",
+		"Quand vous avez terminé vos actions, cliquez sur le bouton « Fin du tour » en bas de l'écran.\n\nL'énergie ⚡ de vos navires sera restaurée au début de votre prochain tour.\n\n➡️ Terminez votre tour pour continuer.",
 		false
 	],
 	[
@@ -154,8 +143,7 @@ func _start_tutorial() -> void:
 	# Construire le panneau de popup
 	_build_ui()
 
-	# Connecter les signaux du jeu après que les navires soient spawnés
-	await get_tree().create_timer(2.0).timeout
+	# Connecter les signaux du jeu pour détecter les actions du joueur
 	_connect_game_signals()
 
 	# Afficher la première étape
@@ -169,7 +157,7 @@ func _build_ui() -> void:
 	panel = PanelContainer.new()
 	panel.visible = false
 
-	# Position initiale : centre de l'écran
+	# Ancrage au centre de l'écran
 	panel.anchor_left   = 0.5
 	panel.anchor_right  = 0.5
 	panel.anchor_top    = 0.5
@@ -195,27 +183,6 @@ func _build_ui() -> void:
 	vbox.add_theme_constant_override("separation", 10)
 	vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 
-	# Barre de titre draggable
-	_title_bar = Panel.new()
-	_title_bar.custom_minimum_size = Vector2(0, 32)
-	_title_bar.mouse_default_cursor_shape = Control.CURSOR_MOVE
-	var style_bar := StyleBoxFlat.new()
-	style_bar.bg_color = Color(0.0, 0.25, 0.45, 0.95)
-	style_bar.set_corner_radius_all(6)
-	_title_bar.add_theme_stylebox_override("panel", style_bar)
-	# Label dans la barre
-	var bar_label := Label.new()
-	bar_label.text = "✦ Tutoriel — glissez pour déplacer"
-	bar_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	bar_label.add_theme_color_override("font_color", COLOR_TITLE)
-	bar_label.add_theme_font_size_override("font_size", 13)
-	bar_label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	bar_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_title_bar.add_child(bar_label)
-	# Connecter les événements de drag
-	_title_bar.gui_input.connect(_on_title_bar_input)
-	vbox.add_child(_title_bar)
-
 	# Titre de l'étape
 	label_title = Label.new()
 	label_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -234,7 +201,7 @@ func _build_ui() -> void:
 	label_body.add_theme_font_size_override("font_size", 14)
 	vbox.add_child(label_body)
 
-	# Bouton "Suivant" / "Terminer"
+	# Bouton "Suivant" / "Terminer" (visible uniquement sur les étapes manuelles)
 	btn_next = Button.new()
 	btn_next.text = "Suivant"
 	btn_next.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
@@ -251,24 +218,24 @@ func _build_ui() -> void:
 # On écoute les signaux existants pour détecter les actions du joueur
 # =========================
 func _connect_game_signals() -> void:
-	# Déplacement d'un navire → étape 2
+	# Déplacement d'un navire → étape 1
 	var ships = get_tree().get_nodes_in_group("ships")
 	for ship in ships:
 		if ship is Navires and ship.is_player_controlled:
 			if ship.has_signal("sig_navire_moved") and not ship.sig_navire_moved.is_connected(_on_navire_moved):
 				ship.sig_navire_moved.connect(_on_navire_moved)
 
-	# Menu hexagonal ouvert → étape 3
+	# Menu hexagonal ouvert → étape 2
 	var game_manager = get_tree().get_first_node_in_group("game_manager")
 	if game_manager and game_manager.has_signal("ship_selected"):
 		# On utilise sig_open_hex_menu via GameManager
 		pass
 
-	# Fin de pêche → étape 4
+	# Fin de pêche → étape 3
 	# On connecte directement sur les navires du joueur
 	_reconnect_ship_signals()
 
-	# Fin de tour → étape 6
+	# Fin de tour → étape 5
 	var turn_manager = get_tree().get_first_node_in_group("turn_manager")
 	if turn_manager and turn_manager.has_signal("turn_ended"):
 		if not turn_manager.turn_ended.is_connected(_on_turn_ended):
@@ -283,18 +250,18 @@ func _reconnect_ship_signals() -> void:
 	var ships = get_tree().get_nodes_in_group("ships")
 	for ship in ships:
 		if ship is Navires and ship.is_player_controlled:
-			# Pêche terminée → étape 4
+			# Pêche terminée
 			if ship.has_signal("sig_show_fishing") and not ship.sig_show_fishing.is_connected(_on_fishing_done):
 				ship.sig_show_fishing.connect(_on_fishing_done)
 			# Tir effectué → on écoute les dégâts infligés
 			if ship.has_signal("sig_navire_damaged"):
 				pass  # géré via _on_navire_damaged sur les navires ennemis
-		# Dégâts reçus par n'importe quel navire → étape 5
+		# Dégâts reçus par n'importe quel navire → étape 4
 		if ship is Navires and not ship.is_player_controlled:
 			if ship.has_signal("sig_navire_damaged") and not ship.sig_navire_damaged.is_connected(_on_navire_damaged):
 				ship.sig_navire_damaged.connect(_on_navire_damaged)
 
-	# Menu hexagonal → étape 3
+	# Menu hexagonal → étape 2
 	var game_manager = get_tree().get_first_node_in_group("game_manager")
 	if game_manager:
 		for ship in ships:
@@ -358,49 +325,31 @@ func _on_btn_next_pressed() -> void:
 	_advance_step()
 
 
-## Navire du joueur déplacé → valide l'étape 2
+## Navire du joueur déplacé → valide l'étape 1
 func _on_navire_moved(_ship) -> void:
+	if current_step == 1:
+		_advance_step()
+
+
+## Menu hexagonal ouvert → valide l'étape 2
+func _on_hex_menu_opened(_navire, _screen_pos) -> void:
 	if current_step == 2:
 		_advance_step()
 
 
-## Menu hexagonal ouvert → valide l'étape 3
-func _on_hex_menu_opened(_navire, _screen_pos) -> void:
+## Pêche déclenchée → valide l'étape 3
+func _on_fishing_done() -> void:
 	if current_step == 3:
 		_advance_step()
 
 
-## Pêche déclenchée → valide l'étape 4
-func _on_fishing_done() -> void:
+## Navire ennemi touché → valide l'étape 4
+func _on_navire_damaged(_navire, _damage) -> void:
 	if current_step == 4:
 		_advance_step()
 
 
-## Navire ennemi touché → valide l'étape 5
-func _on_navire_damaged(_navire, _damage) -> void:
+## Fin de tour → valide l'étape 5
+func _on_turn_ended(_player) -> void:
 	if current_step == 5:
 		_advance_step()
-
-
-## Fin de tour → valide l'étape 6
-func _on_turn_ended(_player) -> void:
-	if current_step == 6:
-		_advance_step()
-
-
-# =========================
-# DRAG DU PANNEAU
-# Permet au joueur de déplacer le panneau de tuto librement
-# =========================
-func _on_title_bar_input(event: InputEvent) -> void:
-	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
-		if event.pressed:
-			# Début du drag : on mémorise l'offset entre la souris et le panneau
-			_dragging = true
-			_drag_offset = panel.global_position - get_viewport().get_mouse_position()
-		else:
-			_dragging = false
-	elif event is InputEventMouseMotion and _dragging:
-		# Déplacement du panneau en suivant la souris
-		var new_pos = get_viewport().get_mouse_position() + _drag_offset
-		panel.global_position = new_pos

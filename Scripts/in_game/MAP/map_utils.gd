@@ -2,7 +2,6 @@ class_name Map_utils
 extends Node
 
 
-
 func _init():
 	# permet de rajouter l'objet dans le groupe avant le passage du GameManager
 	add_to_group("map")

@@ -13,9 +13,6 @@ var current_player: Player = null
 var state: TurnState.State = TurnState.State.IDLE
 var game_over_panel : UI_game_over
 
-# Durée "freeze" simulée pour l'IA (tant que tu n'as pas le vrai code IA)
-@export var ai_turn_delay_sec: float = 1.5
-
 
 func _enter_tree() -> void:
 	add_to_group("turn_manager")
@@ -26,6 +23,10 @@ func _enter_tree() -> void:
 # =========================================================
 
 func start_game(players_list: Array[Player]) -> void:
+	var label = get_tree().get_first_node_in_group("ai_turn_label")
+	if label:
+		label.visible = false
+
 	players = _filter_alive_players(players_list)
 	current_player_index = 0
 
@@ -161,7 +162,7 @@ func _advance_to_next_player() -> void:
 		current_player = null
 		return
 
-	# Sécurité : si l’index dépasse après filtrage
+	# Sécurité : si l'index dépasse après filtrage
 	if current_player_index >= players.size():
 		current_player_index = 0
 

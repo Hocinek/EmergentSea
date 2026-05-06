@@ -16,6 +16,13 @@ extends Camera2D
 @export var border_margin_height := Map_data.TILE_HEIGHT * 1.5  #La marge de dépassement de la carte
 @export var border_margin_width := Map_data.TILE_WIDTH * 1.5
 
+@export_group("Edge Scrolling")
+@export var edge_scroll_enabled := true
+## Épaisseur de la zone de détection en pixels (depuis le bord de la fenêtre)
+@export var edge_margin := 40
+## Vitesse du déplacement par les bords (multiplicateur de speed)
+@export var edge_speed_factor := 0.6
+
 var target_zoom := Vector2.ONE
 var follow_target: Node2D
 var follow_once := true
@@ -30,7 +37,7 @@ func _ready():
 	make_current()
 	_compute_map_rect()
 
-# Calcule du rectangle de la carte pour définir les limites
+## Calcule du rectangle de la carte pour définir les limites
 func _compute_map_rect():
 	var top_left = Map_utils.hex_to_pixel_iso(0, 0)
 	var bot_right = Map_utils.hex_to_pixel_iso(Map_data.map_width - 1, Map_data.map_height - 1)
@@ -41,9 +48,9 @@ func _input(event):
 	# Zoom molette
 	if event is InputEventMouseButton and event.pressed:
 		if event.button_index == MOUSE_BUTTON_WHEEL_UP:
-			target_zoom -= Vector2(zoom_step, zoom_step)
-		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
 			target_zoom += Vector2(zoom_step, zoom_step)
+		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+			target_zoom -= Vector2(zoom_step, zoom_step)
 		# On empêche de dézoomer au point de sortir complètement de la map
 		var min_zoom_allowed = _get_min_zoom_for_map()
 		target_zoom = target_zoom.clamp(
@@ -51,7 +58,7 @@ func _input(event):
 			Vector2(max_zoom, max_zoom)
 		)
 
-# Calcule le zoom minimum pour que la map couvre toujours l'écran
+## Calcule le zoom minimum pour que la map couvre toujours l'écran
 func _get_min_zoom_for_map() -> float:
 	var viewport_size = get_viewport_rect().size
 	var zoom_x = viewport_size.x / map_rect.size.x
@@ -59,7 +66,7 @@ func _get_min_zoom_for_map() -> float:
 	var computed_min = max(zoom_x, zoom_y)
 	return max(min_zoom, computed_min)
 
-# Contraint la caméra dans les limites de la map avec un léger dépassement autorisé
+## Contraint la caméra dans les limites de la map avec un léger dépassement autorisé
 func _clamp_camera_to_map():
 	var viewport_size = get_viewport_rect().size
 	var half_view = viewport_size * 0.5 / zoom
@@ -77,6 +84,33 @@ func _clamp_camera_to_map():
 		global_position.y = map_rect.position.y + map_rect.size.y * 0.5
 	else:
 		global_position.y = clamp(global_position.y, min_y, max_y)
+
+## Retourne un vecteur de déplacement selon la position de la souris près des bords
+func _get_edge_scroll_vector(delta: float) -> Vector2:
+	if not edge_scroll_enabled:
+		return Vector2.ZERO
+	# Désactiver si la fenêtre n'a pas le focus (évite les glissements involontaires)
+	if not get_viewport().has_focus():
+		return Vector2.ZERO
+
+	var mouse_pos = get_viewport().get_mouse_position()
+	var screen_size = get_viewport_rect().size
+	var move := Vector2.ZERO
+	var edge_speed = speed * edge_speed_factor * delta
+
+# rapport 1/8 pour diminuer la vitesse de déplacement de la caméra, en dessous c'est très rapide comme mouvements.
+	if mouse_pos.x <= edge_margin:
+		# Facteur entre 0 et 1 selon la proximité du bord
+		move.x -= edge_speed * (1.0 - mouse_pos.x / edge_margin)/8
+	elif mouse_pos.x >= screen_size.x - edge_margin:
+		move.x += edge_speed * (1.0 - (screen_size.x - mouse_pos.x) / edge_margin)/8
+
+	if mouse_pos.y <= edge_margin:
+		move.y -= edge_speed * (1.0 - mouse_pos.y / edge_margin)/8
+	elif mouse_pos.y >= screen_size.y - edge_margin:
+		move.y += edge_speed * (1.0 - (screen_size.y - mouse_pos.y) / edge_margin)/8
+
+	return move
 
 func set_target(target: Node2D):
 	follow_target = target
@@ -99,6 +133,10 @@ func _process(delta):
 	if Input.is_action_pressed("ui_down"):  move.y += speed * delta
 	if Input.is_action_pressed("ui_left"):  move.x -= speed * delta
 	if Input.is_action_pressed("ui_right"): move.x += speed * delta
+
+	# Déplacement edge scrolling
+	move += _get_edge_scroll_vector(delta)
+	
 	global_position += move
 
 	# Restriction de la caméra sur la map

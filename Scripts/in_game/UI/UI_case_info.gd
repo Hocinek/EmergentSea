@@ -91,10 +91,25 @@ func _update_panel_position() -> void:
 	var panel_size := panel.size if panel.size.x > 0 else Vector2(160, 80)
 	panel.position = spos - Vector2(panel_size.x * 0.5, panel_size.y + 20)
 
+## Retourne le port situé sur une case donnée, ou null
+func _get_port_at(case_pos: Vector2i) -> Ports:
+	for port in get_tree().get_nodes_in_group("ports"):
+		if port is Ports and port.case_actuelle == case_pos:
+			return port
+	return null
+
+
 ## Affiche si la case est naviguable et son type, si c'est une case poisson, affiche aussi le nombre de poissons
 func show_tile_info(tile_type: String, case_pos: Vector2i, is_visible: bool, fish_count: int = -1) -> void:
 	if not panel or not label:
 		return
+
+	# Si c'est une case port, déléguer l'affichage au UI_stats_port du port
+	if tile_type == "port":
+		var port := _get_port_at(case_pos)
+		if port and port.stats_panel:
+			port.stats_panel.show_stats_inspect()
+			return
 
 	var info: Dictionary = TILE_INFO.get(tile_type, {
 		"label": "❓ " + tile_type,

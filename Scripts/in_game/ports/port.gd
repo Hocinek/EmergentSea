@@ -39,6 +39,7 @@ var stats_panel : UI_stats_port
 
 @export var max_hp: int = 20
 var current_hp: int = 20
+var is_under_attack: bool = false  # true quand le port neutre est attaqué (force l'affichage ennemi)
 @export var attack_damage: int = 1
 @export var attack_range: int = 3  # en cases
 signal port_captured(port: Ports, new_owner: Player, old_owner: Player)
@@ -174,7 +175,8 @@ func on_clicked():
 func take_damage(amount: int, attacker: Player) -> void:
 	current_hp -= amount
 	DEBUG.log("Port [%d] reçoit %d dégâts → %d/%d PV" % [id, amount, current_hp, max_hp])
-	
+	is_under_attack = true
+	sig_show_port.emit()  # FIX: affiche l'UI des stats quand le port est attaqué
 	if current_hp <= 0:
 		current_hp = 0
 		_on_captured(attacker)

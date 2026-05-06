@@ -12,6 +12,8 @@ signal sig_show_fishing
 signal sig_inspect_case(case_pos: Vector2i)
 signal sig_open_hex_menu(navire: Navires, screen_pos: Vector2)
 signal sig_switch_ship()
+signal sig_navire_moved(navire: Navires)
+
 #endregion signaux
 
 @export var attack_sound: AudioStream = null
@@ -59,8 +61,8 @@ var _confirm_ui: UI_confirm_deplacement = null
 var stats_panel : UI_stats_navire
 @export var vie: int = 10
 @export var maxvie: int = 10
-@export var energie: int = 20
-@export var maxenergie: int = 20
+@export var energie: int = 30
+@export var maxenergie: int = 30
 @export var vitesse: float = 800.0
 @export var nrbequipage: int = 0
 @export var interaction_radius: float = 80.0
@@ -73,8 +75,6 @@ var has_attacked_this_turn: bool = false
 
 @onready var ui_layer: CanvasLayer = get_tree().get_first_node_in_group("ui_layer")
 @onready var data := get_tree().get_first_node_in_group("shared_entities")
-
-
 
 # Référence au fog manager pour mise à jour en temps réels
 var fog_manager: FogManager = null
@@ -181,7 +181,7 @@ func _ready():
 	print_tree()
 	match_context = get_tree().get_first_node_in_group("match_context")
 	network_manager = get_tree().get_first_node_in_group("network_manager")
-	rpc_navire = RPC_Navires.new(self)
+	#rpc_navire = RPC_Navires.new(self)
   
 	case_actuelle = Map_utils.monde_vers_case(global_position)
 
@@ -660,17 +660,31 @@ func attempt_shoot(target_case: Vector2i) -> void:
 		if combat_feedback_label and is_instance_valid(combat_feedback_label):
 			combat_feedback_label.show_out_of_range(self)
 		return
+			
+	# Tenter d'attaquer un port sur cette case
+	var port = _get_port_at(target_case)
+	if port != null and port.player_owner != player_owner :
+		port.take_damage(dgt_tir, player_owner)
+		energie = max(energie -10, 0)
+		if _audio_player and attack_sound :
+			_audio_player.play()
+		take_damage(0) #Désolé Desiar mais j'arrive pas à résoudre un bug donc faudra se contenter de ça
+		DEBUG.log("Navire [%d] attaque port [%d] pour %d dégâts" % [id, port.id, dgt_tir])
+		return
+		
 	# Récupérer les navires sur la case cible
 	var target_ships = get_ships_at_position(target_case)
 	if target_ships.is_empty():
 		DEBUG.log("Aucune cible sur cette case!")
 		return
+		
 	# Tirer sur tous les navires ennemis présents
 	var hit_count = 0
 	for target_ship in target_ships:
 		if target_ship.is_enemy_of(self):
 			shoot_at(target_ship)
 			hit_count += 1
+			
 	if hit_count > 0:
 		energie = max(energie - 10, 0)
 		has_attacked_this_turn = true
@@ -681,6 +695,7 @@ func attempt_shoot(target_case: Vector2i) -> void:
 			combat_feedback_label.show_energy_cost(self, 10)
 	else:
 		DEBUG.log("Aucun ennemi sur cette case!")
+	
 
 ## Tire sur un navire spécifique
 func shoot_at(target: Navires) -> void:
@@ -765,6 +780,33 @@ func get_ship_at_position(pos: Vector2) -> Navires:
 ## Retourne la position du navire en coordonnées de case
 func getPosition() -> Vector2i:
 	return case_actuelle
+	
+## Retourne le port présent sur la case donnée, ou null si aucun port n'y est.
+func _get_port_at(target_case: Vector2i) -> Node2D:
+	# Vérification rapide du type de terrain dans le tableau brut
+	if Map_data.tiles[target_case.y][target_case.x] != "port":
+		return null
+
+	# Récupérer le MapManager et sa grille
+	var map_manager = get_tree().get_first_node_in_group("Map_manager")
+	if map_manager == null or not "grid" in map_manager:
+		DEBUG.log("Navire [%d] - _get_port_at : Map_manager/grid introuvable !" % id, DEBUG.ERROR)
+		return null
+
+	var grid: HexGrid = map_manager.grid
+
+	# Convertir offset → axial pour accéder à la bonne clé dans cells{}
+	var axial: Vector2 = grid.offset_to_axial(target_case.x, target_case.y)
+	var q := int(axial.x)
+	var r := int(axial.y)
+	var cell: HexCell = grid.get_cell(q, r, -q - r)
+
+	if cell == null:
+		DEBUG.log("Navire [%d] - _get_port_at : cellule axiale (%d,%d) introuvable" % [id, q, r], DEBUG.WARNING)
+		return null
+
+	return cell.port_instance
+	
 #endregion utils
 
 
@@ -894,6 +936,7 @@ func _process_movement(delta: float) -> void:
 			show_arrow = false
 			queue_redraw()
 			DEBUG.log("Navire [%d] DESTINATION FINALE atteinte!" % id)
+			emit_signal("sig_navire_moved", self)  # Signale la fin du déplacement (utilisé par le tutoriel)
 	else:
 		global_position += direction.normalized() * vitesse * delta
 #endregion process

@@ -179,7 +179,13 @@ func update_vision_for_player(player: Player):
 			var ship_pos = ship.case_actuelle
 			var count = reveal_around_position(ship_pos)
 			revealed_count += count
-	
+			
+	# ÉTAPE 3 : Révéler autour des ports possédés
+	var all_ports = get_tree().get_nodes_in_group("ports")
+	for port in all_ports:
+		if port is Ports and port.player_owner == player:
+			reveal_around_position(port.case_actuelle)
+			
 	# Redessiner si des changements ont eu lieu
 	if explored_count > 0 or revealed_count > 0:
 		DEBUG.log("[FOG] ✓ Révélé %d nouvelles cases" % revealed_count)

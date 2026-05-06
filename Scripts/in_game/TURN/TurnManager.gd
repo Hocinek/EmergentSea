@@ -48,6 +48,9 @@ func end_turn() -> void:
 	state = TurnState.State.ENDING_TURN
 	turn_ended.emit(current_player)
 	
+	# Attaques des ports ennemis/neutres ---
+	_ports_attack_current_player()
+	
 	# 2) On vérifie si les conditions de fin de partie sont atteintes.
 	fin_de_partie()
 
@@ -112,7 +115,9 @@ func _auto_run_non_human_turns_until_human() -> void:
 
 		# Fin du tour IA
 		turn_ended.emit(current_player)
-
+		
+		fin_de_partie()
+		
 		# Joueur suivant
 		_advance_to_next_player()
 
@@ -229,3 +234,15 @@ func _trigger_game_over(winner: Player, raison: String) -> void:
 		game_over_panel.show_game_over(winner, raison)
 	else:
 		DEBUG.log("[TURNMANAGER] game_over_panel est null — assigne-le depuis le GameManager.", DEBUG.ERROR)
+
+
+# =========================================================
+# Attaque des ports
+# =========================================================
+
+## Tous les ports neutres ou ennemis attaquent les navires du joueur qui vient de finir son tour.
+func _ports_attack_current_player() -> void:
+	var all_ports = get_tree().get_nodes_in_group("ports")
+	for port in all_ports:
+		if port is Ports and is_instance_valid(port):
+			port.attack_nearby_ships(current_player)

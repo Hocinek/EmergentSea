@@ -70,6 +70,9 @@ var stats_panel : UI_stats_navire
 @export var tir: int = 10		# Portée d'un tir
 @export var dgt_tir: int = 2	# Dégâts d'un tir
 
+## Indique si ce navire a déjà attaqué ce tour (interdit le switch bateau)
+var has_attacked_this_turn: bool = false
+
 @onready var ui_layer: CanvasLayer = get_tree().get_first_node_in_group("ui_layer")
 @onready var data := get_tree().get_first_node_in_group("shared_entities")
 
@@ -102,6 +105,14 @@ var fish_timer := 0.0
 var fish_feedback_label: UI_fish_navires
 @export var fish_feedback_duration: float = 0.8
 var fish_feedback_timer: float = 0.0
+
+# =========================
+# FEEDBACK COMBAT
+# =========================
+#region feedback combat
+## Label flottant partagé par TOUS les navires de la scène (un seul nœud suffit)
+var combat_feedback_label: UI_combat_navires
+#endregion feedback combat
 
 var stats_timer := 0.0
 # stats_visible = true signifie que le joueur a VOLONTAIREMENT activé l'affichage
@@ -326,6 +337,12 @@ func _init_stats_ui():
 		ui_layer.add_child(fish_feedback_label)
 		# Connecter le signal du navire à l'UI fish
 		sig_show_fishing.connect(func(): fish_feedback_label.on_show_fishing(self))
+
+	# ── Feedback combat : un label par navire (comme UI_fish_navires) ──
+	if combat_feedback_label == null:
+		combat_feedback_label = UI_combat_navires.new()
+		ui_layer.add_child(combat_feedback_label)
+
 	DEBUG.log("UI Stats créée pour navire [%d]" % id)
 #endregion initialisation
 
@@ -424,6 +441,9 @@ func take_damage(damage: int) -> void:
 	vie = max(vie - damage, 0)
 	emit_signal("sig_navire_damaged", self, damage)
 	stats_panel.show_stats()
+	# ── Feedback visuel : "-X ❤️" flottant au-dessus du navire touché ──
+	if combat_feedback_label and is_instance_valid(combat_feedback_label):
+		combat_feedback_label.show_damage(self, damage)
 	if vie <= 0:
 		die()
 
@@ -441,6 +461,9 @@ func die() -> void:
 	# Masquer le feedback de pêche — close() au lieu de hide() car UI_fish_navires est un Control
 	if fish_feedback_label and is_instance_valid(fish_feedback_label):
 		fish_feedback_label.close()
+	# Masquer le feedback de combat pour ce navire
+	if combat_feedback_label and is_instance_valid(combat_feedback_label):
+		combat_feedback_label.close_for(self)
 	# Notifier le propriétaire
 	if player_owner != null and player_owner.has_method("remove_navire"):
 		player_owner.remove_navire(self)
@@ -462,6 +485,7 @@ func heal(amount: int) -> void:
 ## Réinitialise l'énergie au maximum
 func reset_energie() -> void:
 	energie = maxenergie
+	has_attacked_this_turn = false
 #endregion gestion etat navire
 
 
@@ -534,12 +558,10 @@ func _unhandled_input(event: InputEvent) -> void:
 						return
 
 			# ── PAS DE MODE ACTIF ─────────────────────────────────────
-			# Si un navire allié a un mode actif, ignorer le clic pour éviter
-			# un changement de sélection accidentel. Mais seul le navire
-			# NON-sélectionné vérifie ça — le sélectionné a déjà return ci-dessus.
+			# Si N'IMPORTE QUEL navire (allié OU ennemi) a un mode actif,
 			if not is_selected:
 				for _s in get_tree().get_nodes_in_group("ships"):
-					if _s is Navires and _s.player_owner == player_owner and _s.is_selected:
+					if _s is Navires and _s.is_selected:
 						if _s.current_input_mode != InputMode.NONE:
 							return
 						break
@@ -634,6 +656,9 @@ func attempt_shoot(target_case: Vector2i) -> void:
 		return
 	if not is_in_range(target_case):
 		DEBUG.log("Cible hors de portée!")
+		# ── Feedback visuel : ennemi trop loin ──
+		if combat_feedback_label and is_instance_valid(combat_feedback_label):
+			combat_feedback_label.show_out_of_range(self)
 		return
 			
 	# Tenter d'attaquer un port sur cette case
@@ -662,8 +687,12 @@ func attempt_shoot(target_case: Vector2i) -> void:
 			
 	if hit_count > 0:
 		energie = max(energie - 10, 0)
+		has_attacked_this_turn = true
 		DEBUG.log("Tir effectué sur %d cible(s)!" % hit_count)
-		take_damage(0) #Désolé Desiar mais j'arrive pas à résoudre un bug donc faudra se contenter de ça
+		stats_panel.show_ally()
+		# ── Feedback visuel : coût en énergie sur l'attaquant ──
+		if combat_feedback_label and is_instance_valid(combat_feedback_label):
+			combat_feedback_label.show_energy_cost(self, 10)
 	else:
 		DEBUG.log("Aucun ennemi sur cette case!")
 	

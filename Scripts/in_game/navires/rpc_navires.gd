@@ -6,7 +6,8 @@ var network_manager : NetworkManager = null
 
 func _init(navire:Navires):
 	self.ship = navire
-
+    if network_manager == null:
+		network_manager = get_tree().get_first_node_in_group("network_manager")
 
 func attack(target_ship_id: int, damage: int):
 	if multiplayer.has_multiplayer_peer():

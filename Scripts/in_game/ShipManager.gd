@@ -6,7 +6,7 @@ var gm : GameManager
 
 # Modèles 3D disponibles pour les navires
 const SHIP_MODEL_PLAYER := "res://Assets/navire/pirateShip.glb"
-const SHIP_MODEL_ENEMY  := "res://Assets/navire/smolPirateShip.glb"
+const SHIP_MODEL_ENEMY  := "res://Assets/navire/smolPirateShip_red_sails.glb"
 
 ## Joueur actuel, mis à jour par le TurnManager
 var current_player : Player
@@ -32,13 +32,22 @@ func update_current_player(new_player : Player):
 	select_next_ship(silent)
 
 #region spawn des navires
-## Faire apparaître un bateau sur la carte
 
-## model_path : chemin vers le .glb à utiliser (SHIP_MODEL_PLAYER par défaut)
-func spawn_navire(player: Player, position: Vector2, is_player_controlled: bool = false,model_path: String = ShipManager.SHIP_MODEL_PLAYER) -> Navires:
+func _get_model_for_player(player: Player) -> String:
+	if player == null:
+		return SHIP_MODEL_PLAYER
+	if player.is_human:
+		return SHIP_MODEL_PLAYER
+	return SHIP_MODEL_ENEMY
+
+## Faire apparaître un bateau sur la carte
+func spawn_navire(player: Player, position: Vector2, is_player_controlled: bool = false, model_path: String = "") -> Navires:
 	if player == null:
 		DEBUG.log("Impossible de créer un navire sans joueur propriétaire !", DEBUG.ERROR)
 		return null
+
+	if model_path == "":
+		model_path = _get_model_for_player(player)
 
 	var navire: Navires = navire_scene.instantiate()
 	navire.global_position = position
@@ -71,14 +80,15 @@ func spawn_navire(player: Player, position: Vector2, is_player_controlled: bool 
 	return navire
 
 ## Faire apparaître un bateau à un emplacement aléatoire sur la carte
-func spawn_navire_random(player: Player, is_player_controlled: bool = false, model_path: String = ShipManager.SHIP_MODEL_PLAYER) -> Navires:
+func spawn_navire_random(player: Player, is_player_controlled: bool = false, model_path: String = "") -> Navires:
 	var pos = Map_utils.get_random_ocean_position()
 	return spawn_navire(player, pos, is_player_controlled, model_path)
 
 ## Faire apparaître un bateau à une case précise
-func spawn_navire_at(player: Player, case_pos: Vector2i, is_player_controlled: bool = false, model_path: String = ShipManager.SHIP_MODEL_PLAYER) -> Navires:
+func spawn_navire_at(player: Player, case_pos: Vector2i, is_player_controlled: bool = false, model_path: String = "") -> Navires:
 	var wpos = Map_utils.case_vers_monde(case_pos)
 	return spawn_navire(player, wpos, is_player_controlled, model_path)
+
 #endregion spawn des navires
 
 

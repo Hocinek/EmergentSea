@@ -263,3 +263,11 @@ func getPosition() -> Vector2i:
 
 func setCell(cell : HexCell):
 	self._cell = cell
+
+
+# === VISUEL 3D ===
+@onready var _sprite: Sprite2D = $Sprite2D
+
+func _process(_delta: float) -> void:
+	if _sprite:
+		_sprite.global_position = global_position + Vector2(0, -80)

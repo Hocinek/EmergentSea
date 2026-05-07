@@ -1,0 +1,49 @@
+[gd_scene load_steps=8 format=3 uid="uid://6qs4d1kqw50w"]
+
+[ext_resource type="Script" uid="uid://sc7uo3t5s82y" path="res://Scripts/in_game/ports/port.gd" id="1_ys5qg"]
+[ext_resource type="Shader" uid="uid://brsmnwnmupxbx" path="res://Assets/textures/port.gdshader" id="2_5c0vv"]
+[ext_resource type="PackedScene" uid="uid://d2cifyj7cblhl" path="res://Assets/textures/tiles/tilePortv2_sans_sol.glb" id="3_ys5qg"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_5ixps"]
+resource_local_to_scene = true
+shader = ExtResource("2_5c0vv")
+
+[sub_resource type="ViewportTexture" id="ViewportTexture_uxkte"]
+viewport_path = NodePath("Sprite2D/SubViewport")
+
+[sub_resource type="Environment" id="Environment_uxkte"]
+background_mode = 1
+
+[sub_resource type="CameraAttributesPractical" id="CameraAttributesPractical_ys5qg"]
+
+[node name="Port" type="Node2D"]
+top_level = true
+scale = Vector2(0.37, 0.37)
+script = ExtResource("1_ys5qg")
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+show_behind_parent = true
+clip_children = 2
+material = SubResource("ShaderMaterial_5ixps")
+position = Vector2(10.810791, -10.810806)
+scale = Vector2(3, 3)
+texture = SubResource("ViewportTexture_uxkte")
+
+[node name="SubViewport" type="SubViewport" parent="Sprite2D"]
+transparent_bg = true
+size = Vector2i(472, 460)
+render_target_update_mode = 4
+
+[node name="Node3D" type="Node3D" parent="Sprite2D/SubViewport"]
+
+[node name="tilePortv2_sans_sol" parent="Sprite2D/SubViewport/Node3D" instance=ExtResource("3_ys5qg")]
+transform = Transform3D(0.96, 0, 0, 0, 0.96, 0, 0, 0, 0.96, 0, 0, 0)
+
+[node name="Camera3D" type="Camera3D" parent="Sprite2D/SubViewport/Node3D"]
+transform = Transform3D(0.012217055, -0.52245957, 0.85257655, 0, 0.85264015, 0.52249855, -0.9999254, -0.006383394, 0.010416752, 3.5994856, 3.0236073, 0)
+environment = SubResource("Environment_uxkte")
+attributes = SubResource("CameraAttributesPractical_ys5qg")
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="Sprite2D/SubViewport/Node3D"]
+transform = Transform3D(-0.025873708, -0.64061916, 0.7674228, -0.021586249, 0.76785886, 0.64025533, -0.99943215, 0, -0.033695918, 5.0068197, 2.9959524, 0)
+light_energy = 0.5

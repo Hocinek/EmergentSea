@@ -1,25 +1,27 @@
 class_name Map_data
 extends Node
 
-# taille d'un sprite de case
-static var TILE_WIDTH : int = 256
-static var TILE_HEIGHT : int = 128
-
-# data :
-static var tiles := []
-static var ocean_cases: Array = []	#liste des cases navigables
-static var ports := []  # liste des positions des ports (Vector2i)
-static var fish_cases: Array = []   # liste des cases de pêche (Vector2i)
+# =========================
+# Taille d'une case
+# =========================
+static var TILE_WIDTH: int = 256
+static var TILE_HEIGHT: int = 128
 
 # =========================
-# RESSOURCES DE PÊCHE
-# Dictionnaire {Vector2i: int} — nombre de poissons par case de pêche
-# Rempli par le MapGenerator lors de la génération
+# Données map
+# =========================
+static var tiles := []
+static var ocean_cases: Array = []     # cases navigables
+static var ports := []                 # positions des ports (Vector2i)
+static var fish_cases: Array = []      # cases de pêche
+
+# =========================
+# Ressources de pêche
 # =========================
 static var fish_counts: Dictionary = {}
 
 # =========================
-# Textures
+# Textures des tiles
 # =========================
 static var TileWater: Texture2D = preload("res://Assets/textures/tiles/TileWater.png")
 static var TileDeepWater: Texture2D = preload("res://Assets/textures/tiles/TileDeepWater.png")
@@ -29,21 +31,23 @@ static var TileForest: Texture2D = preload("res://Assets/textures/tiles/TileFore
 static var TileMountain: Texture2D = preload("res://Assets/textures/tiles/TileMountain.png")
 static var TilePort: Texture2D = preload("res://Assets/textures/tiles/TilePort.png")
 static var TileFish: Texture2D = preload("res://Assets/textures/tiles/TileFish.png")
-static var TileMissing : Texture2D = preload("res://Assets/textures/tiles/TileMissing.png")
-
-
-static var port_scene = preload("res://Scenes/in_game/ENTITIES/Port.tscn")
+static var TileMissing: Texture2D = preload("res://Assets/textures/tiles/TileMissing.png")
 
 # =========================
-# Map parameters
+# Scene 3D du port
 # =========================
-static var map_width : int = 64
-static var map_height : int = 32
-static var hex_width : int = 512
-static var hex_height : int = 256
+static var PortScene: PackedScene = preload("res://Assets/textures/port.tscn")
 
 # =========================
-# Noise parameters
+# Paramètres map
+# =========================
+static var map_width: int = 64
+static var map_height: int = 32
+static var hex_width: int = 512
+static var hex_height: int = 256
+
+# =========================
+# Paramètres de génération
 # =========================
 static var noise_scale := 0.035
 static var octaves := 4
@@ -52,15 +56,12 @@ static var gain := 0.5
 static var gen_seed := 0
 
 # =========================
-# Island counts 
+# Îles
 # =========================
-static var small_island_count : int = 60
-static var medium_island_count : int = 60
-static var large_island_count : int = 60
+static var small_island_count: int = 60
+static var medium_island_count: int = 60
+static var large_island_count: int = 60
 
-# =========================
-# Island size ranges 
-# =========================
 static var small_radius := Vector2(22.0, 36.0)
 static var medium_radius := Vector2(48.0, 70.0)
 static var large_radius := Vector2(85.0, 120.0)
@@ -70,10 +71,34 @@ static var medium_power := Vector2(1.1, 1.5)
 static var large_power := Vector2(0.75, 1.05)
 
 # =========================
-# Port parameters
+# Ports
 # =========================
-static var port_count: int = 8  # Nombre de ports à générer
-static var min_port_distance: int = 15  # Distance minimale entre deux ports (en tiles)
+static var port_count: int = 8
+static var min_port_distance: int = 15
 
-func _init():
+func _ready():
 	add_to_group("map_data")
+
+
+# =========================
+# Convertit coordonnées grille -> écran (isométrique)
+# =========================
+static func grid_to_world(tile_pos: Vector2i) -> Vector2:
+	var world_x = (tile_pos.x - tile_pos.y) * (TILE_WIDTH / 2.0)
+	var world_y = (tile_pos.x + tile_pos.y) * (TILE_HEIGHT / 2.0)
+	return Vector2(world_x, world_y)
+
+
+# =========================
+# Spawn d'un port 3D
+# =========================
+static func spawn_port(parent: Node, tile_pos: Vector2i) -> Node2D:
+	var port = PortScene.instantiate()
+
+	port.position = grid_to_world(tile_pos)
+
+	parent.add_child(port)
+
+	ports.append(tile_pos)
+
+	return port

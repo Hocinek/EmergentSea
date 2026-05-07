@@ -82,31 +82,58 @@ func render_map_from_grid():
 
 
 func spawn_tile_object(cell: HexCell):
+
+	# On ne crée PAS de sprite pour les ports
+	# Le port sera une vraie scène 3D
+	if cell.getTypeTerrain() == "port":
+
+		var offset_coords = cell.getTabCoordinates()
+		var pixel_pos = Map_utils.hex_to_pixel_iso(
+			offset_coords.x,
+			offset_coords.y
+		)
+
+		var port_node = Map_data.PortScene.instantiate()
+
+		port_node.position = pixel_pos
+
+		if port_node.has_method("setCell"):
+			port_node.setCell(cell)
+
+		add_child(port_node)
+
+		cell.port_instance = port_node
+
+		return
+
+
+	# Tous les autres terrains = sprites classiques
 	var s := Sprite2D.new()
 	s.centered = true
-	# On récupère le type de terrain depuis la cellule
+
 	s.texture = cell.getTileTexture()
-	if(s.texture == Map_data.TileMissing):
-		DEBUG.log("Texture manquante pour le terrain '%s'" % cell.getTypeTerrain(),DEBUG.WARNING)
-	
+
+	if s.texture == Map_data.TileMissing:
+		DEBUG.log(
+			"Texture manquante pour le terrain '%s'" % cell.getTypeTerrain(),
+			DEBUG.WARNING
+		)
+
 	var scale_x = Map_data.hex_width / s.texture.get_width()
 	var scale_y = Map_data.hex_height / s.texture.get_height()
+
 	s.scale = Vector2(scale_x, scale_y)
 
-	# Utilisation des coordonnées offset stockées dans la cellule
 	var offset_coords = cell.getTabCoordinates()
-	var pixel_pos = Map_utils.hex_to_pixel_iso(offset_coords.x, offset_coords.y)
+
+	var pixel_pos = Map_utils.hex_to_pixel_iso(
+		offset_coords.x,
+		offset_coords.y
+	)
+
 	s.position = pixel_pos
-				
+
 	add_child(s)
-	
-	if cell.getTypeTerrain() == "port":
-		var port_node = Map_data.port_scene.instantiate()
-		port_node.position = pixel_pos
-		port_node.setCell(cell)
-		add_child(port_node)
-		
-		cell.port_instance = port_node
 		
 		
 

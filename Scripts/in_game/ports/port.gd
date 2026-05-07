@@ -159,10 +159,10 @@ func _open_boutique() -> void:
 		DEBUG.log("Port [%d] — boutique refusée (navire sélectionné n'appartient pas au propriétaire)" % id)
 		return
 
-	# Vérifie que le navire sélectionné est adjacent au port (distance <= 1)
-	var dist = Map_utils.get_hex_distance(docked_ship.case_actuelle, case_actuelle)
-	if dist > 1:
-		DEBUG.log("Port [%d] — boutique refusée (navire trop loin, distance=%d)" % [id, dist])
+	# Vérifie que le navire sélectionné est sur une case adjacente au port
+	var neighbors := Map_utils.get_neighbors(case_actuelle)
+	if not docked_ship.case_actuelle in neighbors:
+		DEBUG.log("Port [%d] — boutique refusée (navire non adjacent, case navire=%s, voisins=%s)" % [id, str(docked_ship.case_actuelle), str(neighbors)])
 		return
 
 	var boutique = UI_boutique.new(self, player_owner, docked_ship)

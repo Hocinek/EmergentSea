@@ -96,7 +96,7 @@ func _build_ui() -> void:
 	# -- Panel principal --
 	_panel = Panel.new()
 	_panel.set_anchors_preset(Control.PRESET_CENTER)
-	_panel.custom_minimum_size = Vector2(420, 480)
+	_panel.custom_minimum_size = Vector2(420, 585)
 	_panel.position = -_panel.custom_minimum_size / 2.0
 	add_child(_panel)
 

@@ -5,6 +5,7 @@ extends Node2D
 signal sig_show_port
 signal port_clicked(port: Ports)
 signal open_boutique_requested(port: Ports)
+signal open_recrutement_requested(port: Ports)
 
 # =========================
 # PROPRIÉTAIRE ET IDENTITÉ
@@ -156,25 +157,26 @@ func _open_boutique() -> void:
 		DEBUG.log("Port [%d] — boutique refusée (aucun navire sélectionné)" % id)
 		return
 	if docked_ship.player_owner != player_owner:
-		DEBUG.log("Port [%d] — boutique refusée (navire sélectionné n'appartient pas au propriétaire)" % id)
+		DEBUG.log("Port [%d] — boutique refusée (navire n'appartient pas au propriétaire)" % id)
 		return
 
 	# Vérifie que le navire sélectionné est sur une case adjacente au port
 	var neighbors := Map_utils.get_neighbors(case_actuelle)
 	if not docked_ship.case_actuelle in neighbors:
-		DEBUG.log("Port [%d] — boutique refusée (navire non adjacent, case navire=%s, voisins=%s)" % [id, str(docked_ship.case_actuelle), str(neighbors)])
+		DEBUG.log("Port [%d] — boutique refusée (navire non adjacent)" % id)
 		return
 
 	var boutique = UI_boutique.new(self, player_owner, docked_ship)
 	boutique.buy_ship_requested.connect(_on_boutique_buy_ship)
 	boutique.heal_ship_requested.connect(_on_boutique_heal_ship)
 	boutique.heal_port_requested.connect(_on_boutique_heal_port)
+	# NOUVEAU : ouvrir le recrutement depuis la boutique
+	boutique.open_recrutement_requested.connect(_on_open_recrutement)
 
 	ui_layer.add_child(boutique)
 	open_boutique_requested.emit(self)
 	DEBUG.log("Port [%d] — boutique ouverte (navire amarré : %s)" % [
-		id,
-		str(docked_ship.id) if docked_ship else "aucun"
+		id, str(docked_ship.id) if docked_ship else "aucun"
 	])
 
 
@@ -293,6 +295,19 @@ func _on_boutique_heal_port(port: Ports, buyer: Player, paying_ship: Node) -> vo
 	DEBUG.log("Port [%d] — port soigné (+%d PV → %d/%d), %d poissons déduits du navire [%d]" % [
 		id, soin, port.current_hp, port.max_hp, UI_boutique.HEAL_PORT_COST, paying_ship.id
 	])
+
+
+## Ouvre l'interface de recrutement d'équipage.
+func _on_open_recrutement(port: Ports, player: Player, ship: Navires) -> void:
+	var recrutement = UI_recrutement.new(port, player, ship)
+	recrutement.crew_hired.connect(_on_crew_hired)
+	ui_layer.add_child(recrutement)
+	open_recrutement_requested.emit(self)
+	DEBUG.log("Port [%d] — recrutement ouvert pour navire [%d]" % [id, ship.id])
+
+
+func _on_crew_hired(ship: Navires, member: CrewMember) -> void:
+	DEBUG.log("Port [%d] — %s recruté sur navire [%d]" % [id, member.nom, ship.id])
 
 
 # =========================

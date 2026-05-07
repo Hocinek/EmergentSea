@@ -8,6 +8,7 @@ signal buy_ship_requested(port: Ports, buyer: Player, buying_ship: Node)
 signal heal_ship_requested(port: Ports, ship: Node, buyer: Player)
 signal heal_port_requested(port: Ports, buyer: Player, paying_ship: Node)
 signal boutique_closed()
+signal open_recrutement_requested(port: Ports, player: Player, ship: Node)
 
 # =========================
 # CONSTANTES
@@ -47,6 +48,10 @@ var _heal_port_button: Button
 var _heal_port_label: Label
 var _heal_port_cost_label: Label
 var _heal_port_info_label: Label
+
+# -- Section : Équipage --
+var _crew_button: Button
+var _crew_info_label: Label
 
 # -- Feedback --
 var _feedback_label: Label
@@ -180,6 +185,20 @@ func _build_ui() -> void:
 
 	vbox.add_child(_separator())
 
+	# ---------- ÉQUIPAGE ----------
+	vbox.add_child(_separator())
+	vbox.add_child(_section_label("👥  Gérer l'équipage"))
+
+	_crew_info_label = Label.new()
+	_crew_info_label.add_theme_font_size_override("font_size", 12)
+	_crew_info_label.add_theme_color_override("font_color", Color(0.75, 0.75, 0.75))
+	vbox.add_child(_crew_info_label)
+
+	_crew_button = Button.new()
+	_crew_button.text = "⚓ Ouvrir le recrutement"
+	_crew_button.pressed.connect(_on_crew_pressed)
+	vbox.add_child(_crew_button)
+
 	# -- Feedback --
 	_feedback_label = Label.new()
 	_feedback_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -243,6 +262,17 @@ func _refresh_ui() -> void:
 	if already_full_port:
 		_heal_port_info_label.text += "  ✅ Déjà au maximum"
 
+	# -- Équipage --
+	if has_ship and _current_ship is Navires:
+		var navire: Navires = _current_ship as Navires
+		var crew_count: int = navire.equipage.size()
+		var crew_max: int = 4
+		_crew_info_label.text = "Membres d'équipage : %d / %d" % [crew_count, crew_max]
+		_crew_button.disabled = false
+	else:
+		_crew_info_label.text = "Aucun navire amarré."
+		_crew_button.disabled = true
+
 
 # =========================
 # CALLBACKS BOUTONS
@@ -271,6 +301,16 @@ func _on_heal_port_pressed() -> void:
 func _on_close_pressed() -> void:
 	boutique_closed.emit()
 	DEBUG.log("UI_boutique fermée (Port [%d])" % (_port.id if _port else -1))
+	queue_free()
+
+
+func _on_crew_pressed() -> void:
+	if _current_ship == null or not is_instance_valid(_current_ship):
+		_show_feedback("❌ Aucun navire pour gérer l'équipage.", Color(1, 0.3, 0.3))
+		return
+	DEBUG.log("UI_boutique — Ouverture recrutement (Port [%d], navire [%d])" % [_port.id, _current_ship.id])
+	open_recrutement_requested.emit(_port, _player, _current_ship)
+	# On ferme la boutique principale pour éviter l'empilement d'UI
 	queue_free()
 
 

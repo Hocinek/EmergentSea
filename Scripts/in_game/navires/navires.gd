@@ -64,7 +64,8 @@ var stats_panel : UI_stats_navire
 @export var energie: int = 30
 @export var maxenergie: int = 30
 @export var vitesse: float = 800.0
-@export var nrbequipage: int = 0
+@export var nrbequipage: int = 0   # (gardé pour compatibilité pêche)
+var equipage: Array[CrewMember] = []
 @export var interaction_radius: float = 80.0
 @export var stats_duration: float = 2.5
 @export var tir: int = 10		# Portée d'un tir
@@ -187,6 +188,7 @@ func _ready():
 	# Initialisation de l'UI
 
 	_init_stats_ui()
+	_init_crew()
 	drawable = Drawable.new(self)
 	add_child(drawable)
 
@@ -1096,16 +1098,16 @@ func finish_fishing() -> void:
 	var gain: int = 0
 
 	if fish_manager.is_fish_tile(case_actuelle):
-		# Zone de pêche : rendement élevé (6-7, +1 si équipage >= 6)
+		# Zone de pêche : rendement élevé (6-7, +bonus équipage)
 		var wanted := randi_range(6, 7)
-		if nrbequipage >= 6:
-			wanted += 1
+		var fishing_bonus := get_crew_fishing_bonus()
+		wanted += fishing_bonus
 		gain = fish_manager.harvest_fish(case_actuelle, wanted)
 	else:
 		# Eau libre (peu profonde ou profonde) : rendement faible (1-2)
 		gain = randi_range(1, 2)
-		if nrbequipage >= 6:
-			gain = mini(gain + 1, 2)
+		var fishing_bonus := get_crew_fishing_bonus()
+		gain = mini(gain + fishing_bonus, 5)
 
 	nourriture += gain
 
@@ -1117,3 +1119,95 @@ func finish_fishing() -> void:
 	var zone_type = "zone de pêche" if fish_manager.is_fish_tile(case_actuelle) else "eau libre"
 	DEBUG.log("Navire [%d] - Pêche terminée : +%d poissons sur %s (case %s)" % [id, gain, zone_type, case_actuelle])
 #endregion peche
+
+
+#region equipage
+
+## Initialise l'équipage avec le capitaine par défaut.
+func _init_crew() -> void:
+	if equipage.is_empty():
+		var capitaine = CrewMember.new(CrewMember.Role.CAPITAINE)
+		equipage.append(capitaine)
+		nrbequipage = equipage.size()
+		DEBUG.log("Navire [%d] — Capitaine ajouté, équipage initialisé." % id)
+
+
+## Ajoute un membre d'équipage et applique ses bonus.
+func add_crew_member(member: CrewMember) -> void:
+	if equipage.size() >= 4:
+		DEBUG.log("Navire [%d] — Équipage plein, impossible d'ajouter %s." % [id, member.nom], DEBUG.WARNING)
+		return
+
+	equipage.append(member)
+	nrbequipage = equipage.size()
+	_apply_crew_bonus(member)
+	DEBUG.log("Navire [%d] — %s rejoint l'équipage (total : %d)" % [id, member.nom, nrbequipage])
+
+
+## Retire un membre à un index donné (0 = capitaine, protégé).
+func remove_crew_member(index: int) -> void:
+	if index <= 0 or index >= equipage.size():
+		DEBUG.log("Navire [%d] — Impossible de retirer le membre à l'index %d." % [id, index], DEBUG.WARNING)
+		return
+
+	var member: CrewMember = equipage[index]
+	_remove_crew_bonus(member)
+	equipage.remove_at(index)
+	nrbequipage = equipage.size()
+	DEBUG.log("Navire [%d] — %s a quitté l'équipage (total : %d)" % [id, member.nom, nrbequipage])
+
+
+## Vérifie si un rôle est déjà occupé dans l'équipage.
+func has_crew_role(role: CrewMember.Role) -> bool:
+	for member in equipage:
+		if member.role == role:
+			return true
+	return false
+
+
+## Applique les bonus d'un membre au navire.
+func _apply_crew_bonus(member: CrewMember) -> void:
+	dgt_tir    += member.bonus_dgt_tir
+	maxvie     += member.bonus_maxvie
+	vie         = min(vie + member.bonus_maxvie, maxvie)  # HP max augmentés → on remonte aussi les HP actuels
+	maxenergie += member.bonus_maxenergie
+	energie     = min(energie + member.bonus_maxenergie, maxenergie)
+	vitesse    += member.bonus_vitesse
+	DEBUG.log("Navire [%d] — Bonus appliqués : dgt+%d, vie+%d, nrj+%d, vit+%.0f" % [
+		id, member.bonus_dgt_tir, member.bonus_maxvie, member.bonus_maxenergie, member.bonus_vitesse
+	])
+
+
+## Retire les bonus d'un membre du navire (congédiement).
+func _remove_crew_bonus(member: CrewMember) -> void:
+	dgt_tir    = max(dgt_tir    - member.bonus_dgt_tir,    1)
+	maxvie     = max(maxvie     - member.bonus_maxvie,      1)
+	vie         = min(vie, maxvie)
+	maxenergie = max(maxenergie - member.bonus_maxenergie,  5)
+	energie     = min(energie, maxenergie)
+	vitesse    = max(vitesse    - member.bonus_vitesse,    100.0)
+	DEBUG.log("Navire [%d] — Bonus retirés : dgt-%d, vie-%d, nrj-%d, vit-%.0f" % [
+		id, member.bonus_dgt_tir, member.bonus_maxvie, member.bonus_maxenergie, member.bonus_vitesse
+	])
+
+
+## À appeler en fin de tour (par le TurnManager) pour la régénération.
+## Chercher dans votre TurnManager / GameManager l'appel end_turn de chaque navire
+## et ajouter : navire.apply_crew_end_of_turn()
+func apply_crew_end_of_turn() -> void:
+	for member in equipage:
+		if member.regen_vie_par_tour > 0 and vie < maxvie:
+			vie = min(vie + member.regen_vie_par_tour, maxvie)
+			DEBUG.log("Navire [%d] — Régénération médecin : +%d PV → %d/%d" % [
+				id, member.regen_vie_par_tour, vie, maxvie
+			])
+
+
+## Retourne le bonus total de pêche de l'équipage (pour finish_fishing).
+func get_crew_fishing_bonus() -> int:
+	var bonus := 0
+	for member in equipage:
+		bonus += member.bonus_peche
+	return bonus
+
+#endregion equipage

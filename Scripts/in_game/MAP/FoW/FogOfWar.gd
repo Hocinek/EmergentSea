@@ -177,7 +177,12 @@ func update_vision_for_player(player: Player):
 	for ship in player_ships:
 		if ship is Navires and ship.is_alive():
 			var ship_pos = ship.case_actuelle
-			var count = reveal_around_position(ship_pos)
+			# Rayon de base + bonus équipage (bonus_vision est en unités monde → on convertit en cases)
+			var ship_vision_bonus: int = 0
+			if ship.has_method("get_crew_vision_bonus"):
+				ship_vision_bonus = ship.get_crew_vision_bonus()
+			var ship_radius := vision_radius + ship_vision_bonus
+			var count = reveal_around_position(ship_pos, ship_radius)
 			revealed_count += count
 			
 	# ÉTAPE 3 : Révéler autour des ports possédés
@@ -191,28 +196,29 @@ func update_vision_for_player(player: Player):
 		DEBUG.log("[FOG] ✓ Révélé %d nouvelles cases" % revealed_count)
 		queue_redraw()
 
-func reveal_around_position(center: Vector2i) -> int:
+func reveal_around_position(center: Vector2i, radius_override: int = -1) -> int:
 	"""Révèle les cases autour d'une position - retourne le nombre de cases révélées"""
+	var radius := radius_override if radius_override >= 0 else vision_radius
 	var count = 0
-	
+
 	# Parcourir toutes les cases dans le rayon de vision
-	for dy in range(-vision_radius, vision_radius + 1):
-		for dx in range(-vision_radius, vision_radius + 1):
+	for dy in range(-radius, radius + 1):
+		for dx in range(-radius, radius + 1):
 			var pos = Vector2i(center.x + dx, center.y + dy)
-			
+
 			# Vérifier que la case est valide
 			if not Map_utils.is_case_valid(pos):
 				continue
-			
+
 			# Vérifier la distance (vision circulaire)
 			var distance = sqrt(dx * dx + dy * dy)
-			if distance > vision_radius:
+			if distance > radius:
 				continue
-			
+
 			# Révéler la case
 			if reveal_tile(pos):
 				count += 1
-	
+
 	return count
 
 func reveal_tile(pos: Vector2i) -> bool:

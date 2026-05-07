@@ -66,9 +66,16 @@ var stats_panel : UI_stats_navire
 @export var vitesse: float = 800.0
 @export var nrbequipage: int = 0   # (gardé pour compatibilité pêche)
 var equipage: Array[CrewMember] = []
+
+# Bonus de synergies actifs (recalculés après chaque recrutement/congédiement)
+var _synergy_dgt_bonus: int              = 0
+var _synergy_peche_mult: float           = 1.0
+var _synergy_regen_mult: float           = 1.0
+var _synergy_move_cost_reduction: float  = 0.0  # Réduction du coût de déplacement par synergie (0.0–1.0)
+var _synergy_full_crew: bool             = false
 @export var interaction_radius: float = 80.0
 @export var stats_duration: float = 2.5
-@export var tir: int = 10		# Portée d'un tir
+@export var tir: int = 3		# Portée d'un tir
 @export var dgt_tir: int = 2	# Dégâts d'un tir
 
 @onready var ui_layer: CanvasLayer = get_tree().get_first_node_in_group("ui_layer")
@@ -727,8 +734,33 @@ func _rpc_apply_damage(target_ship_id: int, damage: int) -> void:
 
 #region utils
 func is_in_range(target_case: Vector2i) -> bool:
+	# Pour les ports (cases non navigables), on cherche la case navigable
+	# adjacente la plus proche et on mesure depuis elle
+	if not Map_utils.is_case_navigable(target_case):
+		var neighbors := Map_utils.get_neighbors(target_case)
+		var min_dist := 999
+		for neighbor in neighbors:
+			if Map_utils.is_case_navigable(neighbor):
+				var chemin := Pathfinder.calculer_chemin(case_actuelle, neighbor)
+				if not chemin.is_empty():
+					# +1 car on doit encore traverser la case du port lui-même
+					min_dist = mini(min_dist, chemin.size() + 1)
+		return min_dist <= tir
+	# Pour les navires, on utilise le chemin réel
 	var chemin := Pathfinder.calculer_chemin(case_actuelle, target_case)
 	return chemin.size() <= tir
+
+
+## Calcule la distance hexagonale en cases entre deux positions (sans tenir compte des obstacles).
+func _hex_distance(a: Vector2i, b: Vector2i) -> int:
+	var map_manager = get_tree().get_first_node_in_group("Map_manager")
+	if not map_manager:
+		return 999
+	var a1 = map_manager.grid.offset_to_axial(a.x, a.y)
+	var a2 = map_manager.grid.offset_to_axial(b.x, b.y)
+	var dq = int(a2.x) - int(a1.x)
+	var dr = int(a2.y) - int(a1.y)
+	return int((abs(dq) + abs(dr) + abs(dq + dr)) / 2)
 
 ## Récupère tous les navires présents sur une case
 func get_ships_at_position(target_case: Vector2i) -> Array[Navires]:
@@ -868,7 +900,7 @@ func _process_movement(delta: float) -> void:
 		global_position = next_pos
 		path.remove_at(0)
 		case_actuelle = next_case
-		energie = max(energie - 1, 0)
+		energie = max(energie - roundi(get_effective_move_cost()), 0)
 
 		DEBUG.log("Navire [%d] arrivé à %s - Cases restantes: %d" % [id, case_actuelle, path.size()])
 		DEBUG.log("old_case: %s, case_actuelle: %s, changé: %s" % [old_case, case_actuelle, old_case != case_actuelle])
@@ -922,12 +954,14 @@ func _request_move_confirmation(computed_path: Array) -> void:
 	# ── TRONQUER le chemin si l'énergie est insuffisante ──
 	# Le joueur ne peut avancer que d'autant de cases qu'il a d'énergie.
 	var affordable_path: Array = computed_path
-	if computed_path.size() > energie:
-		affordable_path = computed_path.slice(0, energie)
-		DEBUG.log("Navire [%d] — Chemin tronqué à %d cases (énergie: %d)" % [id, affordable_path.size(), energie])
+	var cost_per_case := get_effective_move_cost()
+	var max_cases := int(float(energie) / cost_per_case)
+	if computed_path.size() > max_cases:
+		affordable_path = computed_path.slice(0, max_cases)
+		DEBUG.log("Navire [%d] — Chemin tronqué à %d cases (énergie: %d, coût/case: %.2f)" % [id, affordable_path.size(), energie, cost_per_case])
 
 	pending_path = affordable_path
-	var cost: int = affordable_path.size()  # coût réel = cases effectivement parcourables
+	var cost: int = roundi(float(affordable_path.size()) * cost_per_case)  # coût réel en énergie
 
 	if not _confirm_ui:
 		_confirm_ui = UI_confirm_deplacement.new()
@@ -1098,16 +1132,16 @@ func finish_fishing() -> void:
 	var gain: int = 0
 
 	if fish_manager.is_fish_tile(case_actuelle):
-		# Zone de pêche : rendement élevé (6-7, +bonus équipage)
+		# Zone de pêche : rendement élevé (6-7, +bonus équipage et synergies)
 		var wanted := randi_range(6, 7)
-		var fishing_bonus := get_crew_fishing_bonus()
-		wanted += fishing_bonus
+		wanted += get_crew_fishing_bonus()
+		wanted = int(float(wanted) * _synergy_peche_mult)
 		gain = fish_manager.harvest_fish(case_actuelle, wanted)
 	else:
 		# Eau libre (peu profonde ou profonde) : rendement faible (1-2)
 		gain = randi_range(1, 2)
-		var fishing_bonus := get_crew_fishing_bonus()
-		gain = mini(gain + fishing_bonus, 5)
+		gain += get_crew_fishing_bonus()
+		gain = mini(int(float(gain) * _synergy_peche_mult), 5)
 
 	nourriture += gain
 
@@ -1123,6 +1157,27 @@ func finish_fishing() -> void:
 
 #region equipage
 
+# =========================
+# CONSTANTES DE SYNERGIES
+# =========================
+const MAX_CREW: int = 6
+
+## Synergie "Flotte de guerre" : Canonnier + Corsaire + Tireur d'élite → dgt_tir ×1.5
+const SYNERGIE_GUERRE := [CrewMember.Role.CANONNIER, CrewMember.Role.CORSAIRE, CrewMember.Role.TIREUR_ELITE]
+
+## Synergie "Navire de pêche" : Pêcheur + Cuisinier → bonus_peche ×2
+const SYNERGIE_PECHE := [CrewMember.Role.PECHEUR, CrewMember.Role.CUISINIER]
+
+## Synergie "Duo de soins" : Médecin + Cuisinier → regen_vie doublée
+const SYNERGIE_SOINS := [CrewMember.Role.MEDECIN, CrewMember.Role.CUISINIER]
+
+## Synergie "Vitesse maximale" : Navigateur + Éclaireur → +200 vitesse
+const SYNERGIE_VITESSE := [CrewMember.Role.NAVIGATEUR, CrewMember.Role.ECLAIREUR]
+
+## Synergie "Équipage complet" : 6 membres → +10% sur toutes les stats
+const SYNERGIE_FULL_CREW_SIZE: int = 6
+
+
 ## Initialise l'équipage avec le capitaine par défaut.
 func _init_crew() -> void:
 	if equipage.is_empty():
@@ -1132,15 +1187,25 @@ func _init_crew() -> void:
 		DEBUG.log("Navire [%d] — Capitaine ajouté, équipage initialisé." % id)
 
 
+## Retourne le coût d'un rôle après réduction Diplomate.
+func get_hire_cost(role: CrewMember.Role) -> int:
+	var base_cost: int = CrewMember.ROLE_COSTS[role]
+	var reduction: float = 0.0
+	for member in equipage:
+		reduction = maxf(reduction, member.reduction_cout)
+	return maxi(1, int(float(base_cost) * (1.0 - reduction)))
+
+
 ## Ajoute un membre d'équipage et applique ses bonus.
 func add_crew_member(member: CrewMember) -> void:
-	if equipage.size() >= 4:
+	if equipage.size() >= MAX_CREW:
 		DEBUG.log("Navire [%d] — Équipage plein, impossible d'ajouter %s." % [id, member.nom], DEBUG.WARNING)
 		return
 
 	equipage.append(member)
 	nrbequipage = equipage.size()
 	_apply_crew_bonus(member)
+	compute_crew_synergies()
 	DEBUG.log("Navire [%d] — %s rejoint l'équipage (total : %d)" % [id, member.nom, nrbequipage])
 
 
@@ -1154,6 +1219,7 @@ func remove_crew_member(index: int) -> void:
 	_remove_crew_bonus(member)
 	equipage.remove_at(index)
 	nrbequipage = equipage.size()
+	compute_crew_synergies()
 	DEBUG.log("Navire [%d] — %s a quitté l'équipage (total : %d)" % [id, member.nom, nrbequipage])
 
 
@@ -1165,49 +1231,161 @@ func has_crew_role(role: CrewMember.Role) -> bool:
 	return false
 
 
-## Applique les bonus d'un membre au navire.
+## Retourne le nombre de membres ayant un rôle donné.
+func count_crew_role(role: CrewMember.Role) -> int:
+	var count := 0
+	for member in equipage:
+		if member.role == role:
+			count += 1
+	return count
+
+
+## Applique les bonus individuels d'un membre au navire.
 func _apply_crew_bonus(member: CrewMember) -> void:
 	dgt_tir    += member.bonus_dgt_tir
+	tir        += member.bonus_tir
 	maxvie     += member.bonus_maxvie
-	vie         = min(vie + member.bonus_maxvie, maxvie)  # HP max augmentés → on remonte aussi les HP actuels
+	vie         = min(vie + member.bonus_maxvie, maxvie)
 	maxenergie += member.bonus_maxenergie
 	energie     = min(energie + member.bonus_maxenergie, maxenergie)
-	vitesse    += member.bonus_vitesse
-	DEBUG.log("Navire [%d] — Bonus appliqués : dgt+%d, vie+%d, nrj+%d, vit+%.0f" % [
-		id, member.bonus_dgt_tir, member.bonus_maxvie, member.bonus_maxenergie, member.bonus_vitesse
+	# bonus_vitesse supprimé — la vitesse est purement visuelle (px/s)
+	# reduction_cout_deplacement géré via get_effective_move_cost()
+	# bonus_vision géré via get_crew_vision_bonus() → FogOfWar
+	DEBUG.log("Navire [%d] — Bonus appliqués [%s] : dgt+%d tir+%d vie+%d nrj+%d mvt-%.0f%% vis+%d cases" % [
+		id, member.nom, member.bonus_dgt_tir, member.bonus_tir,
+		member.bonus_maxvie, member.bonus_maxenergie,
+		member.reduction_cout_deplacement * 100.0, member.bonus_vision
 	])
 
 
-## Retire les bonus d'un membre du navire (congédiement).
+## Retire les bonus individuels d'un membre du navire (congédiement).
 func _remove_crew_bonus(member: CrewMember) -> void:
 	dgt_tir    = max(dgt_tir    - member.bonus_dgt_tir,    1)
+	tir        = max(tir        - member.bonus_tir,         1)
 	maxvie     = max(maxvie     - member.bonus_maxvie,      1)
 	vie         = min(vie, maxvie)
 	maxenergie = max(maxenergie - member.bonus_maxenergie,  5)
 	energie     = min(energie, maxenergie)
-	vitesse    = max(vitesse    - member.bonus_vitesse,    100.0)
-	DEBUG.log("Navire [%d] — Bonus retirés : dgt-%d, vie-%d, nrj-%d, vit-%.0f" % [
-		id, member.bonus_dgt_tir, member.bonus_maxvie, member.bonus_maxenergie, member.bonus_vitesse
+	# bonus_vitesse supprimé — la vitesse est purement visuelle (px/s)
+	# reduction_cout_deplacement géré via get_effective_move_cost()
+	# bonus_vision géré via get_crew_vision_bonus() → FogOfWar
+	DEBUG.log("Navire [%d] — Bonus retirés [%s] : dgt-%d tir-%d vie-%d nrj-%d mvt-%.0f%% vis-%d cases" % [
+		id, member.nom, member.bonus_dgt_tir, member.bonus_tir,
+		member.bonus_maxvie, member.bonus_maxenergie,
+		member.reduction_cout_deplacement * 100.0, member.bonus_vision
 	])
 
 
-## À appeler en fin de tour (par le TurnManager) pour la régénération.
-## Chercher dans votre TurnManager / GameManager l'appel end_turn de chaque navire
-## et ajouter : navire.apply_crew_end_of_turn()
-func apply_crew_end_of_turn() -> void:
+## Retourne le coût en énergie d'un déplacement d'une case (après réductions équipage + synergies).
+func get_effective_move_cost() -> float:
+	var reduction := _synergy_move_cost_reduction
 	for member in equipage:
-		if member.regen_vie_par_tour > 0 and vie < maxvie:
-			vie = min(vie + member.regen_vie_par_tour, maxvie)
-			DEBUG.log("Navire [%d] — Régénération médecin : +%d PV → %d/%d" % [
-				id, member.regen_vie_par_tour, vie, maxvie
-			])
+		reduction = maxf(reduction, member.reduction_cout_deplacement)
+	return maxf(1.0 - reduction, 0.5)  # plancher à 0.5 → roundi() donnera toujours au moins 1
 
 
-## Retourne le bonus total de pêche de l'équipage (pour finish_fishing).
+## Calcule et applique toutes les synergies d'équipage.
+## Appelée après chaque add/remove pour recalculer l'état courant.
+func compute_crew_synergies() -> void:
+	# Retire les anciens bonus de synergie avant recalcul
+	dgt_tir   = max(dgt_tir   - _synergy_dgt_bonus, 1)
+	_synergy_dgt_bonus            = 0
+	_synergy_peche_mult           = 1.0
+	_synergy_regen_mult           = 1.0
+	_synergy_move_cost_reduction  = 0.0
+	_synergy_full_crew            = false
+
+	var roles_presents: Array = equipage.map(func(m): return m.role)
+
+	# ── Flotte de guerre : Canonnier + Corsaire + Tireur d'élite → dgt_tir ×1.5 ──
+	if _has_all_roles(SYNERGIE_GUERRE, roles_presents):
+		var bonus := int(float(dgt_tir) * 0.5)
+		_synergy_dgt_bonus += bonus
+		dgt_tir += bonus
+		DEBUG.log("Navire [%d] — ⚔️ Synergie Flotte de guerre active (+%d dgt)" % [id, bonus])
+
+	# ── Navire de pêche : Pêcheur + Cuisinier → bonus_peche ×2 ──
+	if _has_all_roles(SYNERGIE_PECHE, roles_presents):
+		_synergy_peche_mult = 2.0
+		DEBUG.log("Navire [%d] — 🎣 Synergie Navire de pêche active (pêche ×2)" % id)
+
+	# ── Duo de soins : Médecin + Cuisinier → regen_vie doublée ──
+	if _has_all_roles(SYNERGIE_SOINS, roles_presents):
+		_synergy_regen_mult = 2.0
+		DEBUG.log("Navire [%d] — ⚕️ Synergie Duo de soins active (regen ×2)" % id)
+
+	# ── Vitesse maximale : Navigateur + Éclaireur → -25% coût de déplacement ──
+	if _has_all_roles(SYNERGIE_VITESSE, roles_presents):
+		_synergy_move_cost_reduction = 0.25
+		DEBUG.log("Navire [%d] — 🧭 Synergie Vitesse maximale active (-25%% coût déplacement)" % id)
+
+	# ── Équipage complet : 6 membres → +10% toutes stats ──
+	if equipage.size() >= SYNERGIE_FULL_CREW_SIZE:
+		_synergy_full_crew = true
+		DEBUG.log("Navire [%d] — 👥 Synergie Équipage complet active (+10%% stats)" % id)
+
+
+## Vérifie que tous les rôles de la liste sont présents dans l'équipage.
+func _has_all_roles(required: Array, present: Array) -> bool:
+	for r in required:
+		if not r in present:
+			return false
+	return true
+
+
+## Retourne le bonus total de vision de l'équipage (en cases, pour FogOfWar).
+func get_crew_vision_bonus() -> int:
+	var bonus := 0
+	for member in equipage:
+		bonus += member.bonus_vision
+	return bonus
+
+
+## Retourne le bonus total de pêche de l'équipage (hors synergies mult).
 func get_crew_fishing_bonus() -> int:
 	var bonus := 0
 	for member in equipage:
 		bonus += member.bonus_peche
 	return bonus
+
+
+## Retourne les dégâts de tir effectifs (bonus équipage complet inclus).
+func get_effective_dgt_tir() -> int:
+	var base := dgt_tir
+	if _synergy_full_crew:
+		base = int(float(base) * 1.1)
+	return base
+
+
+## À appeler en fin de tour (par le TurnManager) pour régénération et revenus passifs.
+func apply_crew_end_of_turn() -> void:
+	# Régénération PV (Médecin, ×2 si synergie Duo de soins)
+	for member in equipage:
+		if member.regen_vie_par_tour > 0 and vie < maxvie:
+			var regen := int(float(member.regen_vie_par_tour) * _synergy_regen_mult)
+			vie = min(vie + regen, maxvie)
+			DEBUG.log("Navire [%d] — Regen PV +%d → %d/%d" % [id, regen, vie, maxvie])
+
+	# Poissons passifs (Cuisinier)
+	var poissons_passifs := 0
+	for member in equipage:
+		poissons_passifs += member.poissons_par_tour
+	if _synergy_full_crew:
+		poissons_passifs = int(float(poissons_passifs) * 1.1)
+	if poissons_passifs > 0:
+		nourriture += poissons_passifs
+		DEBUG.log("Navire [%d] — Revenus passifs : +%d poissons" % [id, poissons_passifs])
+
+
+## Retourne un résumé des synergies actives pour l'UI.
+func get_active_synergies() -> Array[String]:
+	var result: Array[String] = []
+	var roles_presents: Array = equipage.map(func(m): return m.role)
+	if _has_all_roles(SYNERGIE_GUERRE,  roles_presents): result.append("⚔️ Flotte de guerre")
+	if _has_all_roles(SYNERGIE_PECHE,   roles_presents): result.append("🎣 Navire de pêche")
+	if _has_all_roles(SYNERGIE_SOINS,   roles_presents): result.append("⚕️ Duo de soins")
+	if _has_all_roles(SYNERGIE_VITESSE, roles_presents): result.append("🧭 Vitesse maximale")
+	if _synergy_full_crew:                               result.append("👥 Équipage complet")
+	return result
 
 #endregion equipage

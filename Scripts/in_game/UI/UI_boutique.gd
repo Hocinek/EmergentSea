@@ -101,7 +101,7 @@ func _build_ui() -> void:
 	# -- Panel principal --
 	_panel = Panel.new()
 	_panel.set_anchors_preset(Control.PRESET_CENTER)
-	_panel.custom_minimum_size = Vector2(420, 585)
+	_panel.custom_minimum_size = Vector2(420, 700)
 	_panel.position = -_panel.custom_minimum_size / 2.0
 	add_child(_panel)
 
@@ -186,7 +186,7 @@ func _build_ui() -> void:
 	vbox.add_child(_separator())
 
 	# ---------- ÉQUIPAGE ----------
-	vbox.add_child(_separator())
+	
 	vbox.add_child(_section_label("👥  Gérer l'équipage"))
 
 	_crew_info_label = Label.new()
@@ -266,7 +266,7 @@ func _refresh_ui() -> void:
 	if has_ship and _current_ship is Navires:
 		var navire: Navires = _current_ship as Navires
 		var crew_count: int = navire.equipage.size()
-		var crew_max: int = 4
+		var crew_max: int = 6
 		_crew_info_label.text = "Membres d'équipage : %d / %d" % [crew_count, crew_max]
 		_crew_button.disabled = false
 	else:

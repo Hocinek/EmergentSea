@@ -177,6 +177,20 @@ static func get_movement_cost(c: Vector2i) -> float:
 		_: return 1.0
 
 
+## Retourne tous les voisins d'une case (sans filtre de navigabilité) — utilisé par le fog BFS
+static func get_neighbors_all(c: Vector2i) -> Array[Vector2i]:
+	var res: Array[Vector2i] = []
+	var directions: Array[Vector2i]
+	if c.x % 2 == 0:
+		directions = [Vector2i(-1,-1), Vector2i(1,-1), Vector2i(2,0), Vector2i(1,0), Vector2i(-1,0), Vector2i(-2,0)]
+	else:
+		directions = [Vector2i(-1,0), Vector2i(1,0), Vector2i(2,0), Vector2i(1,1), Vector2i(-1,1), Vector2i(-2,0)]
+	for d: Vector2i in directions:
+		var neighbor: Vector2i = c + d
+		if is_case_valid(neighbor):
+			res.append(neighbor)
+	return res
+
 # Pour la génération uniquement : on veut savoir si on peut "étendre" l'océan
 static func get_neighbors_water_only(c: Vector2i) -> Array[Vector2i]:
 	var res: Array[Vector2i] = []

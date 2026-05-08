@@ -177,7 +177,12 @@ func update_vision_for_player(player: Player):
 	for ship in player_ships:
 		if ship is Navires and ship.is_alive():
 			var ship_pos = ship.case_actuelle
-			var count = reveal_around_position(ship_pos)
+			# Rayon de base + bonus équipage (bonus_vision est en unités monde → on convertit en cases)
+			var ship_vision_bonus: int = 0
+			if ship.has_method("get_crew_vision_bonus"):
+				ship_vision_bonus = ship.get_crew_vision_bonus()
+			var ship_radius := vision_radius + ship_vision_bonus
+			var count = reveal_around_position(ship_pos, ship_radius)
 			revealed_count += count
 			
 	# ÉTAPE 3 : Révéler autour des ports possédés
@@ -191,28 +196,49 @@ func update_vision_for_player(player: Player):
 		DEBUG.log("[FOG] ✓ Révélé %d nouvelles cases" % revealed_count)
 		queue_redraw()
 
-func reveal_around_position(center: Vector2i) -> int:
-	"""Révèle les cases autour d'une position - retourne le nombre de cases révélées"""
-	var count = 0
-	
-	# Parcourir toutes les cases dans le rayon de vision
-	for dy in range(-vision_radius, vision_radius + 1):
-		for dx in range(-vision_radius, vision_radius + 1):
-			var pos = Vector2i(center.x + dx, center.y + dy)
-			
-			# Vérifier que la case est valide
-			if not Map_utils.is_case_valid(pos):
-				continue
-			
-			# Vérifier la distance (vision circulaire)
-			var distance = sqrt(dx * dx + dy * dy)
-			if distance > vision_radius:
-				continue
-			
-			# Révéler la case
-			if reveal_tile(pos):
-				count += 1
-	
+## Calcule la vraie distance hexagonale — grille Odd-Q Pointy-Top
+func _hex_distance(a: Vector2i, b: Vector2i) -> int:
+	# Conversion Odd-Q entière : forcer int pour éviter dérive float
+	var aq: int = a.x
+	var ar: int = a.y - (a.x - (a.x & 1)) / 2
+	var bq: int = b.x
+	var br: int = b.y - (b.x - (b.x & 1)) / 2
+	var dq: int = bq - aq
+	var dr: int = br - ar
+	return (abs(dq) + abs(dr) + abs(dq + dr)) / 2
+
+func reveal_around_position(center: Vector2i, radius_override: int = -1) -> int:
+	"""Révèle les cases atteignables depuis center en au plus `radius` déplacements hex.
+	Utilise un BFS sur les voisins réels (get_neighbors_all) pour coller
+	exactement à la topologie de la grille — sans compter la case de départ."""
+	var radius := radius_override if radius_override >= 0 else vision_radius
+
+	var visited: Dictionary = {}
+	var queue: Array = []
+
+	visited[center] = 0
+	queue.append([center, 0])
+
+	var count := 0
+	var head := 0
+
+	while head < queue.size():
+		var current = queue[head]
+		head += 1
+		var pos: Vector2i = current[0]
+		var depth: int = current[1]
+
+		# Révéler la case 
+		if reveal_tile(pos):
+			count += 1
+
+		# Continuer à explorer si on n'a pas atteint la limite
+		if depth < radius:
+			for neighbor in Map_utils.get_neighbors_all(pos):
+				if not visited.has(neighbor):
+					visited[neighbor] = depth + 1
+					queue.append([neighbor, depth + 1])
+
 	return count
 
 func reveal_tile(pos: Vector2i) -> bool:
@@ -326,19 +352,24 @@ func reveal_all():
 
 func reveal_area(center: Vector2i, radius: int):
 	"""Révèle une zone spécifique"""
-	for dy in range(-radius, radius + 1):
-		for dx in range(-radius, radius + 1):
-			var pos = Vector2i(center.x + dx, center.y + dy)
-			
+	var cq: int = center.x
+	var cr: int = center.y - (center.x - (center.x & 1)) / 2
+
+	for dq in range(-radius, radius + 1):
+		var r_min = max(-radius, -dq - radius)
+		var r_max = min(radius, -dq + radius)
+		for dr in range(r_min, r_max + 1):
+			var q: int = cq + dq
+			var r: int = cr + dr
+			var col: int = q
+			var row: int = r + (q - (q & 1)) / 2
+			var pos = Vector2i(col, row)
+
 			if not Map_utils.is_case_valid(pos):
 				continue
-			
-			var distance = sqrt(dx * dx + dy * dy)
-			if distance > radius:
-				continue
-			
+
 			reveal_tile(pos)
-	
+
 	queue_redraw()
 
 # =========================

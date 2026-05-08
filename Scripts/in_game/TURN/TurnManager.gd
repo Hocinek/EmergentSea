@@ -47,7 +47,12 @@ func end_turn() -> void:
 	# 1) Fin du tour du joueur courant
 	state = TurnState.State.ENDING_TURN
 	turn_ended.emit(current_player)
-	
+
+	# Appliquer les effets de fin de tour de l'équipage (soin, poissons passifs…)
+	for n in current_player.get_navires():
+		if is_instance_valid(n) and n.is_alive():
+			n.apply_crew_end_of_turn()
+
 	# Attaques des ports ennemis/neutres ---
 	_ports_attack_current_player()
 	
@@ -115,7 +120,12 @@ func _auto_run_non_human_turns_until_human() -> void:
 
 		# Fin du tour IA
 		turn_ended.emit(current_player)
-		
+
+		# Appliquer les effets de fin de tour de l'équipage IA (soin, poissons passifs…)
+		for n in current_player.get_navires():
+			if is_instance_valid(n) and n.is_alive():
+				n.apply_crew_end_of_turn()
+
 		fin_de_partie()
 		
 		# Joueur suivant
@@ -213,8 +223,8 @@ func fin_de_partie() -> void:
 	players = _filter_alive_players(players)
 	for player in players:
 		var raison := ""
-		if somme_poisson(player) >= 150:
-			raison = "accumulation de 150 poissons"
+		if somme_poisson(player) >= 300 :
+			raison = "accumulation de 300 poissons"
 		elif somme_navire(player) >= 30:
 			raison = "accumulation de 30 navires"
 		#elif somme_port_joueur(player) >= int(calcul_nb_port() * 2.0 / 3.0):

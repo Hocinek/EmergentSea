@@ -98,3 +98,12 @@ func get_alive_navire_count() -> int:
 		if n.is_alive():
 			count += 1
 	return count
+
+
+## Retourne le total de poissons accumulés sur tous les navires du joueur
+func get_poissons() -> int:
+	var total: int = 0
+	for n in navires:
+		if "nourriture" in n:
+			total += n.nourriture
+	return total

@@ -5,6 +5,7 @@
 #  - la possibilité de déplacer la caméra dans la direction voulue		#
 #  - il est possible de zoomer et dézoomer								#
 #  - on peut déplacer la caméra à un point voulu						#
+#  - click and drag (clic molette ou clic droit maintenu)				#
 ##																	   ##
 ###===================================================================###
 extends Camera2D
@@ -23,12 +24,23 @@ extends Camera2D
 ## Vitesse du déplacement par les bords (multiplicateur de speed)
 @export var edge_speed_factor := 0.6
 
+@export_group("Click and Drag")
+## Active/désactive le déplacement par glissement
+@export var drag_enabled := true
+## Bouton utilisé pour le drag (MIDDLE = molette, RIGHT = clic droit)
+@export var drag_button := MOUSE_BUTTON_MIDDLE
+
 var target_zoom := Vector2.ONE
 var follow_target: Node2D
 var follow_once := true
 
 # Limites de la map en pixels 
 var map_rect := Rect2()
+
+# Click and drag
+var _is_dragging := false
+var _drag_start_mouse_pos := Vector2.ZERO
+var _drag_start_cam_pos := Vector2.ZERO
 
 func _enter_tree():
 	add_to_group("camera_controller")
@@ -57,6 +69,24 @@ func _input(event):
 			Vector2(min_zoom_allowed, min_zoom_allowed),
 			Vector2(max_zoom, max_zoom)
 		)
+
+	# Click and drag — début / fin
+	if drag_enabled and event is InputEventMouseButton:
+		if event.button_index == drag_button:
+			if event.pressed:
+				_is_dragging = true
+				_drag_start_mouse_pos = get_viewport().get_mouse_position()
+				_drag_start_cam_pos = global_position
+			else:
+				_is_dragging = false
+
+	# Click and drag — mouvement
+	if drag_enabled and _is_dragging and event is InputEventMouseMotion:
+		var delta_mouse := get_viewport().get_mouse_position() - _drag_start_mouse_pos
+		# On divise par le zoom pour que la vitesse soit cohérente quel que soit le niveau de zoom
+		global_position = _drag_start_cam_pos - delta_mouse / zoom
+		_clamp_camera_to_map()
+		get_viewport().set_input_as_handled()
 
 ## Calcule le zoom minimum pour que la map couvre toujours l'écran
 func _get_min_zoom_for_map() -> float:
@@ -125,6 +155,10 @@ func _process(delta):
 		global_position = follow_target.global_position
 		follow_once = false  # ensuite on arrête de suivre
 		_clamp_camera_to_map()
+		return
+
+	# Pas de déplacement clavier/edge scrolling pendant un drag
+	if _is_dragging:
 		return
 
 	# Déplacement libre

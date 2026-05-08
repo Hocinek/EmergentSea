@@ -75,7 +75,7 @@ var _synergy_move_cost_reduction: float  = 0.0  # Réduction du coût de déplac
 var _synergy_full_crew: bool             = false
 @export var interaction_radius: float = 80.0
 @export var stats_duration: float = 2.5
-@export var tir: int = 3		# Portée d'un tir
+@export var tir: int = 4		# Portée d'un tir
 @export var dgt_tir: int = 2	# Dégâts d'un tir
 
 @onready var ui_layer: CanvasLayer = get_tree().get_first_node_in_group("ui_layer")

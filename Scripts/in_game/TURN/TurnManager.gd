@@ -223,8 +223,8 @@ func fin_de_partie() -> void:
 	players = _filter_alive_players(players)
 	for player in players:
 		var raison := ""
-		if somme_poisson(player) >= 150:
-			raison = "accumulation de 150 poissons"
+		if somme_poisson(player) >= 300 :
+			raison = "accumulation de 300 poissons"
 		elif somme_navire(player) >= 30:
 			raison = "accumulation de 30 navires"
 		#elif somme_port_joueur(player) >= int(calcul_nb_port() * 2.0 / 3.0):

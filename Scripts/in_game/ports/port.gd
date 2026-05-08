@@ -43,7 +43,7 @@ var stats_panel : UI_stats_port
 var current_hp: int = 20
 var is_under_attack: bool = false  # true quand le port neutre est attaqué (force l'affichage ennemi)
 @export var attack_damage: int = 1
-@export var attack_range: int = 3  # en cases
+@export var attack_range: int = 5  # en cases
 signal port_captured(port: Ports, new_owner: Player, old_owner: Player)
 
 # AJOUT : Référence au fog manager pour mise à jour en temps réel

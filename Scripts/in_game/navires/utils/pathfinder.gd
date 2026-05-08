@@ -46,16 +46,12 @@ static func calculer_chemin(start: Vector2i, goal: Vector2i) -> Array:
 				var f = tentative_g + (h * 1.001)
 				
 				# Gestion de la liste ouverte
-				if not open_set_hash.has(neighbor):
-					var new_node = AStarNode.new(neighbor, f)
-					_insert_sorted(open_list, new_node)
-					open_set_hash[neighbor] = true
-				else:
-					# Si le voisin est déjà dans la liste mais qu'on a trouvé un meilleur chemin,
-					# techniquement il faudrait mettre à jour son score et re-trier.
-					# Pour simplifier en GDScript sans structure lourde, on peut l'ajouter en doublon 
-					# (le plus petit sortira en premier), ou juste ignorer cette micro-optimisation.
-					pass 
+				# On ajoute en doublon si le voisin est déjà présent :
+				# le nœud avec le meilleur f_score sortira en premier (pop_back),
+				# et l'ancien doublon sera ignoré car g_score sera déjà optimal.
+				var new_node = AStarNode.new(neighbor, f)
+				_insert_sorted(open_list, new_node)
+				open_set_hash[neighbor] = true
 
 	return []
 
@@ -76,8 +72,12 @@ static func _insert_sorted(list: Array[AStarNode], node: AStarNode):
 	list.insert(low, node)
 
 static func reconstruire_chemin(came_from: Dictionary, current: Vector2i) -> Array:
+	# Le chemin retourné N'inclut PAS la case de départ (case actuelle du navire).
+	# Ainsi path.size() == nombre réel de déplacements à effectuer.
 	var total_path := [current]
 	while current in came_from:
 		current = came_from[current]
 		total_path.push_front(current)
+	# Supprimer la case de départ (premier élément)
+	total_path.pop_front()
 	return total_path

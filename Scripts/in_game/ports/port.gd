@@ -136,6 +136,16 @@ func _on_area_input_event(_viewport: Node, event: InputEvent, _shape_idx: int) -
 		if not _is_local_human_owner():
 			DEBUG.log("Port [%d] — boutique refusée (non propriétaire)" % id)
 			return
+
+		# Si le navire sélectionné est en mode inspection, laisser passer l'event
+		# pour que le GameManager puisse inspecter la case du port
+		var game_manager = get_tree().get_first_node_in_group("game_manager")
+		if game_manager:
+			var selected_ship = game_manager.get_selected_ship()
+			if selected_ship and selected_ship.current_input_mode == Navires.InputMode.INSPECT:
+				DEBUG.log("Port [%d] — mode inspection actif, clic droit transmis" % id)
+				return  # Ne pas consommer l'event, le GameManager inspecte la case
+
 		DEBUG.log("Port [%d] — clic droit → ouverture boutique" % id)
 		_open_boutique()
 		get_viewport().set_input_as_handled()
@@ -157,13 +167,13 @@ func _open_boutique() -> void:
 		DEBUG.log("Port [%d] — boutique refusée (aucun navire sélectionné)" % id)
 		return
 	if docked_ship.player_owner != player_owner:
-		DEBUG.log("Port [%d] — boutique refusée (navire n'appartient pas au propriétaire)" % id)
+		DEBUG.log("Port [%d] — boutique refusée (navire sélectionné n'appartient pas au propriétaire)" % id)
 		return
 
 	# Vérifie que le navire sélectionné est sur une case adjacente au port
 	var neighbors := Map_utils.get_neighbors(case_actuelle)
 	if not docked_ship.case_actuelle in neighbors:
-		DEBUG.log("Port [%d] — boutique refusée (navire non adjacent)" % id)
+		DEBUG.log("Port [%d] — boutique refusée (navire non adjacent, case navire=%s, voisins=%s)" % [id, str(docked_ship.case_actuelle), str(neighbors)])
 		return
 
 	var boutique = UI_boutique.new(self, player_owner, docked_ship)
@@ -176,7 +186,8 @@ func _open_boutique() -> void:
 	ui_layer.add_child(boutique)
 	open_boutique_requested.emit(self)
 	DEBUG.log("Port [%d] — boutique ouverte (navire amarré : %s)" % [
-		id, str(docked_ship.id) if docked_ship else "aucun"
+		id,
+		str(docked_ship.id) if docked_ship else "aucun"
 	])
 
 
@@ -205,21 +216,32 @@ func _on_boutique_buy_ship(port: Ports, buyer: Player, buying_ship: Node) -> voi
 		DEBUG.log("Port [%d] — achat refusé (ShipManager introuvable)" % id, DEBUG.ERROR)
 		return
 
-	# Trouve une case navigable adjacente au port pour spawner le navire
+	# Trouve la case d'eau libre la plus proche du port (BFS)
 	var spawn_case: Vector2i = Vector2i(-1, -1)
-	for neighbor in Map_utils.get_neighbors(case_actuelle):
-		# Vérifie qu'aucun autre navire n'occupe déjà la case
-		var occupied := false
-		for ship in get_tree().get_nodes_in_group("ships"):
-			if is_instance_valid(ship) and ship.case_actuelle == neighbor:
-				occupied = true
+	var visited: Dictionary = {}
+	var queue: Array[Vector2i] = [case_actuelle]
+	visited[case_actuelle] = true
+
+	while not queue.is_empty():
+		var current: Vector2i = queue.pop_front()
+		# Vérifie si c'est une case d'eau libre (pas le port lui-même)
+		if current != case_actuelle and Map_utils.is_case_water(current):
+			var occupied := false
+			for ship in get_tree().get_nodes_in_group("ships"):
+				if is_instance_valid(ship) and ship.case_actuelle == current:
+					occupied = true
+					break
+			if not occupied:
+				spawn_case = current
 				break
-		if not occupied:
-			spawn_case = neighbor
-			break
+		# Explore les voisins
+		for neighbor in Map_utils.get_neighbors(current):
+			if not visited.has(neighbor) and Map_utils.is_case_valid(neighbor):
+				visited[neighbor] = true
+				queue.append(neighbor)
 
 	if spawn_case == Vector2i(-1, -1):
-		DEBUG.log("Port [%d] — achat refusé (aucune case libre autour du port)" % id, DEBUG.WARNING)
+		DEBUG.log("Port [%d] — achat refusé (aucune case d'eau libre trouvée)" % id, DEBUG.WARNING)
 		return
 
 	# Déduit le coût du navire acheteur
@@ -304,6 +326,11 @@ func _on_open_recrutement(port: Ports, player: Player, ship: Navires) -> void:
 	ui_layer.add_child(recrutement)
 	open_recrutement_requested.emit(self)
 	DEBUG.log("Port [%d] — recrutement ouvert pour navire [%d]" % [id, ship.id])
+
+	# Ferme la boutique principale pour éviter l'empilement d'UI
+	for child in ui_layer.get_children():
+		if child is UI_boutique:
+			child.queue_free()
 
 
 func _on_crew_hired(ship: Navires, member: CrewMember) -> void:

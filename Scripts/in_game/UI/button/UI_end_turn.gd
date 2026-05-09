@@ -1,6 +1,6 @@
 extends TextureButton
 
-var turn_manager : TurnManager = null
+var turn_manager
 var match_context: MatchContext = null
 var label: Label
 

@@ -99,3 +99,19 @@ func set_current_player(player: Player) -> void:
 
 		if match_context != null:
 			match_context.set_active_player(player.player_id)
+
+
+func next_turn() -> Player:
+	if players.is_empty():
+		return null
+
+	current_player_id = (current_player_id + 1) % players.size()
+	current_player = players[current_player_id]
+
+	if match_context == null:
+		match_context = get_tree().get_first_node_in_group("match_context")
+
+	if match_context != null:
+		match_context.set_active_player(current_player.player_id)
+
+	return current_player

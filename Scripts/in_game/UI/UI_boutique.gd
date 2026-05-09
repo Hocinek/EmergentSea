@@ -117,7 +117,7 @@ func _build_ui() -> void:
 
 	# -- Titre --
 	_title_label = Label.new()
-	_title_label.text = "⚓ Boutique — %s" % (_port.Nom_port if _port else "Port")
+	_title_label.text = "⚓ Boutique — %s" % _get_port_display_name()
 	_title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_title_label.add_theme_font_size_override("font_size", 20)
 	vbox.add_child(_title_label)
@@ -345,6 +345,20 @@ func _separator() -> HSeparator:
 # =========================
 # API PUBLIQUE
 # =========================
+
+## Retourne le nom affiché du port (généré si vide), en lisant UI_stats_port si disponible
+func _get_port_display_name() -> String:
+	if _port == null:
+		return "Port"
+	# Priorité : nom généré par UI_stats_port s'il est attaché au port
+	for child in _port.get_children():
+		if child is UI_stats_port:
+			return child._nom_affiche
+	# Fallback : nom brut ou valeur par défaut
+	if _port.Nom_port != "" and _port.Nom_port != "Nom du Port":
+		return _port.Nom_port
+	return "Port"
+
 
 ## Met à jour le navire actuellement amarré (appelable depuis l'extérieur)
 func set_docked_ship(ship: Node) -> void:

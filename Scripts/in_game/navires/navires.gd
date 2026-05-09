@@ -682,54 +682,33 @@ func shoot_at(target: Navires) -> void:
 	if target == null or not target.is_alive():
 		return
 	DEBUG.log("Tir sur navire [%d]" % target.id)
+	print("[DMG] shoot_at — tireur id=%d owner=%s | cible id=%d | dgt_tir=%d | match_context null=%s" % [
+		id,
+		player_owner.player_name if player_owner else "NULL",
+		target.id,
+		dgt_tir,
+		str(match_context == null)
+	])
 	# ── SON D'ATTAQUE ──────────────────────────────────────────────
 	if _audio_player and attack_sound:
 		_audio_player.stream = attack_sound
 		_audio_player.play()
 
-	# En mode multi : synchroniser les dégâts via l'hôte
+	# En mode multi : déléguer au GameManager qui a un nœud réseau stable
 	if match_context != null and match_context.mode == MatchContext.MatchMode.MULTI:
-		if network_manager != null and network_manager.is_host():
-			# L'hôte applique et broadcaste directement
-			_rpc_apply_damage.rpc(target.id, dgt_tir)
+		var game_manager = get_tree().get_first_node_in_group("game_manager")
+		print("[DMG] shoot_at MULTI — game_manager null=%s" % str(game_manager == null))
+		if game_manager and game_manager.has_method("apply_damage_networked"):
+			game_manager.apply_damage_networked(target.id, dgt_tir)
 		else:
-			# Le client envoie la demande à l'hôte
-			_rpc_sync_damage.rpc(target.id, dgt_tir)
+			push_error("[NAVIRE %d] GameManager introuvable pour apply_damage_networked" % id)
 	else:
-		# Mode solo : application directe comme avant
+		# Mode solo : application directe
+		print("[DMG] shoot_at SOLO — target.vie avant=%d" % target.vie)
 		target.take_damage(dgt_tir)
 #endregion gestion combat
 
 #region sync réseau
-# Synchronise la position d'un navire sur tous les autres peers
-@rpc("any_peer", "call_remote", "reliable")
-func _rpc_sync_position(case_x: int, case_y: int, world_x: float, world_y: float, rotation_angle: float) -> void:
-	if _is_local_human_owner():
-		return
-	case_actuelle = Vector2i(case_x, case_y)
-	global_position = Vector2(world_x, world_y)
-	target_rotation_angle = rotation_angle
-	_set_visual_rotation(rotation_angle)
-	_update_visibility_in_fog()
-
-# Le client envoie une demande de dégât à l'hôte
-@rpc("any_peer", "call_remote", "reliable")
-func _rpc_sync_damage(target_ship_id: int, damage: int) -> void:
-	if network_manager == null:
-		network_manager = get_tree().get_first_node_in_group("network_manager")
-	if network_manager == null or not network_manager.is_host():
-		return
-	# L'hôte valide et broadcaste
-	_rpc_apply_damage.rpc(target_ship_id, damage)
-
-# Appliqué sur tous les peers : infliger les dégâts au navire cible
-@rpc("any_peer", "call_local", "reliable")
-func _rpc_apply_damage(target_ship_id: int, damage: int) -> void:
-	var all_ships = get_tree().get_nodes_in_group("ships")
-	for ship in all_ships:
-		if ship is Navires and ship.id == target_ship_id:
-			ship.take_damage(damage)
-			return
 #endregion sync réseau
 
 #region utils
@@ -862,8 +841,6 @@ func _process(delta):
 
 ## Gère le déplacement du navire
 func _process_movement(delta: float) -> void:
-	if multiplayer.has_multiplayer_peer():
-		_rpc_sync_position.rpc(case_actuelle.x, case_actuelle.y, global_position.x, global_position.y, target_rotation_angle)
 	if path.is_empty():
 		DEBUG.log("Navire [%d] - Chemin vide, arrêt du mouvement" % id)
 		is_moving  = false
@@ -921,9 +898,11 @@ func _process_movement(delta: float) -> void:
 			if _is_local_human_owner():
 				DEBUG.log("✓ CONDITIONS OK - Appel de _update_fog_of_war()")
 				_update_fog_of_war()
-				# Synchroniser la nouvelle position vers tous les autres peers
+				# Synchroniser la nouvelle position vers tous les autres peers via le GameManager
 				if multiplayer.has_multiplayer_peer():
-					_rpc_sync_position.rpc(case_actuelle.x, case_actuelle.y, global_position.x, global_position.y, target_rotation_angle)
+					var game_manager = get_tree().get_first_node_in_group("game_manager")
+					if game_manager and game_manager.has_method("sync_ship_position"):
+						game_manager.sync_ship_position(id, case_actuelle.x, case_actuelle.y, global_position.x, global_position.y, target_rotation_angle)
 			else:
 				DEBUG.log("✗ CONDITIONS PAS OK - Pas de mise à jour du fog")
 				if old_case == case_actuelle:

@@ -136,7 +136,7 @@ func _build_ui() -> void:
 
 	# Titre
 	var title = Label.new()
-	title.text = "⚓ Recrutement d'équipage — %s" % (_port.Nom_port if _port else "Port")
+	title.text = "⚓ Recrutement d'équipage — %s" % _get_port_display_name()
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_font_size_override("font_size", 19)
 	vbox.add_child(title)
@@ -610,3 +610,15 @@ func _show_feedback(msg: String, color: Color = Color.WHITE) -> void:
 # =========================
 func _separator() -> HSeparator:
 	return HSeparator.new()
+
+
+## Retourne le nom affiché du port, en lisant UI_stats_port si disponible
+func _get_port_display_name() -> String:
+	if _port == null:
+		return "Port"
+	for child in _port.get_children():
+		if child is UI_stats_port:
+			return child._nom_affiche
+	if _port.Nom_port != "" and _port.Nom_port != "Nom du Port":
+		return _port.Nom_port
+	return "Port"

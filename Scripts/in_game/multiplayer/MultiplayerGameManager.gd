@@ -19,6 +19,13 @@ var data = null
 var fog_of_war: FogOfWar = null
 var fog_manager: FogManager = null
 var hex_menu: HexContextMenu = null
+var fish_manager: FishManager = null
+
+# UI d'inspection de case
+var case_info_ui: UI_case_info = null
+
+# UI d'aide — bouton "?" et panneau des commandes
+var aide_ui: UI_aide = null
 
 var player1 = null
 var player2 = null
@@ -27,6 +34,23 @@ var selected_ship = null
 var selected_port = null
 
 var host_match_initialized: bool = false
+
+# Proxy minimal exposant spawn_navire_at pour la compatibilité avec port.gd
+# (port.gd appelle game_manager.ship_manager.spawn_navire_at(...))
+var ship_manager: _MultiShipManagerProxy = null
+
+
+class _MultiShipManagerProxy:
+	var _gm: WeakRef
+
+	func _init(gm) -> void:
+		_gm = weakref(gm)
+
+	func spawn_navire_at(player, case_pos: Vector2i, is_player_controlled: bool = false, ship_id: int = 0):
+		var gm = _gm.get_ref()
+		if gm == null:
+			return null
+		return gm.spawn_navire_at(player, case_pos, is_player_controlled, ship_id)
 
 
 func _enter_tree() -> void:
@@ -40,10 +64,14 @@ func _enter_tree() -> void:
 
 
 func _ready() -> void:
+	ship_manager = _MultiShipManagerProxy.new(self)
 	_refresh_refs()
 	_setup_fog_of_war()
+	_setup_fish_manager()
 	_setup_hex_menu()
-	await _setup_game_over_ui() 
+	_setup_case_info_ui()
+	_setup_aide_ui()
+	await _setup_game_over_ui()
 
 func _setup_game_over_ui() -> void:
 	var ui_game_over := UI_game_over.new()
@@ -67,6 +95,8 @@ func _refresh_refs() -> void:
 	bootstrap = get_tree().get_first_node_in_group("multiplayer_bootstrap")
 	command_router = get_tree().get_first_node_in_group("command_router")
 	data = get_tree().get_first_node_in_group("shared_entities")
+	if fish_manager == null:
+		fish_manager = get_tree().get_first_node_in_group("fish_manager")
 
 
 func _setup_fog_of_war() -> void:
@@ -94,6 +124,33 @@ func _setup_hex_menu() -> void:
 	hex_menu.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	canvas.add_child(hex_menu)
 	hex_menu.action_selected.connect(_on_hex_menu_action)
+
+
+func _setup_fish_manager() -> void:
+	fish_manager = get_tree().get_first_node_in_group("fish_manager")
+	if not fish_manager:
+		DEBUG.log("[MULTI GM] Création dynamique de FishManager...")
+		fish_manager = FishManager.new()
+		fish_manager.name = "FishManager"
+		add_child(fish_manager)
+	else:
+		DEBUG.log("[MULTI GM] FishManager trouvé dans la scène")
+
+
+func _setup_case_info_ui() -> void:
+	case_info_ui = UI_case_info.new()
+	case_info_ui.name = "UI_case_info"
+	add_child(case_info_ui)
+	case_info_ui.setup()
+	DEBUG.log("[MULTI GM] UI_case_info créé")
+
+
+func _setup_aide_ui() -> void:
+	aide_ui = UI_aide.new()
+	aide_ui.name = "UI_aide"
+	add_child(aide_ui)
+	await aide_ui.setup()
+	DEBUG.log("[MULTI GM] UI_aide créé")
 
 
 func _on_map_generated() -> void:
@@ -158,6 +215,10 @@ func _initialize_host_match() -> void:
 	for port in all_ports:
 		if port.has_signal("port_captured"):
 			port.port_captured.connect(_on_port_captured)
+
+	# Initialiser les stocks de poissons via le FishManager
+	if fish_manager:
+		fish_manager.initialize_fish_tiles()
 
 	var ship1 = spawn_navire_random(player1, true, 1)
 	var ship2 = spawn_navire_random(player2, false, 101)
@@ -316,11 +377,21 @@ func spawn_navire(player, position: Vector2, is_player_controlled: bool = false,
 	if navire.has_signal("sig_open_hex_menu"):
 		navire.sig_open_hex_menu.connect(_on_open_hex_menu)
 
+	if navire.has_signal("sig_inspect_case"):
+		navire.sig_inspect_case.connect(_on_inspect_case)
+
+	if navire.has_signal("sig_inspect_fish"):
+		navire.sig_inspect_fish.connect(_inspect_fish_on_case)
+
 	if data == null:
 		data = get_tree().get_first_node_in_group("shared_entities")
 
 	if data and data.has_method("addNavireToData"):
 		data.addNavireToData(navire)
+
+	# Connecter le nouveau navire au FogManager pour que le fog se mette à jour
+	if fog_manager and fog_manager.has_method("_connect_to_ship_signals"):
+		fog_manager._connect_to_ship_signals()
 
 	return navire
 
@@ -328,6 +399,44 @@ func spawn_navire(player, position: Vector2, is_player_controlled: bool = false,
 func spawn_navire_random(player, is_player_controlled: bool = false, ship_id: int = 0):
 	var pos = Map_utils.get_random_ocean_position()
 	return spawn_navire(player, pos, is_player_controlled, ship_id)
+
+
+func spawn_navire_at(player, case_pos: Vector2i, is_player_controlled: bool = false, ship_id: int = 0):
+	var pos: Vector2 = Map_utils.case_vers_monde(case_pos)
+	# Générer un ID unique si non fourni
+	var final_id := ship_id if ship_id != 0 else (Time.get_ticks_msec() % 100000 + randi() % 1000)
+	var navire = spawn_navire(player, pos, is_player_controlled, final_id)
+	# Synchroniser le nouveau navire chez tous les clients
+	if navire and multiplayer.has_multiplayer_peer() and network_manager and network_manager.is_host():
+		_rpc_spawn_navire.rpc(
+			player.player_id,
+			pos.x, pos.y,
+			is_player_controlled,
+			final_id
+		)
+	return navire
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_spawn_navire(player_id: int, pos_x: float, pos_y: float, is_player_controlled: bool, ship_id: int) -> void:
+	_refresh_refs()
+	if players_manager == null:
+		push_error("[MULTI GM] _rpc_spawn_navire : PlayersManager introuvable")
+		return
+	var owner_player = players_manager.get_player_by_id(player_id)
+	if owner_player == null:
+		push_error("[MULTI GM] _rpc_spawn_navire : joueur %d introuvable" % player_id)
+		return
+	var local_controlled = match_context != null and match_context.is_local_player(player_id)
+	var pos := Vector2(pos_x, pos_y)
+	var navire = spawn_navire(owner_player, pos, local_controlled, ship_id)
+	if navire == null:
+		push_error("[MULTI GM] _rpc_spawn_navire : spawn échoué pour joueur %d" % player_id)
+		return
+	# Mettre à jour le fog pour le joueur local
+	if fog_manager:
+		fog_manager.update_fog()
+	DEBUG.log("[MULTI GM] Navire [%d] reçu via RPC pour joueur %d" % [ship_id, player_id])
 
 
 func select_ship(ship) -> void:
@@ -417,6 +526,59 @@ func deselect_port() -> void:
 # Gestion Port
 # ===============================
 	
+## Appelé par un navire local pour synchroniser sa position chez les autres peers.
+func sync_ship_position(ship_id: int, case_x: int, case_y: int, world_x: float, world_y: float, rotation_angle: float) -> void:
+	_rpc_sync_ship_position.rpc(ship_id, case_x, case_y, world_x, world_y, rotation_angle)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_sync_ship_position(ship_id: int, case_x: int, case_y: int, world_x: float, world_y: float, rotation_angle: float) -> void:
+	for ship in get_tree().get_nodes_in_group("ships"):
+		if ship is Navires and ship.id == ship_id:
+			ship.case_actuelle = Vector2i(case_x, case_y)
+			ship.global_position = Vector2(world_x, world_y)
+			ship.target_rotation_angle = rotation_angle
+			ship._set_visual_rotation(rotation_angle)
+			ship._update_visibility_in_fog()
+			return
+
+
+## Appelé par un navire attaquant pour synchroniser les dégâts en multi.
+## L'hôte broadcaste directement ; le client passe par l'hôte.
+func apply_damage_networked(target_ship_id: int, damage: int) -> void:
+	if network_manager == null:
+		network_manager = get_tree().get_first_node_in_group("network_manager")
+	if network_manager != null and network_manager.is_host():
+		# Hôte : applique directement + broadcaste aux clients
+		_rpc_apply_damage.rpc(target_ship_id, damage)
+	else:
+		# Client : envoie à tous les peers (rpc_id(1) ne cible pas toujours l'hôte ENet)
+		# Le guard is_host() dans _rpc_request_damage filtre qui traite réellement.
+		_rpc_request_damage.rpc(target_ship_id, damage)
+
+
+# Le client demande à l'hôte d'appliquer les dégâts.
+# Déclaré call_remote : seuls les autres peers reçoivent l'appel.
+# Le guard is_host fait que seul l'hôte traite réellement la demande.
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_request_damage(target_ship_id: int, damage: int) -> void:
+	if network_manager == null:
+		network_manager = get_tree().get_first_node_in_group("network_manager")
+	if network_manager == null or not network_manager.is_host():
+		return
+	_rpc_apply_damage.rpc(target_ship_id, damage)
+
+
+# L'hôte broadcaste les dégâts à tous les peers (call_local inclus)
+@rpc("any_peer", "call_local", "reliable")
+func _rpc_apply_damage(target_ship_id: int, damage: int) -> void:
+	for ship in get_tree().get_nodes_in_group("ships"):
+		if ship is Navires and ship.id == target_ship_id:
+			ship.take_damage(damage)
+			return
+	push_error("[MULTI GM] _rpc_apply_damage : navire %d introuvable" % target_ship_id)
+
+
 func _on_port_captured(port: Ports, new_owner: Player, old_owner: Player) -> void:
 	DEBUG.log("Port [%d] capturé : %s → %s" % [
 		port.id,
@@ -425,4 +587,155 @@ func _on_port_captured(port: Ports, new_owner: Player, old_owner: Player) -> voi
 	])
 	if fog_manager:
 		fog_manager.update_fog()
-		
+
+
+# ===============================
+# INPUT HANDLING
+# ===============================
+
+func _input(event: InputEvent) -> void:
+	if event.is_action_pressed("ui_focus_next") or (event is InputEventKey and event.pressed and event.keycode == KEY_TAB and not event.shift_pressed):
+		var local_player = players_manager.get_local_player() if players_manager else null
+		if local_player and match_context and match_context.is_local_turn():
+			var ships = local_player.get_navires()
+			if ships.size() > 1:
+				var cur = get_selected_ship()
+				var idx = ships.find(cur) if cur else -1
+				select_ship(ships[(idx + 1) % ships.size()])
+		get_viewport().set_input_as_handled()
+
+	elif event is InputEventKey and event.pressed and event.keycode == KEY_TAB and event.shift_pressed:
+		var local_player = players_manager.get_local_player() if players_manager else null
+		if local_player and match_context and match_context.is_local_turn():
+			var ships = local_player.get_navires()
+			if ships.size() > 1:
+				var cur = get_selected_ship()
+				var idx = ships.find(cur) if cur else 0
+				select_ship(ships[(idx - 1 + ships.size()) % ships.size()])
+		get_viewport().set_input_as_handled()
+
+	elif event is InputEventKey and event.pressed:
+		var local_player = players_manager.get_local_player() if players_manager else null
+		if local_player and match_context and match_context.is_local_turn():
+			var ships = local_player.get_navires()
+			match event.keycode:
+				KEY_1:
+					if ships.size() > 0: select_ship(ships[0])
+					get_viewport().set_input_as_handled()
+				KEY_2:
+					if ships.size() > 1: select_ship(ships[1])
+					get_viewport().set_input_as_handled()
+				KEY_3:
+					if ships.size() > 2: select_ship(ships[2])
+					get_viewport().set_input_as_handled()
+
+
+# ===============================
+# INSPECTION DE CASE
+# ===============================
+
+## Action : lorsqu'une case est inspectée
+func _on_inspect_case(case_pos: Vector2i) -> void:
+	DEBUG.log("[MULTI GM] Inspection de la case %s" % str(case_pos))
+
+	var local_player = players_manager.get_local_player() if players_manager else null
+	if not local_player:
+		DEBUG.log("[INSPECT] Joueur local introuvable, inspection ignorée")
+		return
+
+	# Si le fog n'est pas initialisé, on inspecte quand même (pas de restriction brouillard)
+	var fog_state: int = FogOfWar.FogState.VISIBLE
+	if fog_of_war:
+		fog_state = fog_of_war.get_fog_state(case_pos)
+		DEBUG.log("[INSPECT] Fog state pour %s : %d" % [str(case_pos), fog_state])
+		if fog_state == FogOfWar.FogState.UNEXPLORED:
+			DEBUG.log("[INSPECT] Case %s jamais vue, inspection ignorée" % str(case_pos))
+			return
+
+	# Navires sur la case
+	var ships_on_case: Array = []
+	if data and data.has_method("getNavireByPosition"):
+		ships_on_case = data.getNavireByPosition(case_pos)
+	if not ships_on_case.is_empty():
+		var target: Navires = ships_on_case[0]
+		if target and is_instance_valid(target) and target.stats_panel:
+			target.stats_panel.show_stats()
+
+	_inspect_tile_info(case_pos, fog_state)
+
+
+func _inspect_tile_info(case_pos: Vector2i, fog_state: int) -> void:
+	if not case_info_ui:
+		DEBUG.log("[INSPECT] case_info_ui est null !", DEBUG.ERROR)
+		return
+	var map_manager = get_tree().get_first_node_in_group("Map_manager")
+	if not map_manager:
+		DEBUG.log("[INSPECT] Map_manager introuvable !", DEBUG.ERROR)
+		return
+
+	var axial: Vector2 = map_manager.grid.offset_to_axial(case_pos.x, case_pos.y)
+	var q := int(axial.x)
+	var r := int(axial.y)
+	var cell: HexCell = map_manager.grid.get_cell(q, r, -q - r)
+
+	if not cell:
+		DEBUG.log("[INSPECT] Cellule introuvable pour %s" % str(case_pos))
+		return
+
+	var tile_type: String = cell.getTypeTerrain()
+	var is_visible: bool = (fog_state == FogOfWar.FogState.VISIBLE)
+
+	var local_player = players_manager.get_local_player() if players_manager else null
+	var fish_count: int = -1
+	if tile_type == "fish" and fish_manager and local_player:
+		var info: Dictionary = fish_manager.get_stock_for_player(local_player, case_pos, fog_of_war)
+		if info["known"]:
+			fish_count = info["stock"]
+
+	DEBUG.log("[INSPECT] Case %s → type='%s' visible=%s" % [str(case_pos), tile_type, str(is_visible)])
+	case_info_ui.show_tile_info(tile_type, case_pos, is_visible, fish_count)
+
+	# Si c'est un port, afficher ses stats en mode inspection
+	if tile_type == "port":
+		for port in get_tree().get_nodes_in_group("ports"):
+			if port is Ports and port.case_actuelle == case_pos:
+				if port.has_method("show_stats_inspect") or (port.get_node_or_null("UI_stats_port") != null):
+					for child in port.get_children():
+						if child is UI_stats_port:
+							child.show_stats_inspect()
+				break
+
+
+## Action : lorsqu'une case de pêche est inspectée
+func _inspect_fish_on_case(case_pos: Vector2i) -> void:
+	var local_player = players_manager.get_local_player() if players_manager else null
+	if not case_info_ui or not fish_manager or not fog_of_war or not local_player:
+		return
+
+	var info: Dictionary = fish_manager.get_stock_for_player(local_player, case_pos, fog_of_war)
+
+	if not info["known"]:
+		return
+
+	var wpos: Vector2 = Map_utils.case_vers_monde(case_pos)
+	var spos: Vector2 = _world_to_screen(wpos)
+
+	case_info_ui.show_fish_info(info["stock"], spos, info["is_live"])
+
+	if info["is_live"]:
+		DEBUG.log("[INSPECT] Case %s → %d 🐟 (vue directe)" % [str(case_pos), info["stock"]])
+	else:
+		DEBUG.log("[INSPECT] Case %s → %d 🐟 (dernière observation, tour %d)" % [
+			str(case_pos), info["stock"], info["turn"]
+		])
+
+
+## Fonction de conversion de coordonnées
+func _world_to_screen(world_pos: Vector2) -> Vector2:
+	var viewport := get_viewport()
+	if not viewport:
+		return world_pos
+	var cam := viewport.get_camera_2d()
+	if not cam:
+		return world_pos
+	return viewport.get_canvas_transform() * world_pos

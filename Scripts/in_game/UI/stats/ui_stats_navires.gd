@@ -366,7 +366,15 @@ func show_ally():
 
 func _show_crew_panel():
 	"""Affiche le panneau équipage uniquement pour les navires alliés."""
-	if navire.player_owner == null or not navire.player_owner.is_human:
+	if navire.player_owner == null:
+		return
+	# En multi : allié = is_local ; en solo : allié = is_human
+	var is_local_ally: bool
+	if navire.player_owner.get("is_local") != null:
+		is_local_ally = navire.player_owner.is_local
+	else:
+		is_local_ally = navire.player_owner.is_human
+	if not is_local_ally:
 		return
 	_update_crew_panel()
 	if crew_panel:
@@ -394,7 +402,16 @@ func hide_ally():
 
 func show_stats():
 	stats_timer = stats_duration
-	var is_ally = (navire.player_owner and navire.player_owner.is_human)
+	# En multi, is_human est true pour tous — on utilise is_local pour distinguer allié/ennemi
+	var is_ally: bool
+	if navire.player_owner == null:
+		is_ally = false
+	elif navire.player_owner.get("is_local") != null:
+		# Mode multi : allié = joueur local
+		is_ally = navire.player_owner.is_local
+	else:
+		# Mode solo : allié = joueur humain
+		is_ally = navire.player_owner.is_human
 	if is_ally:
 		if stats_panel_ally:
 			show_ally()

@@ -5,8 +5,8 @@ extends Node
 # RÉFÉRENCES
 # =========================
 var fog_of_war: FogOfWar
-var players_manager : PlayersManager = null
-var game_manager: GameManager
+var players_manager
+var game_manager
 
 ## Fréquence de mise à jour du brouillard (en secondes)
 ## Mettre à 0 pour désactiver la mise à jour continue

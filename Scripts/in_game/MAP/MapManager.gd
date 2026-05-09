@@ -89,8 +89,12 @@ func spawn_tile_object(cell: HexCell):
 	if(s.texture == Map_data.TileMissing):
 		DEBUG.log("Texture manquante pour le terrain '%s'" % cell.getTypeTerrain(),DEBUG.WARNING)
 	
-	var scale_x = Map_data.hex_width / s.texture.get_width()
-	var scale_y = Map_data.hex_height / s.texture.get_height()
+	var scale_x = Map_data.hex_width / float(Map_data.TILE_WIDTH)
+	var scale_y = Map_data.hex_height / float(Map_data.TILE_HEIGHT)
+
+	if cell.getTypeTerrain() == "fish":
+		scale_x = Map_data.hex_width / float(s.texture.get_width())
+		scale_y = Map_data.hex_height / float(s.texture.get_height())
 	s.scale = Vector2(scale_x, scale_y)
 
 	# Utilisation des coordonnées offset stockées dans la cellule
@@ -108,7 +112,7 @@ func spawn_tile_object(cell: HexCell):
 		
 		cell.port_instance = port_node
 		
-		
+
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:

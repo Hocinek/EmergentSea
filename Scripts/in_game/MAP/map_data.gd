@@ -10,6 +10,7 @@ static var tiles := []
 static var ocean_cases: Array = []	#liste des cases navigables
 static var ports := []  # liste des positions des ports (Vector2i)
 static var fish_cases: Array = []   # liste des cases de pêche (Vector2i)
+static var fish_underlying: Dictionary = {}  # {Vector2i: String} terrain sous-jacent des cases fish
 
 # =========================
 # RESSOURCES DE PÊCHE
@@ -29,6 +30,7 @@ static var TileForest: Texture2D = preload("res://Assets/textures/tiles/TileFore
 static var TileMountain: Texture2D = preload("res://Assets/textures/tiles/TileMountain.png")
 static var TilePort: Texture2D = preload("res://Assets/textures/tiles/TilePort.png")
 static var TileFish: Texture2D = preload("res://Assets/textures/tiles/TileFish.png")
+static var TileFishNotDeep: Texture2D = preload("res://Assets/textures/tiles/TileFishNotDeep.png")
 static var TileMissing : Texture2D = preload("res://Assets/textures/tiles/TileMissing.png")
 
 

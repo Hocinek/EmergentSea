@@ -10,6 +10,7 @@ var _s : int
 var _offset_coords : Vector2i 
 
 var _terrain_type : String = "default"
+var _underlying_terrain : String = ""  # Terrain sous-jacent (utile pour les cases fish)
 
 var port_instance: Node2D = null
 
@@ -19,6 +20,9 @@ func _init(q: int, r: int, s: int, offset_coords: Vector2i, terrain_type: String
 	self._s = s
 	self._offset_coords = offset_coords
 	self._terrain_type = terrain_type
+	# Récupérer le terrain sous-jacent si c'est une case fish
+	if terrain_type == "fish":
+		_underlying_terrain = Map_data.fish_underlying.get(offset_coords, "water")
 
 func getCoordinates() -> Vector3:
 	return Vector3(_q,_r,_s)
@@ -30,18 +34,16 @@ func getTabCoordinates() -> Vector2i :
 	return _offset_coords
 
 func getTileTexture() -> Texture2D :
-	var tile_name = "TileMissing"
 	match _terrain_type:
-		"deepwater": tile_name = "TileDeepWater"
-		"water": tile_name = "TileWater"
-		"sand": tile_name = "TileSand"
-		"earth": tile_name = "TileEarth"
-		"forest": tile_name = "TileForest"
-		"mountain": tile_name = "TileMountain"
-		"port": tile_name = "TilePort"
-		"fish": tile_name = "TileFish" 
-	var m_data = Map_data.new()
-	var texture =  m_data.get(tile_name)
-	if(texture == null):
-		texture = Map_data.TileMissing
-	return texture
+		"deepwater": return Map_data.TileDeepWater
+		"water":     return Map_data.TileWater
+		"sand":      return Map_data.TileSand
+		"earth":     return Map_data.TileEarth
+		"forest":    return Map_data.TileForest
+		"mountain":  return Map_data.TileMountain
+		"port":      return Map_data.TilePort
+		"fish":
+			if _underlying_terrain == "deepwater":
+				return Map_data.TileFish
+			return Map_data.TileFishNotDeep
+	return Map_data.TileMissing

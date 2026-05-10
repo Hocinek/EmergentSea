@@ -56,6 +56,15 @@ var case_actuelle: Vector2i
 # Référence à la zone de clic (pour pouvoir la recréer si le propriétaire change)
 var _click_area: Area2D = null
 
+# =========================
+# FEEDBACK COMBAT
+# =========================
+## Label flottant affichant les dégâts reçus par le port
+var _damage_label: Label = null
+var _damage_label_timer: float = 0.0
+const _DAMAGE_LABEL_DURATION: float = 1.5
+const _DAMAGE_LABEL_RISE_SPEED: float = 40.0
+
 
 # =========================
 # SÉLECTION VISUELLE
@@ -82,6 +91,7 @@ func _ready():
 	
 	# Initialisation de l'UI
 	_init_stats_ui()
+	_init_damage_label()
 
 	# Configuration de la zone de clic
 	_setup_click_area()
@@ -397,6 +407,30 @@ func _init_stats_ui():
 	DEBUG.log("UI Stats créée pour port [%d]" % id)
 
 
+func _init_damage_label() -> void:
+	"""Crée le label flottant de feedback de dégâts, ajouté au ui_layer."""
+	if not ui_layer:
+		return
+	_damage_label = Label.new()
+	_damage_label.visible = false
+	_damage_label.z_index = 10
+	_damage_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_damage_label.add_theme_font_size_override("font_size", 18)
+	_damage_label.add_theme_color_override("font_color", Color(1, 0.3, 0.3))
+	ui_layer.add_child(_damage_label)
+
+
+func _process(delta: float) -> void:
+	if _damage_label and _damage_label.visible:
+		_damage_label_timer -= delta
+		# Repositionner en coordonnées écran à chaque frame
+		var screen_pos: Vector2 = get_viewport().get_canvas_transform() * global_position
+		_damage_label.position = screen_pos + Vector2(-20, -60 - (_DAMAGE_LABEL_DURATION - _damage_label_timer) * _DAMAGE_LABEL_RISE_SPEED)
+		_damage_label.modulate.a = clampf(_damage_label_timer / _DAMAGE_LABEL_DURATION, 0.0, 1.0)
+		if _damage_label_timer <= 0.0:
+			_damage_label.visible = false
+
+
 # =========================
 # COMBAT
 # =========================
@@ -405,10 +439,21 @@ func take_damage(amount: int, attacker: Player) -> void:
 	current_hp -= amount
 	DEBUG.log("Port [%d] reçoit %d dégâts → %d/%d PV" % [id, amount, current_hp, max_hp])
 	is_under_attack = true
+	_show_damage_feedback(amount)
 	sig_show_port.emit(attacker)
 	if current_hp <= 0:
 		current_hp = 0
 		_on_captured(attacker)
+
+
+func _show_damage_feedback(amount: int) -> void:
+	"""Affiche un label flottant '-X ❤️' au-dessus du port."""
+	if _damage_label == null:
+		return
+	_damage_label.text = "-%d ❤️" % amount
+	_damage_label.modulate.a = 1.0
+	_damage_label.visible = true
+	_damage_label_timer = _DAMAGE_LABEL_DURATION
 
 func _on_captured(new_owner: Player) -> void:
 	var old_owner = player_owner

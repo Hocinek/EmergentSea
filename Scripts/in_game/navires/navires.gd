@@ -677,9 +677,12 @@ func attempt_shoot(target_case: Vector2i) -> void:
 	var port = _get_port_at(target_case)
 	if port != null and port.player_owner != player_owner:
 		energie = max(energie - 10, 0)
+		has_attacked_this_turn = true
 		if _audio_player and attack_sound:
 			_audio_player.play()
-		take_damage(0) #Désolé Desiar mais j'arrive pas à résoudre un bug donc faudra se contenter de ça
+		stats_panel.show_ally()
+		if combat_feedback_label and is_instance_valid(combat_feedback_label):
+			combat_feedback_label.show_energy_cost(self, 10)
 		DEBUG.log("Navire [%d] attaque port [%d] pour %d dégâts" % [id, port.id, dgt_tir])
 		if match_context != null and match_context.mode == MatchContext.MatchMode.MULTI:
 			var game_manager = get_tree().get_first_node_in_group("game_manager")

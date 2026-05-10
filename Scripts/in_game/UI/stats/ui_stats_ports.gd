@@ -89,9 +89,11 @@ func _process(delta):
 func handler(attacker: Player):
 	if not _ui_ready:
 		return
-	# En multijoueur, n'afficher que chez l'attaquant local
-	if attacker != null and not attacker.is_local:
-		return
+	# En multijoueur uniquement, n'afficher que chez l'attaquant local
+	var match_context = get_tree().get_first_node_in_group("match_context")
+	if match_context != null and match_context.mode == MatchContext.MatchMode.MULTI:
+		if attacker != null and not attacker.is_local:
+			return
 	if isVisible():
 		hide_all_stats()
 	else:

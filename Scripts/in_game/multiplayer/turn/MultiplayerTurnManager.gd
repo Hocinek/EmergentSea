@@ -312,8 +312,9 @@ func _ports_attack_current_player(player) -> void:
 				continue
 			if port.can_attack_position(navire.case_actuelle):
 				DEBUG.log("Port [%d] attaque navire [%d] pour %d dégâts" % [port.id, navire.id, port.attack_damage])
-				if game_manager and game_manager.has_method("apply_damage_networked"):
-					game_manager.apply_damage_networked(navire.id, port.attack_damage)
+				var attacker_owner_id: int = port.player_owner.player_id if port.player_owner else -1
+				if game_manager and game_manager.has_method("apply_damage_networked_port_attack"):
+					game_manager.apply_damage_networked_port_attack(navire.id, port.attack_damage, attacker_owner_id)
 				else:
 					navire.take_damage(port.attack_damage)
 

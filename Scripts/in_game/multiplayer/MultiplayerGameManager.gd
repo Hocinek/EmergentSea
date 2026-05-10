@@ -551,11 +551,55 @@ func apply_damage_networked(target_ship_id: int, damage: int) -> void:
 		network_manager = get_tree().get_first_node_in_group("network_manager")
 	if network_manager != null and network_manager.is_host():
 		# Hôte : applique localement d'abord, puis broadcaste aux clients seulement
-		_apply_damage_local(target_ship_id, damage)
-		_rpc_apply_damage.rpc(target_ship_id, damage)
+		_apply_damage_local(target_ship_id, damage, true)
+		_rpc_apply_damage.rpc(target_ship_id, damage, true)
 	else:
 		# Client : envoie la demande à l'hôte
 		_rpc_request_damage.rpc(target_ship_id, damage)
+
+
+## Variante pour les attaques de port : seul le proprio du navire touché voit l'UI.
+func apply_damage_networked_port_attack(target_ship_id: int, damage: int, attacker_owner_id: int) -> void:
+	if network_manager == null:
+		network_manager = get_tree().get_first_node_in_group("network_manager")
+	if network_manager == null or not network_manager.is_host():
+		return
+	# Trouver le player_id du proprio du navire touché
+	var target_owner_id := -1
+	for ship in get_tree().get_nodes_in_group("ships"):
+		if ship is Navires and ship.id == target_ship_id and ship.player_owner:
+			target_owner_id = ship.player_owner.player_id
+			break
+	# Hôte : affiche uniquement si c'est son propre navire qui est touché
+	var host_local_id := match_context.local_player_id if match_context else -1
+	var host_show_ui := (host_local_id == target_owner_id)
+	_apply_damage_local(target_ship_id, damage, host_show_ui)
+	# Clients : RPC broadcast, chaque client calcule son show_ui localement
+	_rpc_apply_damage_port_attack.rpc(target_ship_id, damage, target_owner_id)
+
+
+# Résout le player_id associé à un peer réseau
+func _get_player_id_for_peer(peer_id: int) -> int:
+	if players_manager == null:
+		players_manager = get_tree().get_first_node_in_group("players_manager")
+	if players_manager == null:
+		return -1
+	var nm = get_tree().get_first_node_in_group("network_manager")
+	if nm and nm.has_method("get_player_id_for_peer"):
+		return nm.get_player_id_for_peer(peer_id)
+	# Fallback : peer_id 1 = hôte = player_id 1, autre = player_id 2
+	return 1 if peer_id == 1 else 2
+
+
+# RPC broadcast pour attaque de port : chaque client calcule son show_ui
+# en comparant target_owner_id à son propre local_player_id.
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_apply_damage_port_attack(target_ship_id: int, damage: int, target_owner_id: int) -> void:
+	if match_context == null:
+		match_context = get_tree().get_first_node_in_group("match_context")
+	var local_id := match_context.local_player_id if match_context else -1
+	var show_ui := (local_id == target_owner_id)
+	_apply_damage_local(target_ship_id, damage, show_ui)
 
 
 # Le client demande à l'hôte d'appliquer les dégâts.
@@ -565,22 +609,21 @@ func _rpc_request_damage(target_ship_id: int, damage: int) -> void:
 		network_manager = get_tree().get_first_node_in_group("network_manager")
 	if network_manager == null or not network_manager.is_host():
 		return
-	# L'hôte applique localement + envoie aux clients (call_remote = pas de boucle)
-	_apply_damage_local(target_ship_id, damage)
-	_rpc_apply_damage.rpc(target_ship_id, damage)
+	_apply_damage_local(target_ship_id, damage, true)
+	_rpc_apply_damage.rpc(target_ship_id, damage, true)
 
 
-# L'hôte broadcaste les dégâts aux clients uniquement (call_remote pour eviter double application)
+# L'hôte broadcaste les dégâts aux clients (call_remote pour eviter double application)
 @rpc("any_peer", "call_remote", "reliable")
-func _rpc_apply_damage(target_ship_id: int, damage: int) -> void:
-	_apply_damage_local(target_ship_id, damage)
+func _rpc_apply_damage(target_ship_id: int, damage: int, show_ui: bool) -> void:
+	_apply_damage_local(target_ship_id, damage, show_ui)
 
 
-# Application locale des degats (utilise par l'hote ET les clients via RPC)
-func _apply_damage_local(target_ship_id: int, damage: int) -> void:
+# Application locale des dégâts
+func _apply_damage_local(target_ship_id: int, damage: int, show_ui: bool = true) -> void:
 	for ship in get_tree().get_nodes_in_group("ships"):
 		if ship is Navires and ship.id == target_ship_id:
-			ship.take_damage(damage)
+			ship.take_damage(damage, show_ui)
 			return
 	push_error("[MULTI GM] _apply_damage_local : navire %d introuvable" % target_ship_id)
 

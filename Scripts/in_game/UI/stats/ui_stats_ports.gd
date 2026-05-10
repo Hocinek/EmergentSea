@@ -86,8 +86,11 @@ func _process(delta):
 		update()
 
 
-func handler():
+func handler(attacker: Player):
 	if not _ui_ready:
+		return
+	# En multijoueur, n'afficher que chez l'attaquant local
+	if attacker != null and not attacker.is_local:
 		return
 	if isVisible():
 		hide_all_stats()

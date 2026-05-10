@@ -427,12 +427,13 @@ func is_alive() -> bool:
 	return vie > 0
 
 ## Applique des dégâts au navire
-func take_damage(damage: int) -> void:
+func take_damage(damage: int, show_ui: bool = true) -> void:
 	if not is_alive():
 		return
 	vie = max(vie - damage, 0)
 	emit_signal("sig_navire_damaged", self, damage)
-	stats_panel.show_stats()
+	if show_ui:
+		stats_panel.show_stats()
 	if vie <= 0:
 		die()
 

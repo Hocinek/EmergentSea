@@ -297,10 +297,25 @@ func fin_de_partie() -> void:
 
 ## Tous les ports neutres ou ennemis attaquent les navires du joueur qui vient de finir son tour.
 func _ports_attack_current_player(player) -> void:
+	var game_manager = get_tree().get_first_node_in_group("game_manager")
 	var all_ports = get_tree().get_nodes_in_group("ports")
 	for port in all_ports:
-		if port is Ports and is_instance_valid(port):
-			port.attack_nearby_ships(player)
+		if not (port is Ports and is_instance_valid(port)):
+			continue
+		if port.player_owner != null and port.player_owner == player:
+			continue  # Port ami => pas d'attaque
+		var all_ships = get_tree().get_nodes_in_group("ships")
+		for navire in all_ships:
+			if not is_instance_valid(navire) or not navire.is_alive():
+				continue
+			if navire.player_owner != player:
+				continue
+			if port.can_attack_position(navire.case_actuelle):
+				DEBUG.log("Port [%d] attaque navire [%d] pour %d dégâts" % [port.id, navire.id, port.attack_damage])
+				if game_manager and game_manager.has_method("apply_damage_networked"):
+					game_manager.apply_damage_networked(navire.id, port.attack_damage)
+				else:
+					navire.take_damage(port.attack_damage)
 
 
 # L'hôte broadcaste le game over sur tous les peers + lui-même (call_local).

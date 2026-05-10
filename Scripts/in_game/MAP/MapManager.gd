@@ -104,8 +104,11 @@ func spawn_tile_object(cell: HexCell):
 		var port_node = Map_data.port_scene.instantiate()
 		port_node.position = pixel_pos
 		port_node.setCell(cell)
+		# ID déterministe basé sur la position offset — identique sur les deux peers
+		var offset_coords2 = cell.getTabCoordinates()
+		port_node.id = offset_coords2.x * 10000 + offset_coords2.y
 		add_child(port_node)
-		
+
 		cell.port_instance = port_node
 		
 

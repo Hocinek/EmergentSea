@@ -348,7 +348,7 @@ func show_stats():
 			show_enemy()
 		else:
 			show_neutral()
-	elif self._port.player_owner.is_human:
+	elif self._port._is_local_human_owner():
 		show_ally()
 	else:
 		show_enemy()
@@ -373,7 +373,7 @@ func show_stats_inspect():
 	stats_timer = stats_duration
 	if self._port.player_owner == null:
 		show_neutral()
-	elif self._port.player_owner.is_human:
+	elif self._port._is_local_human_owner():
 		show_ally()
 	else:
 		show_enemy()

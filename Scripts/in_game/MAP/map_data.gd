@@ -39,8 +39,8 @@ static var port_scene = preload("res://Scenes/in_game/ENTITIES/Port.tscn")
 # =========================
 # Map parameters
 # =========================
-static var map_width : int = 64
-static var map_height : int = 32
+static var map_width : int = 128
+static var map_height : int = 64
 static var hex_width : int = 512
 static var hex_height : int = 256
 

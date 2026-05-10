@@ -647,13 +647,20 @@ func attempt_shoot(target_case: Vector2i) -> void:
 			
 	# Tenter d'attaquer un port sur cette case
 	var port = _get_port_at(target_case)
-	if port != null and port.player_owner != player_owner :
-		port.take_damage(dgt_tir, player_owner)
-		energie = max(energie -10, 0)
-		if _audio_player and attack_sound :
+	if port != null and port.player_owner != player_owner:
+		energie = max(energie - 10, 0)
+		if _audio_player and attack_sound:
 			_audio_player.play()
 		take_damage(0) #Désolé Desiar mais j'arrive pas à résoudre un bug donc faudra se contenter de ça
 		DEBUG.log("Navire [%d] attaque port [%d] pour %d dégâts" % [id, port.id, dgt_tir])
+		if match_context != null and match_context.mode == MatchContext.MatchMode.MULTI:
+			var game_manager = get_tree().get_first_node_in_group("game_manager")
+			if game_manager and game_manager.has_method("apply_port_damage_networked"):
+				game_manager.apply_port_damage_networked(port.id, dgt_tir, player_owner.player_id)
+			else:
+				push_error("[NAVIRE %d] GameManager introuvable pour apply_port_damage_networked" % id)
+		else:
+			port.take_damage(dgt_tir, player_owner)
 		return
 		
 	# Récupérer les navires sur la case cible
@@ -720,14 +727,11 @@ func is_in_range(target_case: Vector2i) -> bool:
 		var min_dist := 999
 		for neighbor in neighbors:
 			if Map_utils.is_case_navigable(neighbor):
-				var chemin := Pathfinder.calculer_chemin(case_actuelle, neighbor)
-				if not chemin.is_empty():
-					# +1 car on doit encore traverser la case du port lui-même
-					min_dist = mini(min_dist, chemin.size() + 1)
+				# +1 car on doit encore traverser la case du port lui-même
+				min_dist = mini(min_dist, _hex_distance(case_actuelle, neighbor) + 1)
 		return min_dist <= tir
-	# Pour les navires, on utilise le chemin réel
-	var chemin := Pathfinder.calculer_chemin(case_actuelle, target_case)
-	return chemin.size() <= tir
+	# Pour les navires, on utilise la distance hexagonale directe
+	return _hex_distance(case_actuelle, target_case) <= tir
 
 
 ## Calcule la distance hexagonale en cases entre deux positions (sans tenir compte des obstacles).

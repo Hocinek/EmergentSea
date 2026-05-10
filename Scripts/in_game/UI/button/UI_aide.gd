@@ -34,12 +34,16 @@ const COLOR_KEY:   Color = Color(1.0,  0.85, 0.4)
 # Chaque entrée = [icône + action, description]
 # =========================
 const COMMANDES: Array = [
-	["🖱️ Clic gauche sur case", "Déplacer le navire sélectionné (1⚡ par case)"],
-	["🖱️ Clic droit sur navire", "Ouvrir le menu d'actions"],
-	["🖱️ Clic droit sur case", "Attaquer la case ciblée (10⚡)"],
+	["🖱️ Clic gauche sur navire", "Ouvrir le menu d'actions"],
+	["🖱️ Clic droit sur case", "Déplacer le navire (1⚡ par case, confirmation requise)"],
+	["🖱️ Clic gauche sur case ennemie", "Attaquer la case ciblée (10⚡)"],
 	["Tab / Maj+Tab", "Navire suivant / précédent"],
 	["1 / 2 / 3", "Sélectionner le navire 1, 2 ou 3"],
 	["Échap", "Annuler l'action en cours"],
+	["", ""],  # Séparateur visuel
+	["⬆️⬇️⬅️➡️ Touches fléchées", "Déplacer la caméra sur la carte"],
+	["🖱️ Souris au bord de l'écran", "Déplacer la caméra sur la carte"],
+	["🖱️ Molette souris", "Zoomer / dézoomer"],
 	["", ""],  # Séparateur visuel
 	["⚓ Menu → Déplacer", "Activer le mode déplacement"],
 	["⚔️ Menu → Attaquer", "Activer le mode attaque"],
@@ -110,16 +114,15 @@ func _create_panel_aide() -> void:
 	panel = PanelContainer.new()
 	panel.visible = false
 
-	# Centrage via ancres
-	panel.anchor_left   = 0.5
-	panel.anchor_right  = 0.5
-	panel.anchor_top    = 0.5
-	panel.anchor_bottom = 0.5
+	panel.anchor_left   = 0.0
+	panel.anchor_right  = 0.0
+	panel.anchor_top    = 1.0
+	panel.anchor_bottom = 1.0
 	panel.custom_minimum_size = Vector2(520, 560)
-	panel.offset_left   = -260
-	panel.offset_right  = 260
-	panel.offset_top    = -280
-	panel.offset_bottom = 280
+	panel.offset_left   = 16
+	panel.offset_right  = 536
+	panel.offset_top    = -596
+	panel.offset_bottom = -60
 
 	# Style de fond
 	var style := StyleBoxFlat.new()
@@ -233,6 +236,7 @@ func _open_panel() -> void:
 		return
 	panel.visible = true
 	panel_visible = true
+	btn_aide.visible = false  # Cache le bouton quand le panneau est ouvert
 	DEBUG.log("[UI_aide] Panneau ouvert")
 
 
@@ -242,6 +246,7 @@ func _close_panel() -> void:
 		return
 	panel.visible = false
 	panel_visible = false
+	btn_aide.visible = true  # Réaffiche le bouton à la fermeture
 	DEBUG.log("[UI_aide] Panneau fermé")
 
 

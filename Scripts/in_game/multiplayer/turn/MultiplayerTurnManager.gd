@@ -297,10 +297,35 @@ func fin_de_partie() -> void:
 
 ## Tous les ports neutres ou ennemis attaquent les navires du joueur qui vient de finir son tour.
 func _ports_attack_current_player(player) -> void:
+	var game_manager = get_tree().get_first_node_in_group("game_manager")
 	var all_ports = get_tree().get_nodes_in_group("ports")
 	for port in all_ports:
-		if port is Ports and is_instance_valid(port):
-			port.attack_nearby_ships(player)
+		if not (port is Ports and is_instance_valid(port)):
+			continue
+		if port.player_owner != null and port.player_owner == player:
+			continue  # Port ami => pas d'attaque
+		var all_ships = get_tree().get_nodes_in_group("ships")
+		for navire in all_ships:
+			if not is_instance_valid(navire) or not navire.is_alive():
+				continue
+			if navire.player_owner != player:
+				continue
+			if port.can_attack_position(navire.case_actuelle):
+				DEBUG.log("Port [%d] attaque navire [%d] pour %d dégâts" % [port.id, navire.id, port.attack_damage])
+				var attacker_owner_id: int = port.player_owner.player_id if port.player_owner else -1
+				if game_manager and game_manager.has_method("apply_damage_networked_port_attack"):
+					game_manager.apply_damage_networked_port_attack(navire.id, port.attack_damage, attacker_owner_id)
+				else:
+					navire.take_damage(port.attack_damage)
+
+
+## Appelé par NetworkManager quand un peer se déconnecte.
+## winner_player_id = le joueur LOCAL qui reste en jeu.
+func declare_winner_by_disconnect(winner_player_id: int) -> void:
+	if state == MultiplayerTurnState.State.GAME_OVER:
+		return
+	DEBUG.log("[MULTI TURN] Victoire par forfait — gagnant player_id: %d" % winner_player_id)
+	_rpc_sync_game_over.rpc(winner_player_id, "déconnexion de l'adversaire")
 
 
 # L'hôte broadcaste le game over sur tous les peers + lui-même (call_local).

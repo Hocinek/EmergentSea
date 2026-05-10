@@ -28,6 +28,10 @@ var _feedback_timer: Timer
 # Panel de détail des synergies (affiché/masqué via le bouton "Synergies")
 var _synergy_panel: PanelContainer = null
 
+# État du drag pour la fenêtre synergies
+var _synergy_dragging: bool = false
+var _synergy_drag_offset: Vector2 = Vector2.ZERO
+
 # Slots visuels de l'équipage (4 slots)
 # Chaque entrée est un dictionnaire { panel, icon, name_lbl, fire_btn }
 var _slot_panels: Array = []
@@ -325,6 +329,7 @@ func _on_synergy_info_pressed() -> void:
 	if _synergy_panel != null and is_instance_valid(_synergy_panel):
 		_synergy_panel.queue_free()
 		_synergy_panel = null
+		_synergy_dragging = false
 		return
 
 	_synergy_panel = PanelContainer.new()
@@ -352,12 +357,25 @@ func _on_synergy_info_pressed() -> void:
 	vbox.offset_bottom = -14
 	_synergy_panel.add_child(vbox)
 
+	# ── Barre de titre draggable ──
+	# On intercepte les événements souris sur le titre pour déplacer le panel
+	var drag_bar = HBoxContainer.new()
+	drag_bar.add_theme_constant_override("separation", 0)
+	drag_bar.mouse_filter = Control.MOUSE_FILTER_STOP
+	drag_bar.custom_minimum_size = Vector2(0, 32)
+	drag_bar.gui_input.connect(_on_synergy_drag_bar_input)
+	# Curseur main pour indiquer que c'est draggable
+	drag_bar.mouse_default_cursor_shape = Control.CURSOR_MOVE
+	vbox.add_child(drag_bar)
+
 	# Titre du panel
 	var title = Label.new()
 	title.text = "✨ Toutes les synergies"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_font_size_override("font_size", 17)
-	vbox.add_child(title)
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	title.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	drag_bar.add_child(title)
 
 	var subtitle = Label.new()
 	subtitle.text = "S'activent automatiquement quand les membres requis sont tous à bord."
@@ -622,3 +640,22 @@ func _get_port_display_name() -> String:
 	if _port.Nom_port != "" and _port.Nom_port != "Nom du Port":
 		return _port.Nom_port
 	return "Port"
+
+
+# =========================
+# DRAG DE LA FENÊTRE SYNERGIES
+# =========================
+
+## Gère les événements souris sur la barre de titre pour déplacer _synergy_panel.
+func _on_synergy_drag_bar_input(event: InputEvent) -> void:
+	if _synergy_panel == null or not is_instance_valid(_synergy_panel):
+		return
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
+		if event.pressed:
+			_synergy_dragging = true
+			# Offset = position souris dans le CanvasLayer - position du panel
+			_synergy_drag_offset = get_viewport().get_mouse_position() - _synergy_panel.position
+		else:
+			_synergy_dragging = false
+	if event is InputEventMouseMotion and _synergy_dragging:
+		_synergy_panel.position = get_viewport().get_mouse_position() - _synergy_drag_offset

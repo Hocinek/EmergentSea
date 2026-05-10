@@ -544,47 +544,168 @@ func _rpc_sync_ship_position(ship_id: int, case_x: int, case_y: int, world_x: fl
 
 
 ## Appelé par un navire attaquant pour synchroniser les dégâts en multi.
-## L'hôte broadcaste directement ; le client passe par l'hôte.
+## L'hôte applique localement + broadcaste aux clients.
+## Le client envoie la demande à l'hôte qui se charge de tout.
 func apply_damage_networked(target_ship_id: int, damage: int) -> void:
 	if network_manager == null:
 		network_manager = get_tree().get_first_node_in_group("network_manager")
 	if network_manager != null and network_manager.is_host():
-		# Hôte : applique directement + broadcaste aux clients
-		_rpc_apply_damage.rpc(target_ship_id, damage)
+		# Hôte : applique localement d'abord, puis broadcaste aux clients seulement
+		_apply_damage_local(target_ship_id, damage, true)
+		_rpc_apply_damage.rpc(target_ship_id, damage, true)
 	else:
-		# Client : envoie à tous les peers (rpc_id(1) ne cible pas toujours l'hôte ENet)
-		# Le guard is_host() dans _rpc_request_damage filtre qui traite réellement.
+		# Client : envoie la demande à l'hôte
 		_rpc_request_damage.rpc(target_ship_id, damage)
 
 
+## Variante pour les attaques de port : seul le proprio du navire touché voit l'UI.
+func apply_damage_networked_port_attack(target_ship_id: int, damage: int, attacker_owner_id: int) -> void:
+	if network_manager == null:
+		network_manager = get_tree().get_first_node_in_group("network_manager")
+	if network_manager == null or not network_manager.is_host():
+		return
+	# Trouver le player_id du proprio du navire touché
+	var target_owner_id := -1
+	for ship in get_tree().get_nodes_in_group("ships"):
+		if ship is Navires and ship.id == target_ship_id and ship.player_owner:
+			target_owner_id = ship.player_owner.player_id
+			break
+	# Hôte : affiche uniquement si c'est son propre navire qui est touché
+	var host_local_id := match_context.local_player_id if match_context else -1
+	var host_show_ui := (host_local_id == target_owner_id)
+	_apply_damage_local(target_ship_id, damage, host_show_ui)
+	# Clients : RPC broadcast, chaque client calcule son show_ui localement
+	_rpc_apply_damage_port_attack.rpc(target_ship_id, damage, target_owner_id)
+
+
+# Résout le player_id associé à un peer réseau
+func _get_player_id_for_peer(peer_id: int) -> int:
+	if players_manager == null:
+		players_manager = get_tree().get_first_node_in_group("players_manager")
+	if players_manager == null:
+		return -1
+	var nm = get_tree().get_first_node_in_group("network_manager")
+	if nm and nm.has_method("get_player_id_for_peer"):
+		return nm.get_player_id_for_peer(peer_id)
+	# Fallback : peer_id 1 = hôte = player_id 1, autre = player_id 2
+	return 1 if peer_id == 1 else 2
+
+
+# RPC broadcast pour attaque de port : chaque client calcule son show_ui
+# en comparant target_owner_id à son propre local_player_id.
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_apply_damage_port_attack(target_ship_id: int, damage: int, target_owner_id: int) -> void:
+	if match_context == null:
+		match_context = get_tree().get_first_node_in_group("match_context")
+	var local_id := match_context.local_player_id if match_context else -1
+	var show_ui := (local_id == target_owner_id)
+	_apply_damage_local(target_ship_id, damage, show_ui)
+
+
 # Le client demande à l'hôte d'appliquer les dégâts.
-# Déclaré call_remote : seuls les autres peers reçoivent l'appel.
-# Le guard is_host fait que seul l'hôte traite réellement la demande.
 @rpc("any_peer", "call_remote", "reliable")
 func _rpc_request_damage(target_ship_id: int, damage: int) -> void:
 	if network_manager == null:
 		network_manager = get_tree().get_first_node_in_group("network_manager")
 	if network_manager == null or not network_manager.is_host():
 		return
-	_rpc_apply_damage.rpc(target_ship_id, damage)
+	_apply_damage_local(target_ship_id, damage, true)
+	_rpc_apply_damage.rpc(target_ship_id, damage, true)
 
 
-# L'hôte broadcaste les dégâts à tous les peers (call_local inclus)
-@rpc("any_peer", "call_local", "reliable")
-func _rpc_apply_damage(target_ship_id: int, damage: int) -> void:
+# L'hôte broadcaste les dégâts aux clients (call_remote pour eviter double application)
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_apply_damage(target_ship_id: int, damage: int, show_ui: bool) -> void:
+	_apply_damage_local(target_ship_id, damage, show_ui)
+
+
+# Application locale des dégâts
+func _apply_damage_local(target_ship_id: int, damage: int, show_ui: bool = true) -> void:
 	for ship in get_tree().get_nodes_in_group("ships"):
 		if ship is Navires and ship.id == target_ship_id:
-			ship.take_damage(damage)
+			ship.take_damage(damage, show_ui)
 			return
-	push_error("[MULTI GM] _rpc_apply_damage : navire %d introuvable" % target_ship_id)
+	push_error("[MULTI GM] _apply_damage_local : navire %d introuvable" % target_ship_id)
+
+
+# ── DÉGÂTS SUR PORT ──────────────────────────────────────────────────────────
+
+## Point d'entrée réseau pour les dégâts sur un port.
+## Même pattern que apply_damage_networked pour les navires.
+func apply_port_damage_networked(port_id: int, damage: int, attacker_player_id: int) -> void:
+	if network_manager == null:
+		network_manager = get_tree().get_first_node_in_group("network_manager")
+	if network_manager != null and network_manager.is_host():
+		# Hôte : applique localement d'abord, puis broadcaste aux clients seulement
+		_apply_port_damage_local(port_id, damage, attacker_player_id)
+		_rpc_apply_port_damage.rpc(port_id, damage, attacker_player_id)
+	else:
+		# Client : envoie la demande à l'hôte
+		_rpc_request_port_damage.rpc(port_id, damage, attacker_player_id)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_request_port_damage(port_id: int, damage: int, attacker_player_id: int) -> void:
+	if network_manager == null:
+		network_manager = get_tree().get_first_node_in_group("network_manager")
+	if network_manager == null or not network_manager.is_host():
+		return
+	# L'hôte applique localement + envoie aux clients (call_remote = pas de boucle)
+	_apply_port_damage_local(port_id, damage, attacker_player_id)
+	_rpc_apply_port_damage.rpc(port_id, damage, attacker_player_id)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_apply_port_damage(port_id: int, damage: int, attacker_player_id: int) -> void:
+	_apply_port_damage_local(port_id, damage, attacker_player_id)
+
+
+func _apply_port_damage_local(port_id: int, damage: int, attacker_player_id: int) -> void:
+	_refresh_refs()
+	var target_port: Ports = null
+	for port in get_tree().get_nodes_in_group("ports"):
+		if port is Ports and port.id == port_id:
+			target_port = port
+			break
+	if target_port == null:
+		push_error("[MULTI GM] _apply_port_damage_local : port %d introuvable" % port_id)
+		return
+	var attacker: Player = players_manager.get_player_by_id(attacker_player_id) if players_manager else null
+	target_port.take_damage(damage, attacker)
 
 
 func _on_port_captured(port: Ports, new_owner: Player, old_owner: Player) -> void:
-	DEBUG.log("Port [%d] capturé : %s → %s" % [
+	DEBUG.log("Port [%d] capturé : %s -> %s" % [
 		port.id,
 		old_owner.player_name if old_owner else "NEUTRE",
 		new_owner.player_name if new_owner else "NEUTRE"
 	])
+	# Synchroniser la capture chez tous les peers
+	if network_manager == null:
+		network_manager = get_tree().get_first_node_in_group("network_manager")
+	var new_owner_id := new_owner.player_id if new_owner else -1
+	_rpc_sync_port_capture.rpc(port.id, new_owner_id)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_sync_port_capture(port_id: int, new_owner_id: int) -> void:
+	_refresh_refs()
+	var target_port: Ports = null
+	for port in get_tree().get_nodes_in_group("ports"):
+		if port is Ports and port.id == port_id:
+			target_port = port
+			break
+	if target_port == null:
+		push_error("[MULTI GM] _rpc_sync_port_capture : port %d introuvable" % port_id)
+		return
+	if new_owner_id == -1:
+		target_port.set_as_owner(null)
+	else:
+		var owner = players_manager.get_player_by_id(new_owner_id) if players_manager else null
+		if owner == null:
+			push_error("[MULTI GM] _rpc_sync_port_capture : joueur %d introuvable" % new_owner_id)
+			return
+		target_port.set_as_owner(owner)
 	if fog_manager:
 		fog_manager.update_fog()
 

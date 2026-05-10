@@ -402,16 +402,13 @@ func hide_ally():
 
 func show_stats():
 	stats_timer = stats_duration
-	# En multi, is_human est true pour tous — on utilise is_local pour distinguer allié/ennemi
+	# _is_local_human_owner() gère les deux modes : solo (is_human) et multi (is_human + is_local)
 	var is_ally: bool
 	if navire.player_owner == null:
 		is_ally = false
-	elif navire.player_owner.get("is_local") != null:
-		# Mode multi : allié = joueur local
-		is_ally = navire.player_owner.is_local
 	else:
-		# Mode solo : allié = joueur humain
-		is_ally = navire.player_owner.is_human
+		# Solo : vrai uniquement pour le joueur humain — Multi : vrai uniquement pour le joueur local
+		is_ally = navire._is_local_human_owner()
 	if is_ally:
 		if stats_panel_ally:
 			show_ally()

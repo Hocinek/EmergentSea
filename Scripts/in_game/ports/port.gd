@@ -2,7 +2,7 @@ class_name Ports
 extends Node2D
 
 # Permettra de signaler au moteur différents évènements
-signal sig_show_port
+signal sig_show_port(attacker: Player)
 signal port_clicked(port: Ports)
 signal open_boutique_requested(port: Ports)
 signal open_recrutement_requested(port: Ports)
@@ -405,7 +405,7 @@ func take_damage(amount: int, attacker: Player) -> void:
 	current_hp -= amount
 	DEBUG.log("Port [%d] reçoit %d dégâts → %d/%d PV" % [id, amount, current_hp, max_hp])
 	is_under_attack = true
-	sig_show_port.emit()
+	sig_show_port.emit(attacker)
 	if current_hp <= 0:
 		current_hp = 0
 		_on_captured(attacker)

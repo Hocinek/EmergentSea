@@ -319,6 +319,15 @@ func _ports_attack_current_player(player) -> void:
 					navire.take_damage(port.attack_damage)
 
 
+## Appelé par NetworkManager quand un peer se déconnecte.
+## winner_player_id = le joueur LOCAL qui reste en jeu.
+func declare_winner_by_disconnect(winner_player_id: int) -> void:
+	if state == MultiplayerTurnState.State.GAME_OVER:
+		return
+	DEBUG.log("[MULTI TURN] Victoire par forfait — gagnant player_id: %d" % winner_player_id)
+	_rpc_sync_game_over.rpc(winner_player_id, "déconnexion de l'adversaire")
+
+
 # L'hôte broadcaste le game over sur tous les peers + lui-même (call_local).
 # Chaque peer compare le winner_player_id à son propre local_player_id
 # pour afficher l'écran victoire ou défaite approprié.

@@ -59,24 +59,24 @@ const ROLE_DESCRIPTIONS: Dictionary = {
 	Role.CORSAIRE:       "+3 dégâts de tir",
 	Role.TIREUR_ELITE:   "+2 portée de tir",
 	Role.ECLAIREUR:      "+15 rayon de vision",
-	Role.INGENIEUR:      "+15 énergie max",
+	Role.INGENIEUR:      "+10 énergie max",
 	Role.CUISINIER:      "+1 poisson par tour",
-	Role.MATELOT:        "+4 PV max",
+	Role.MATELOT:        "+6 PV max",
 	Role.DIPLOMATE:      "-20% coût de recrutement",
 }
 
 const ROLE_COSTS: Dictionary = {
 	Role.CAPITAINE:      0,
-	Role.CANONNIER:      15,
-	Role.NAVIGATEUR:     12,
+	Role.CANONNIER:      12,
+	Role.NAVIGATEUR:     15,
 	Role.MEDECIN:        18,
-	Role.PECHEUR:        10,
-	Role.CORSAIRE:       20,
+	Role.PECHEUR:        12,
+	Role.CORSAIRE:       30,
 	Role.TIREUR_ELITE:   17,
 	Role.ECLAIREUR:      13,
 	Role.INGENIEUR:      12,
 	Role.CUISINIER:      8,
-	Role.MATELOT:        6,
+	Role.MATELOT:        5,
 	Role.DIPLOMATE:      14,
 }
 
@@ -126,11 +126,11 @@ func _apply_role_bonuses() -> void:
 		Role.ECLAIREUR:
 			bonus_vision = 2   # +2 cases de vision
 		Role.INGENIEUR:
-			bonus_maxenergie = 15
+			bonus_maxenergie = 10
 		Role.CUISINIER:
 			poissons_par_tour = 1
 		Role.MATELOT:
-			bonus_maxvie = 4
+			bonus_maxvie = 6
 		Role.DIPLOMATE:
 			reduction_cout = 0.20
 		Role.CAPITAINE:

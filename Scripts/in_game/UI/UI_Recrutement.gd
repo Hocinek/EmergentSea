@@ -125,7 +125,7 @@ func _build_ui() -> void:
 	# Panel principal (plus large pour afficher slots + boutique)
 	_panel = Panel.new()
 	_panel.set_anchors_preset(Control.PRESET_CENTER)
-	_panel.custom_minimum_size = Vector2(620, 720)
+	_panel.custom_minimum_size = Vector2(620, 800)
 	_panel.position = -_panel.custom_minimum_size / 2.0
 	add_child(_panel)
 

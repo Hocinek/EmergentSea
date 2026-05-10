@@ -59,8 +59,8 @@ var _confirm_ui: UI_confirm_deplacement = null
 # =========================
 #region stats
 var stats_panel : UI_stats_navire
-@export var vie: int = 10
-@export var maxvie: int = 10
+@export var vie: int = 15
+@export var maxvie: int = 15
 @export var energie: int = 30
 @export var maxenergie: int = 30
 @export var vitesse: float = 800.0
@@ -97,7 +97,7 @@ var drawable : Drawable
 # =========================
 #region pêche
 @export var nourriture: int = 0
-@export var fish_energy_cost: int = 1
+@export var fish_energy_cost: int = 5
 @export var fish_duration: float = 1.2
 @export var fish_yield_min: int = 1
 @export var fish_yield_max: int = 3

@@ -39,10 +39,10 @@ var stats_panel : UI_stats_port
 @onready var ui_layer: CanvasLayer = get_tree().get_first_node_in_group("ui_layer")
 @onready var data := get_tree().get_first_node_in_group("shared_entities")
 
-@export var max_hp: int = 20
-var current_hp: int = 20
+@export var max_hp: int = 30
+var current_hp: int = 30
 var is_under_attack: bool = false  # true quand le port neutre est attaqué (force l'affichage ennemi)
-@export var attack_damage: int = 1
+@export var attack_damage: int = 2
 @export var attack_range: int = 5  # en cases
 signal port_captured(port: Ports, new_owner: Player, old_owner: Player)
 

@@ -14,9 +14,6 @@ var current_player : Player
 ## Bateau actuellement sélectionné
 var selected_ship: Navires = null
 
-## Mémorise le dernier navire sélectionné par joueur pour restaurer la sélection au tour suivant
-var _last_selected_per_player: Dictionary = {}
-
 ## Scène du navire préchargée
 var navire_scene := preload("res://Scenes/in_game/ENTITIES/Navires.tscn")
 
@@ -31,30 +28,26 @@ func _init(gamemanager : GameManager) -> void:
 
 func update_current_player(new_player : Player):
 	self.current_player = new_player
-	# Restaurer le navire qui était sélectionné lors du dernier tour de ce joueur
-	# On purge d'abord les entrées freées pour éviter l'erreur 'freed instance'
-	var keys_to_remove: Array = []
-	for k in _last_selected_per_player:
-		if not is_instance_valid(_last_selected_per_player[k]):
-			keys_to_remove.append(k)
-	for k in keys_to_remove:
-		_last_selected_per_player.erase(k)
-	var last: Navires = _last_selected_per_player.get(new_player, null)
-	if last != null and is_instance_valid(last) and last.is_alive() and last.player_owner == new_player:
-		select_ship(last)
-	else:
-		# Aucun souvenir valide : on sélectionne le premier navire (comportement historique)
-		var silent = false
-		select_next_ship(silent)
+	var silent = false
+	select_next_ship(silent)
 
 #region spawn des navires
-## Faire apparaître un bateau sur la carte
 
-## model_path : chemin vers le .glb à utiliser (SHIP_MODEL_PLAYER par défaut)
-func spawn_navire(player: Player, position: Vector2, is_player_controlled: bool = false,model_path: String = ShipManager.SHIP_MODEL_PLAYER) -> Navires:
+func _get_model_for_player(player: Player) -> String:
+	if player == null:
+		return SHIP_MODEL_PLAYER
+	if player.is_human:
+		return SHIP_MODEL_PLAYER
+	return SHIP_MODEL_ENEMY
+
+## Faire apparaître un bateau sur la carte
+func spawn_navire(player: Player, position: Vector2, is_player_controlled: bool = false, model_path: String = "") -> Navires:
 	if player == null:
 		DEBUG.log("Impossible de créer un navire sans joueur propriétaire !", DEBUG.ERROR)
 		return null
+
+	if model_path == "":
+		model_path = _get_model_for_player(player)
 
 	var navire: Navires = navire_scene.instantiate()
 	navire.global_position = position
@@ -87,14 +80,15 @@ func spawn_navire(player: Player, position: Vector2, is_player_controlled: bool 
 	return navire
 
 ## Faire apparaître un bateau à un emplacement aléatoire sur la carte
-func spawn_navire_random(player: Player, is_player_controlled: bool = false, model_path: String = ShipManager.SHIP_MODEL_PLAYER) -> Navires:
+func spawn_navire_random(player: Player, is_player_controlled: bool = false, model_path: String = "") -> Navires:
 	var pos = Map_utils.get_random_ocean_position()
 	return spawn_navire(player, pos, is_player_controlled, model_path)
 
 ## Faire apparaître un bateau à une case précise
-func spawn_navire_at(player: Player, case_pos: Vector2i, is_player_controlled: bool = false, model_path: String = ShipManager.SHIP_MODEL_PLAYER) -> Navires:
+func spawn_navire_at(player: Player, case_pos: Vector2i, is_player_controlled: bool = false, model_path: String = "") -> Navires:
 	var wpos = Map_utils.case_vers_monde(case_pos)
 	return spawn_navire(player, wpos, is_player_controlled, model_path)
+
 #endregion spawn des navires
 
 
@@ -118,9 +112,6 @@ func select_ship(ship: Navires, silent:bool = false) -> void:
 	if selected_ship:
 		selected_ship.set_selected(true,silent)
 		gm.ship_selected.emit(ship)
-		# Mémoriser ce navire comme dernier sélectionné pour son propriétaire
-		if ship.player_owner != null:
-			_last_selected_per_player[ship.player_owner] = ship
 		DEBUG.log("Navire sélectionné : %s" % str(ship.id) if ship.has_method("get") else "N/A")
 		if gm.fog_manager:
 			gm.fog_manager.update_fog()

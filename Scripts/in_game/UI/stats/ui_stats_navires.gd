@@ -16,6 +16,11 @@ var stats_panel_enemy: PanelContainer
 var cadre_enemy: TextureRect
 var label_list_enemy: Dictionary
 
+# Panneau équipage/synergies — bas droite, hors cadre bois
+var crew_panel: PanelContainer
+var crew_list_label: Label
+var synergy_label: Label
+
 const stats_duration: float = 2.5
 var stats_timer := 0.0
 
@@ -39,7 +44,14 @@ func _init(ship: Navires) -> void:
 	self.navire = ship
 	navire.add_child(self)
 	navire.sig_show_stats.connect(handler)
+	navire.tree_exiting.connect(_on_navire_exiting)
 	build_ui()
+
+
+func _on_navire_exiting() -> void:
+	hide_all_stats()
+	if cadre_layer and is_instance_valid(cadre_layer):
+		cadre_layer.queue_free()
 
 
 func _process(delta):
@@ -84,6 +96,7 @@ func build_ui():
 	_create_cadre_layer()
 	_create_ally_stats_panel()
 	_create_enemy_stats_panel()
+	_create_crew_panel()
 
 
 func _create_cadre_layer():
@@ -167,6 +180,66 @@ func _create_enemy_stats_panel():
 	cadre_layer.add_child(cadre_enemy)
 
 
+func _create_crew_panel():
+	"""Panneau équipage + synergies — bas droite, indépendant du cadre bois.
+	Visible uniquement quand le navire est allié et que les stats sont affichées."""
+	crew_panel = PanelContainer.new()
+	crew_panel.visible = false
+
+	# Ancré en bas à droite
+	crew_panel.anchor_left   = 1.0
+	crew_panel.anchor_right  = 1.0
+	crew_panel.anchor_top    = 1.0
+	crew_panel.anchor_bottom = 1.0
+	crew_panel.offset_left   = -240
+	crew_panel.offset_right  = -20
+	crew_panel.offset_top    = -220
+	crew_panel.offset_bottom = -40
+
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.08, 0.08, 0.12, 0.88)
+	style.corner_radius_top_left    = 6
+	style.corner_radius_top_right   = 6
+	style.corner_radius_bottom_left = 6
+	style.corner_radius_bottom_right = 6
+	crew_panel.add_theme_stylebox_override("panel", style)
+
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 4)
+
+	# Titre
+	var title := Label.new()
+	title.text = "👥 Équipage"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 12)
+	title.add_theme_color_override("font_color", Color(0.5, 0.8, 1))
+	vbox.add_child(title)
+
+	vbox.add_child(HSeparator.new())
+
+	# Liste des membres
+	crew_list_label = Label.new()
+	crew_list_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	crew_list_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	crew_list_label.add_theme_font_size_override("font_size", 11)
+	crew_list_label.add_theme_color_override("font_color", Color(0.9, 0.9, 0.9))
+	vbox.add_child(crew_list_label)
+
+	vbox.add_child(HSeparator.new())
+
+	# Synergies
+	synergy_label = Label.new()
+	synergy_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	synergy_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	synergy_label.add_theme_font_size_override("font_size", 10)
+	synergy_label.add_theme_color_override("font_color", Color(0.6, 1.0, 0.7))
+	synergy_label.visible = false
+	vbox.add_child(synergy_label)
+
+	crew_panel.add_child(vbox)
+	ui_layer.add_child(crew_panel)
+
+
 #region build panel tools
 func build_base() -> PanelContainer:
 	var panel = PanelContainer.new()
@@ -231,6 +304,7 @@ func build_vbox() -> VBoxContainer:
 
 
 func add_stats_to_vbox(vbox: VBoxContainer) -> Dictionary:
+	# Uniquement les 4 stats de base dans le cadre bois — équipage/synergies sont ailleurs
 	var labels_names = ["vie", "energie", "nourriture", "equipage"]
 	var labels: Dictionary = create_labels(labels_names)
 	for label: Label in labels.values():
@@ -273,6 +347,7 @@ func show_enemy():
 			cadre_enemy.visible = true
 		stats_visible = true
 		stats_timer = stats_duration
+	# Pas de crew_panel pour les ennemis
 
 
 func show_ally_persistent() -> void:
@@ -283,15 +358,38 @@ func show_ally_persistent() -> void:
 			cadre_ally.visible = true
 		stats_visible = true
 		stats_timer = INF # Désactive le countdown
+	_show_crew_panel()
 
 
 func show_ally():
+	if stats_panel_ally == null:
+		await get_tree().process_frame
 	update_stats(label_list_ally)
 	if stats_panel_ally:
 		stats_panel_ally.visible = true
 		if cadre_ally:
 			cadre_ally.visible = true
 		stats_visible = true
+		stats_timer = stats_duration
+	_show_crew_panel()
+
+
+func _show_crew_panel():
+	"""Affiche le panneau équipage uniquement pour les navires alliés."""
+	if navire.player_owner == null:
+		return
+	# En multi : allié = is_local ; en solo : allié = is_human
+	var match_context = get_tree().get_first_node_in_group("match_context")
+	var is_local_ally: bool
+	if match_context != null and match_context.mode == MatchContext.MatchMode.MULTI:
+		is_local_ally = navire.player_owner.is_local
+	else:
+		is_local_ally = navire.player_owner.is_human
+	if not is_local_ally:
+		return
+	_update_crew_panel()
+	if crew_panel:
+		crew_panel.visible = true
 
 
 func hide_enemy():
@@ -308,12 +406,20 @@ func hide_ally():
 	stats_panel_ally.visible = false
 	if cadre_ally:
 		cadre_ally.visible = false
+	if crew_panel:
+		crew_panel.visible = false
 	stats_visible = false
 
 
 func show_stats():
 	stats_timer = stats_duration
-	var is_ally = (navire.player_owner and navire.player_owner.is_human)
+	# _is_local_human_owner() gère les deux modes : solo (is_human) et multi (is_human + is_local)
+	var is_ally: bool
+	if navire.player_owner == null:
+		is_ally = false
+	else:
+		# Solo : vrai uniquement pour le joueur humain — Multi : vrai uniquement pour le joueur local
+		is_ally = navire._is_local_human_owner()
 	if is_ally:
 		if stats_panel_ally:
 			show_ally()
@@ -330,22 +436,51 @@ func hide_all_stats():
 		hide_ally()
 	if stats_panel_enemy:
 		hide_enemy()
+	if crew_panel:
+		crew_panel.visible = false
 #endregion show/hide
 
 #region updates
 func update():
 	update_stats(label_list_ally)
 	update_stats(label_list_enemy)
+	if crew_panel and crew_panel.visible:
+		_update_crew_panel()
 
 
 func update_stats(label_list: Dictionary):
-	if label_list:
-		if label_list.has("vie"):
-			label_list["vie"].text = "❤️ %d / %d" % [navire.vie, navire.maxvie]
-		if label_list.has("energie"):
-			label_list["energie"].text = "⚡ %d / %d" % [navire.energie, navire.maxenergie]
-		if label_list.has("equipage"):
-			label_list["equipage"].text = "👥 %d" % navire.nrbequipage
-		if label_list.has("nourriture"):
-			label_list["nourriture"].text = "🐟 %d" % navire.nourriture
+	if not label_list:
+		return
+	if label_list.has("vie"):
+		label_list["vie"].text = "❤️ %d / %d" % [navire.vie, navire.maxvie]
+	if label_list.has("energie"):
+		label_list["energie"].text = "⚡ %d / %d" % [navire.energie, navire.maxenergie]
+	if label_list.has("equipage"):
+		label_list["equipage"].text = "👥 %d / %d" % [navire.nrbequipage, navire.MAX_CREW]
+	if label_list.has("nourriture"):
+		label_list["nourriture"].text = "🐟 %d" % navire.nourriture
+
+
+func _update_crew_panel():
+	"""Met à jour la liste des membres et les synergies dans le panneau bas-droite."""
+	if not crew_list_label or not synergy_label:
+		return
+
+	# Membres d'équipage
+	if navire.get("equipage") != null:
+		var lines: Array[String] = []
+		for member: CrewMember in navire.equipage:
+			lines.append("%s %s" % [member.get_icon(), member.nom])
+		crew_list_label.text = "\n".join(lines)
+	else:
+		crew_list_label.text = "—"
+
+	# Synergies actives
+	if navire.has_method("get_active_synergies"):
+		var synergies := navire.get_active_synergies()
+		if synergies.is_empty():
+			synergy_label.visible = false
+		else:
+			synergy_label.text = "✨ " + "\n".join(synergies)
+			synergy_label.visible = true
 #endregion updates

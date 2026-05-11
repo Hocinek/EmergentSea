@@ -14,6 +14,9 @@ var current_player : Player
 ## Bateau actuellement sélectionné
 var selected_ship: Navires = null
 
+## Mémorise le dernier navire sélectionné par joueur pour restaurer la sélection au tour suivant
+var _last_selected_per_player: Dictionary = {}
+
 ## Scène du navire préchargée
 var navire_scene := preload("res://Scenes/in_game/ENTITIES/Navires.tscn")
 
@@ -28,8 +31,21 @@ func _init(gamemanager : GameManager) -> void:
 
 func update_current_player(new_player : Player):
 	self.current_player = new_player
-	var silent = false
-	select_next_ship(silent)
+	# Restaurer le navire qui était sélectionné lors du dernier tour de ce joueur
+	# On purge d'abord les entrées freées pour éviter l'erreur 'freed instance'
+	var keys_to_remove: Array = []
+	for k in _last_selected_per_player:
+		if not is_instance_valid(_last_selected_per_player[k]):
+			keys_to_remove.append(k)
+	for k in keys_to_remove:
+		_last_selected_per_player.erase(k)
+	var last: Navires = _last_selected_per_player.get(new_player, null)
+	if last != null and is_instance_valid(last) and last.is_alive() and last.player_owner == new_player:
+		select_ship(last)
+	else:
+		# Aucun souvenir valide : on sélectionne le premier navire (comportement historique)
+		var silent = false
+		select_next_ship(silent)
 
 #region spawn des navires
 ## Faire apparaître un bateau sur la carte
@@ -102,6 +118,9 @@ func select_ship(ship: Navires, silent:bool = false) -> void:
 	if selected_ship:
 		selected_ship.set_selected(true,silent)
 		gm.ship_selected.emit(ship)
+		# Mémoriser ce navire comme dernier sélectionné pour son propriétaire
+		if ship.player_owner != null:
+			_last_selected_per_player[ship.player_owner] = ship
 		DEBUG.log("Navire sélectionné : %s" % str(ship.id) if ship.has_method("get") else "N/A")
 		if gm.fog_manager:
 			gm.fog_manager.update_fog()

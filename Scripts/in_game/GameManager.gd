@@ -40,6 +40,12 @@ var ship_manager: ShipManager = null
 # UI d'inspection de case
 var case_info_ui: UI_case_info = null
 
+# UI d'aide — bouton "?" et panneau des commandes
+var aide_ui: UI_aide = null
+
+# UI quitter — bouton "🚪" à côté du bouton "?"
+var quitter_ui: UI_quitter = null
+
 
 # Ce qui sera dans cette fonction sera exécuté en premier (avant que le reste soit prêt)
 func _enter_tree():
@@ -71,6 +77,8 @@ func _ready():
 	# Créer le HexContextMenu 
 	_setup_hex_menu()
 	_setup_case_info_ui()
+	_setup_aide_ui()
+	_setup_quitter_ui()
 	# Préparer la fin de partie
 	_setup_game_over_ui()
 	# Récupérer le PlayersManager
@@ -155,6 +163,23 @@ func _setup_case_info_ui() -> void:
 	case_info_ui.setup()
 	DEBUG.log("[GAMEMANAGER] UI_case_info créé")
 
+
+func _setup_aide_ui() -> void:
+	aide_ui = UI_aide.new()
+	aide_ui.name = "UI_aide"
+	add_child(aide_ui)
+	await aide_ui.setup()
+	DEBUG.log("[GAMEMANAGER] UI_aide créé")
+
+
+func _setup_quitter_ui() -> void:
+	quitter_ui = UI_quitter.new()
+	quitter_ui.name = "UI_quitter"
+	add_child(quitter_ui)
+	await quitter_ui.setup()
+	DEBUG.log("[GAMEMANAGER] UI_quitter créé")
+
+
 func _setup_game_over_ui() -> void:
 	var ui_game_over := UI_game_over.new()
 	ui_game_over.name = "UI_game_over"
@@ -186,6 +211,19 @@ func _on_map_generated():
 	
 	DEBUG.log("Joueurs créés avec succès")
 	
+# Assigner un port de départ à chaque joueur
+	var all_ports = get_tree().get_nodes_in_group("ports")
+	if all_ports.size() > 1:
+		all_ports[0].set_as_owner(player1)
+		all_ports[0].current_hp = all_ports[0].max_hp
+		all_ports[1].set_as_owner(player2)
+		all_ports[1].current_hp = all_ports[1].max_hp
+		DEBUG.log("Ports de départ assignés")
+
+	for port in all_ports:
+		if port.has_signal("port_captured"):
+			port.port_captured.connect(_on_port_captured)
+	
 	# Initialiser les stocks de poissons via le FishManager
 	if fish_manager:
 		fish_manager.initialize_fish_tiles()
@@ -206,9 +244,18 @@ func _on_map_generated():
 	
 
 	# Navire ennemi → smolPirateShip (petit navire)
-	#var enemy1 = spawn_navire_random(player2, false, SHIP_MODEL_ENEMY)
-	var enemy1 = ship_manager.spawn_navire_random(player2, false)
-	
+	# En mode tutoriel : spawner l'ennemi près du joueur pour faciliter l'apprentissage
+	# En mode normal : spawn aléatoire comme avant
+	var enemy1
+	if tutorial_manager.is_tutorial_mode:
+		var case_ship1 = Map_utils.monde_vers_case(ship1.global_position)
+		var case_proche = case_ship1 + Vector2i(2, 0)
+		if Map_utils.is_case_navigable(case_proche):
+			enemy1 = ship_manager.spawn_navire_at(player2, case_proche, false)
+		else:
+			enemy1 = ship_manager.spawn_navire_random(player2, false)
+	else:
+		enemy1 = ship_manager.spawn_navire_random(player2, false)
 	if enemy1:
 		enemy1.id = 101
 		DEBUG.log("Enemy1 créé avec succès avec l'id "+str(enemy1.id))
@@ -444,4 +491,18 @@ func _world_to_screen(world_pos: Vector2) -> Vector2:
 		return world_pos
 	return viewport.get_canvas_transform() * world_pos
 
+
+# ===============================
+# Gestion Port
+# ===============================
+	
+func _on_port_captured(port: Ports, new_owner: Player, old_owner: Player) -> void:
+	DEBUG.log("Port [%d] capturé : %s → %s" % [
+		port.id,
+		old_owner.player_name if old_owner else "NEUTRE",
+		new_owner.player_name if new_owner else "NEUTRE"
+	])
+	if fog_manager:
+		fog_manager.update_fog()
+		
 #endregion interface click

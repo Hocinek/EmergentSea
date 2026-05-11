@@ -89,8 +89,8 @@ func spawn_tile_object(cell: HexCell):
 	if(s.texture == Map_data.TileMissing):
 		DEBUG.log("Texture manquante pour le terrain '%s'" % cell.getTypeTerrain(),DEBUG.WARNING)
 	
-	var scale_x = Map_data.hex_width / s.texture.get_width()
-	var scale_y = Map_data.hex_height / s.texture.get_height()
+	var scale_x = Map_data.hex_width / float(s.texture.get_width())
+	var scale_y = Map_data.hex_height / float(s.texture.get_height())
 	s.scale = Vector2(scale_x, scale_y)
 
 	# Utilisation des coordonnées offset stockées dans la cellule
@@ -104,11 +104,14 @@ func spawn_tile_object(cell: HexCell):
 		var port_node = Map_data.port_scene.instantiate()
 		port_node.position = pixel_pos
 		port_node.setCell(cell)
+		# ID déterministe basé sur la position offset — identique sur les deux peers
+		var offset_coords2 = cell.getTabCoordinates()
+		port_node.id = offset_coords2.x * 10000 + offset_coords2.y
 		add_child(port_node)
-		
+
 		cell.port_instance = port_node
 		
-		
+
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
@@ -121,5 +124,16 @@ func _unhandled_input(event: InputEvent) -> void:
 			var terrain = clicked_cell.getTypeTerrain()
 			# Si c'est un port et qu'il y a bien une instance de port attachée
 			if terrain == "port" and clicked_cell.port_instance != null:
-				clicked_cell.port_instance.on_clicked()
-				get_viewport().set_input_as_handled()
+				var port = clicked_cell.port_instance
+				var game_manager = get_tree().get_first_node_in_group("game_manager")
+				# Port ennemi ou neutre => tenter une attaque avec le navire sélectionné
+				if game_manager and not port.is_owned_by(game_manager.player1):
+					var selected = game_manager.selected_ship
+					if selected and port.can_attack_position(selected.case_actuelle):
+						port.take_damage(selected.attack_damage if selected.has_method("get") else 20, game_manager.player1)
+					else:
+						DEBUG.log("Navire trop loin pour attaquer ce port")
+				else:
+					# Port allié => ouvrir menu achat/réparation
+					port.on_clicked()
+					get_viewport().set_input_as_handled()

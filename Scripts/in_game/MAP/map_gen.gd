@@ -42,6 +42,7 @@ func generate() -> bool:
 func init_maps():
 	height_map.clear()
 	Map_data.tiles.clear()
+	Map_data.fish_underlying.clear()
 	ports.clear()
 	for y in range(Map_data.map_height):
 		height_map.append([])
@@ -204,6 +205,7 @@ func calculate_distance(a: Vector2i, b: Vector2i) -> float:
 func generate_fish_tiles() -> void:
 	"""Place des cases de pêche sur des cases d'eau navigables, loin des ports."""
 	Map_data.fish_cases.clear()
+	Map_data.fish_underlying.clear()
 
 	# Candidats : cases d'eau navigables qui ne sont pas déjà des ports
 	var candidates: Array = []
@@ -227,6 +229,9 @@ func generate_fish_tiles() -> void:
 		# Vérifier qu'on n'est pas sur un port
 		if Map_data.tiles[candidate.y][candidate.x] == "port":
 			continue
+
+		# Sauvegarder le terrain sous-jacent avant de le remplacer
+		Map_data.fish_underlying[candidate] = Map_data.tiles[candidate.y][candidate.x]
 
 		# Placer la case de pêche
 		Map_data.tiles[candidate.y][candidate.x] = "fish"

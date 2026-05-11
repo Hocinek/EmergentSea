@@ -93,6 +93,24 @@ func _process_end_turn() -> void:
 	var previous_player = current_player
 	turn_ended.emit(previous_player)
 
+	# Appliquer les effets de fin de tour de l'équipage (soin, poissons passifs…)
+	# On broadcaste uniquement le DELTA (diff avant/après) pour ne pas écraser
+	# les valeurs absolues que l'hôte ne connaît pas forcément à jour (ex : joueur 2).
+	var game_manager = get_tree().get_first_node_in_group("game_manager")
+	for n in previous_player.get_navires():
+		if is_instance_valid(n) and n.is_alive():
+			var vie_avant        : int = n.vie
+			var nourriture_avant : int = n.nourriture
+			n.apply_crew_end_of_turn()
+			var delta_vie        : int = n.vie        - vie_avant
+			var delta_nourriture : int = n.nourriture - nourriture_avant
+			if (delta_vie != 0 or delta_nourriture != 0) and game_manager \
+					and game_manager.has_method("sync_end_of_turn_delta_networked"):
+				game_manager.sync_end_of_turn_delta_networked(n.id, delta_vie, delta_nourriture, n.maxvie)
+
+	# Attaques des ports ennemis/neutres
+	_ports_attack_current_player(previous_player)
+
 	# Vérification des conditions de victoire — hôte uniquement, puis broadcast si game over
 	if network_manager != null and network_manager.is_host():
 		fin_de_partie()
@@ -151,6 +169,14 @@ func end_turn() -> void:
 
 	var previous_player = current_player
 	turn_ended.emit(previous_player)
+
+	# Appliquer les effets de fin de tour de l'équipage (soin, poissons passifs…)
+	for n in previous_player.get_navires():
+		if is_instance_valid(n) and n.is_alive():
+			n.apply_crew_end_of_turn()
+
+	# Attaques des ports ennemis/neutres
+	_ports_attack_current_player(previous_player)
 
 	fin_de_partie()
 	if state == MultiplayerTurnState.State.GAME_OVER:
@@ -233,6 +259,18 @@ func somme_navire(player) -> int:
 	return player.navires.size()
 
 
+func somme_port_joueur(player) -> int:
+	return player.ports.size()
+
+
+# Calcule le nombre total de ports sur toute la carte
+func calcul_nb_port() -> int:
+	var total := 0
+	for p in players:
+		total += somme_port_joueur(p)
+	return total
+
+
 func _filter_alive_players(list_in: Array) -> Array:
 	var out: Array = []
 	for p in list_in:
@@ -248,10 +286,12 @@ func fin_de_partie() -> void:
 
 	for player in players:
 		var raison := ""
-		if somme_poisson(player) >= 150:
-			raison = "accumulation de 150 poissons"
+		if somme_poisson(player) >= 300:
+			raison = "accumulation de 300 poissons"
 		elif somme_navire(player) >= 30:
 			raison = "accumulation de 30 navires"
+		#elif somme_port_joueur(player) >= int(calcul_nb_port() * 2.0 / 3.0):
+		#	raison = "conquête des deux tiers des ports"
 		if raison != "":
 			DEBUG.log("Le joueur %s a gagné par %s." % [player.player_name, raison])
 			_rpc_sync_game_over.rpc(player.player_id, raison)
@@ -259,6 +299,43 @@ func fin_de_partie() -> void:
 
 	if players.size() == 1:
 		_rpc_sync_game_over.rpc(players[0].player_id, "annihilation des adversaires")
+
+
+# =========================================================
+# Attaque des ports
+# =========================================================
+
+## Tous les ports neutres ou ennemis attaquent les navires du joueur qui vient de finir son tour.
+func _ports_attack_current_player(player) -> void:
+	var game_manager = get_tree().get_first_node_in_group("game_manager")
+	var all_ports = get_tree().get_nodes_in_group("ports")
+	for port in all_ports:
+		if not (port is Ports and is_instance_valid(port)):
+			continue
+		if port.player_owner != null and port.player_owner == player:
+			continue  # Port ami => pas d'attaque
+		var all_ships = get_tree().get_nodes_in_group("ships")
+		for navire in all_ships:
+			if not is_instance_valid(navire) or not navire.is_alive():
+				continue
+			if navire.player_owner != player:
+				continue
+			if port.can_attack_position(navire.case_actuelle):
+				DEBUG.log("Port [%d] attaque navire [%d] pour %d dégâts" % [port.id, navire.id, port.attack_damage])
+				var attacker_owner_id: int = port.player_owner.player_id if port.player_owner else -1
+				if game_manager and game_manager.has_method("apply_damage_networked_port_attack"):
+					game_manager.apply_damage_networked_port_attack(navire.id, port.attack_damage, attacker_owner_id)
+				else:
+					navire.take_damage(port.attack_damage)
+
+
+## Appelé par NetworkManager quand un peer se déconnecte.
+## winner_player_id = le joueur LOCAL qui reste en jeu.
+func declare_winner_by_disconnect(winner_player_id: int) -> void:
+	if state == MultiplayerTurnState.State.GAME_OVER:
+		return
+	DEBUG.log("[MULTI TURN] Victoire par forfait — gagnant player_id: %d" % winner_player_id)
+	_rpc_sync_game_over.rpc(winner_player_id, "déconnexion de l'adversaire")
 
 
 # L'hôte broadcaste le game over sur tous les peers + lui-même (call_local).

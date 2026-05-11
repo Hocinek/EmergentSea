@@ -2,8 +2,10 @@ class_name Ports
 extends Node2D
 
 # Permettra de signaler au moteur différents évènements
-signal sig_show_port
+signal sig_show_port(attacker: Player)
 signal port_clicked(port: Ports)
+signal open_boutique_requested(port: Ports)
+signal open_recrutement_requested(port: Ports)
 
 # =========================
 # PROPRIÉTAIRE ET IDENTITÉ
@@ -37,6 +39,12 @@ var stats_panel : UI_stats_port
 @onready var ui_layer: CanvasLayer = get_tree().get_first_node_in_group("ui_layer")
 @onready var data := get_tree().get_first_node_in_group("shared_entities")
 
+@export var max_hp: int = 30
+var current_hp: int = 30
+var is_under_attack: bool = false  # true quand le port neutre est attaqué (force l'affichage ennemi)
+@export var attack_damage: int = 2
+@export var attack_range: int = 5  # en cases
+signal port_captured(port: Ports, new_owner: Player, old_owner: Player)
 
 # AJOUT : Référence au fog manager pour mise à jour en temps réel
 var fog_manager: FogManager = null
@@ -44,6 +52,18 @@ var match_context: MatchContext = null
 
 # Case du port
 var case_actuelle: Vector2i
+
+# Référence à la zone de clic (pour pouvoir la recréer si le propriétaire change)
+var _click_area: Area2D = null
+
+# =========================
+# FEEDBACK COMBAT
+# =========================
+## Label flottant affichant les dégâts reçus par le port
+var _damage_label: Label = null
+var _damage_label_timer: float = 0.0
+const _DAMAGE_LABEL_DURATION: float = 1.5
+const _DAMAGE_LABEL_RISE_SPEED: float = 40.0
 
 
 # =========================
@@ -67,9 +87,14 @@ func _ready():
 	
 	match_context = get_tree().get_first_node_in_group("match_context")
 	case_actuelle = Map_utils.monde_vers_case(global_position)
+	current_hp = max_hp
 	
 	# Initialisation de l'UI
 	_init_stats_ui()
+	_init_damage_label()
+
+	# Configuration de la zone de clic
+	_setup_click_area()
 	
 	# Debug
 	var owner_name = player_owner.player_name if player_owner else "AUCUN"
@@ -79,15 +104,277 @@ func _ready():
 	])
 
 
-func _setup_input_handling() -> void:
-	"""Configure la gestion des inputs selon le type de port"""
-	# Tous les ports du joueur local humain peuvent recevoir des inputs pour être sélectionnés
-	if _is_local_human_owner():
-		set_process_input(true)
-		set_process_unhandled_input(true)
+func _setup_click_area() -> void:
+	"""Configure la gestion des inputs selon le type de port.
+	Utilise un Area2D + CircleShape2D à la place de _unhandled_input,
+	car Node2D n'a pas de zone de clic native."""
+	# Supprime l'ancienne zone si elle existe (ex : changement de propriétaire)
+	if is_instance_valid(_click_area):
+		_click_area.queue_free()
+		_click_area = null
+
+	if not _is_local_human_owner():
+		return
+
+	_click_area = Area2D.new()
+	_click_area.input_pickable = true
+
+	var shape = CollisionShape2D.new()
+	var circle = CircleShape2D.new()
+	circle.radius = interaction_radius
+	shape.shape = circle
+
+	_click_area.add_child(shape)
+	add_child(_click_area)
+
+	_click_area.input_event.connect(_on_area_input_event)
+
+
+# =========================
+# INPUT
+# =========================
+func _on_area_input_event(_viewport: Node, event: InputEvent, _shape_idx: int) -> void:
+	if not event is InputEventMouseButton or not event.pressed:
+		return
+
+	if event.button_index == MOUSE_BUTTON_LEFT:
+		DEBUG.log("Port [%d] — clic gauche" % id)
+		port_clicked.emit(self)
+		get_viewport().set_input_as_handled()
+
+	elif event.button_index == MOUSE_BUTTON_RIGHT:
+		if not _is_local_human_owner():
+			DEBUG.log("Port [%d] — boutique refusée (non propriétaire)" % id)
+			return
+
+		# Si le navire sélectionné est en mode inspection, laisser passer l'event
+		# pour que le GameManager puisse inspecter la case du port
+		var game_manager = get_tree().get_first_node_in_group("game_manager")
+		if game_manager:
+			var selected_ship = game_manager.get_selected_ship()
+			if selected_ship and selected_ship.current_input_mode == Navires.InputMode.INSPECT:
+				DEBUG.log("Port [%d] — mode inspection actif, clic droit transmis" % id)
+				return  # Ne pas consommer l'event, le GameManager inspecte la case
+
+		DEBUG.log("Port [%d] — clic droit → ouverture boutique" % id)
+		_open_boutique()
+		get_viewport().set_input_as_handled()
+
+
+func _open_boutique() -> void:
+	if not _is_local_human_owner():
+		DEBUG.log("Port [%d] — boutique refusée (non propriétaire)" % id, DEBUG.WARNING)
+		return
+
+	# Récupère le navire actuellement sélectionné par le joueur
+	var game_manager = get_tree().get_first_node_in_group("game_manager")
+	var docked_ship: Node = null
+	if game_manager and game_manager.has_method("get_selected_ship"):
+		docked_ship = game_manager.get_selected_ship()
+
+	# Vérifie que le navire sélectionné appartient bien au propriétaire du port
+	if docked_ship == null or not is_instance_valid(docked_ship):
+		DEBUG.log("Port [%d] — boutique refusée (aucun navire sélectionné)" % id)
+		return
+	if docked_ship.player_owner != player_owner:
+		DEBUG.log("Port [%d] — boutique refusée (navire sélectionné n'appartient pas au propriétaire)" % id)
+		return
+
+	# Vérifie que le navire sélectionné est sur une case adjacente au port
+	var neighbors := Map_utils.get_neighbors(case_actuelle)
+	if not docked_ship.case_actuelle in neighbors:
+		DEBUG.log("Port [%d] — boutique refusée (navire non adjacent, case navire=%s, voisins=%s)" % [id, str(docked_ship.case_actuelle), str(neighbors)])
+		return
+
+	var boutique = UI_boutique.new(self, player_owner, docked_ship)
+	boutique.buy_ship_requested.connect(_on_boutique_buy_ship)
+	boutique.heal_ship_requested.connect(_on_boutique_heal_ship)
+	boutique.heal_port_requested.connect(_on_boutique_heal_port)
+	# NOUVEAU : ouvrir le recrutement depuis la boutique
+	boutique.open_recrutement_requested.connect(_on_open_recrutement)
+
+	ui_layer.add_child(boutique)
+	open_boutique_requested.emit(self)
+	DEBUG.log("Port [%d] — boutique ouverte (navire amarré : %s)" % [
+		id,
+		str(docked_ship.id) if docked_ship else "aucun"
+	])
+
+
+# -- Callbacks boutique --
+
+## Achat d'un nouveau navire :
+## - Déduit le coût du navire acheteur (docked_ship)
+## - Spawne un nouveau navire adjacent au port via le ShipManager
+## - Rafraîchit la boutique
+func _on_boutique_buy_ship(port: Ports, buyer: Player, buying_ship: Node) -> void:
+	DEBUG.log("Port [%d] — achat navire demandé par %s" % [port.id, buyer.player_name])
+
+	# Vérifie que le navire acheteur a assez de poissons
+	if buying_ship == null or not is_instance_valid(buying_ship):
+		DEBUG.log("Port [%d] — achat refusé (navire acheteur invalide)" % id, DEBUG.WARNING)
+		return
+	if buying_ship.nourriture < UI_boutique.SHIP_COST:
+		DEBUG.log("Port [%d] — achat refusé (poissons insuffisants : %d/%d)" % [
+			id, buying_ship.nourriture, UI_boutique.SHIP_COST
+		], DEBUG.WARNING)
+		return
+
+	# Récupère le ShipManager via le GameManager
+	var game_manager = get_tree().get_first_node_in_group("game_manager")
+	if game_manager == null or game_manager.ship_manager == null:
+		DEBUG.log("Port [%d] — achat refusé (ShipManager introuvable)" % id, DEBUG.ERROR)
+		return
+
+	# Trouve la case d'eau libre la plus proche du port (BFS)
+	var spawn_case: Vector2i = Vector2i(-1, -1)
+	var visited: Dictionary = {}
+	var queue: Array[Vector2i] = [case_actuelle]
+	visited[case_actuelle] = true
+
+	while not queue.is_empty():
+		var current: Vector2i = queue.pop_front()
+		# Vérifie si c'est une case d'eau libre (pas le port lui-même)
+		if current != case_actuelle and Map_utils.is_case_water(current):
+			var occupied := false
+			for ship in get_tree().get_nodes_in_group("ships"):
+				if is_instance_valid(ship) and ship.case_actuelle == current:
+					occupied = true
+					break
+			if not occupied:
+				spawn_case = current
+				break
+		# Explore les voisins
+		for neighbor in Map_utils.get_neighbors(current):
+			if not visited.has(neighbor) and Map_utils.is_case_valid(neighbor):
+				visited[neighbor] = true
+				queue.append(neighbor)
+
+	if spawn_case == Vector2i(-1, -1):
+		DEBUG.log("Port [%d] — achat refusé (aucune case d'eau libre trouvée)" % id, DEBUG.WARNING)
+		return
+
+	# Déduit le coût du navire acheteur
+	buying_ship.nourriture -= UI_boutique.SHIP_COST
+	DEBUG.log("Port [%d] — %d poissons déduits du navire [%d] (reste : %d)" % [
+		id, UI_boutique.SHIP_COST, buying_ship.id, buying_ship.nourriture
+	])
+
+	# Synchronise la déduction chez tous les peers avant le spawn
+	if game_manager.has_method("sync_ship_nourriture_networked"):
+		game_manager.sync_ship_nourriture_networked(buying_ship.id, buying_ship.nourriture)
+
+	# Spawne le nouveau navire via le GameManager (gère les RPC en multi)
+	DEBUG.log("Port [%d] — appel spawn_navire_at pour joueur %s, case %s" % [id, buyer.player_name, str(spawn_case)])
+	var new_ship = game_manager.spawn_navire_at(buyer, spawn_case, true)
+	if new_ship:
+		DEBUG.log("Port [%d] — nouveau navire [%d] spawné en %s" % [id, new_ship.id, str(spawn_case)])
+	elif not multiplayer.has_multiplayer_peer():
+		# En solo seulement : rembourse si spawn échoué (en multi le spawn est async via RPC)
+		buying_ship.nourriture += UI_boutique.SHIP_COST
+		if game_manager.has_method("sync_ship_nourriture_networked"):
+			game_manager.sync_ship_nourriture_networked(buying_ship.id, buying_ship.nourriture)
+		DEBUG.log("Port [%d] — spawn échoué, remboursement effectué" % id, DEBUG.ERROR)
+
+## Soin du navire amarré :
+## - Déduit le coût du navire soigné (c'est lui qui paie avec ses propres poissons)
+## - Restaure des PV au navire
+## - Synchronise les nouvelles valeurs via le GameManager en multi
+func _on_boutique_heal_ship(port: Ports, ship: Node, buyer: Player) -> void:
+	DEBUG.log("Port [%d] — soin navire [%d] demandé par %s" % [port.id, ship.id, buyer.player_name])
+
+	if ship == null or not is_instance_valid(ship):
+		DEBUG.log("Port [%d] — soin refusé (navire invalide)" % id, DEBUG.WARNING)
+		return
+	if not "nourriture" in ship or not "vie" in ship or not "maxvie" in ship:
+		DEBUG.log("Port [%d] — soin refusé (propriétés manquantes sur le navire)" % id, DEBUG.WARNING)
+		return
+	if ship.nourriture < UI_boutique.HEAL_SHIP_COST:
+		DEBUG.log("Port [%d] — soin refusé (poissons insuffisants : %d/%d)" % [
+			id, ship.nourriture, UI_boutique.HEAL_SHIP_COST
+		], DEBUG.WARNING)
+		return
+	if ship.vie >= ship.maxvie:
+		DEBUG.log("Port [%d] — soin refusé (navire déjà au maximum)" % id)
+		return
+
+	# Déduit le coût et soigne localement
+	ship.nourriture -= UI_boutique.HEAL_SHIP_COST
+	var soin := 5
+	ship.vie = min(ship.vie + soin, ship.maxvie)
+	DEBUG.log("Port [%d] — navire [%d] soigné (+%d PV → %d/%d), %d poissons déduits" % [
+		id, ship.id, soin, ship.vie, ship.maxvie, UI_boutique.HEAL_SHIP_COST
+	])
+
+	# Synchronisation réseau
+	var game_manager = get_tree().get_first_node_in_group("game_manager")
+	if game_manager and game_manager.has_method("sync_heal_ship_networked"):
+		DEBUG.log("Port [%d] — envoi sync_heal_ship_networked (navire=%d vie=%d, payeur=%d nourriture=%d)" % [
+			id, ship.id, ship.vie, ship.id, ship.nourriture
+		])
+		game_manager.sync_heal_ship_networked(ship.id, ship.vie, ship.id, ship.nourriture)
 	else:
-		set_process_input(false)
-		set_process_unhandled_input(false)
+		DEBUG.log("Port [%d] — sync_heal_ship_networked introuvable sur game_manager", DEBUG.WARNING)
+
+
+## Soin du port :
+## - Déduit le coût du navire amarré (c'est lui qui paie)
+## - Restaure des PV au port
+## - Synchronise les nouvelles valeurs via le GameManager en multi
+func _on_boutique_heal_port(port: Ports, buyer: Player, paying_ship: Node) -> void:
+	DEBUG.log("Port [%d] — soin port demandé par %s" % [port.id, buyer.player_name])
+
+	if paying_ship == null or not is_instance_valid(paying_ship):
+		DEBUG.log("Port [%d] — soin port refusé (navire payeur invalide)" % id, DEBUG.WARNING)
+		return
+	if not "nourriture" in paying_ship:
+		DEBUG.log("Port [%d] — soin port refusé (propriété nourriture manquante)" % id, DEBUG.WARNING)
+		return
+	if paying_ship.nourriture < UI_boutique.HEAL_PORT_COST:
+		DEBUG.log("Port [%d] — soin port refusé (poissons insuffisants : %d/%d)" % [
+			id, paying_ship.nourriture, UI_boutique.HEAL_PORT_COST
+		], DEBUG.WARNING)
+		return
+	if port.current_hp >= port.max_hp:
+		DEBUG.log("Port [%d] — soin port refusé (port déjà au maximum)" % id)
+		return
+
+	# Déduit le coût et soigne localement
+	paying_ship.nourriture -= UI_boutique.HEAL_PORT_COST
+	var soin := 5
+	port.current_hp = min(port.current_hp + soin, port.max_hp)
+	DEBUG.log("Port [%d] — port soigné (+%d PV → %d/%d), %d poissons déduits du navire [%d]" % [
+		id, soin, port.current_hp, port.max_hp, UI_boutique.HEAL_PORT_COST, paying_ship.id
+	])
+
+	# Synchronisation réseau
+	var game_manager = get_tree().get_first_node_in_group("game_manager")
+	if game_manager and game_manager.has_method("sync_heal_port_networked"):
+		DEBUG.log("Port [%d] — envoi sync_heal_port_networked (port=%d hp=%d, payeur=%d nourriture=%d)" % [
+			id, port.id, port.current_hp, paying_ship.id, paying_ship.nourriture
+		])
+		game_manager.sync_heal_port_networked(port.id, port.current_hp, paying_ship.id, paying_ship.nourriture)
+	else:
+		DEBUG.log("Port [%d] — sync_heal_port_networked introuvable sur game_manager", DEBUG.WARNING)
+
+
+## Ouvre l'interface de recrutement d'équipage.
+func _on_open_recrutement(port: Ports, player: Player, ship: Navires) -> void:
+	var recrutement = UI_recrutement.new(port, player, ship)
+	recrutement.crew_hired.connect(_on_crew_hired)
+	ui_layer.add_child(recrutement)
+	open_recrutement_requested.emit(self)
+	DEBUG.log("Port [%d] — recrutement ouvert pour navire [%d]" % [id, ship.id])
+
+	# Ferme la boutique principale pour éviter l'empilement d'UI
+	for child in ui_layer.get_children():
+		if child is UI_boutique:
+			child.queue_free()
+
+
+func _on_crew_hired(ship: Navires, member: CrewMember) -> void:
+	DEBUG.log("Port [%d] — %s recruté sur navire [%d]" % [id, member.nom, ship.id])
+
 
 # =========================
 # GESTION DU PROPRIÉTAIRE
@@ -101,6 +388,9 @@ func set_as_owner(player: Player) -> void:
 	
 	if player != null and player.has_method("add_port"):
 		player.add_port(self)
+
+	# Reconfigure la zone de clic si le propriétaire change
+	_setup_click_area()
 
 ## Permet de récupérer le propriétaire du port
 func get_port_owner() -> Player:
@@ -136,7 +426,7 @@ func is_owned_by(player: Player) -> bool:
 # =========================
 func _init_stats_ui():
 	if not ui_layer:
-		DEBUG.log("ui_layer est null, impossible de créer l'UI des stats!",DEBUG.ERROR)
+		DEBUG.log("ui_layer est null, impossible de créer l'UI des stats!", DEBUG.ERROR)
 		return
 	# ---------- UI STATS (pour TOUS les ports) ----------
 	# On vérifie si le panel existe déjà avant d'en créer un nouveau
@@ -146,25 +436,113 @@ func _init_stats_ui():
 	DEBUG.log("UI Stats créée pour port [%d]" % id)
 
 
-# =========================
-# INPUT
-# =========================
-func on_clicked():
-	DEBUG.log("Le port a reçu le signal du clic !")
-	
-	# Toute la logique liée au port est gérée ICI, pas dans le MapManager
-	if player_owner != null and player_owner.is_human:
-		# On peut émettre le signal si d'autres menus doivent s'ouvrir (ex: interface d'achat)
-		port_clicked.emit(self) 
-	else:
-		DEBUG.log("Ce port ne vous appartient pas ou n'a pas de propriétaire.")
-	
+func _init_damage_label() -> void:
+	"""Crée le label flottant de feedback de dégâts, ajouté au ui_layer."""
+	if not ui_layer:
+		return
+	_damage_label = Label.new()
+	_damage_label.visible = false
+	_damage_label.z_index = 10
+	_damage_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_damage_label.add_theme_font_size_override("font_size", 18)
+	_damage_label.add_theme_color_override("font_color", Color(1, 0.3, 0.3))
+	ui_layer.add_child(_damage_label)
+
+
+func _process(delta: float) -> void:
+	if _damage_label and _damage_label.visible:
+		_damage_label_timer -= delta
+		# Repositionner en coordonnées écran à chaque frame
+		var screen_pos: Vector2 = get_viewport().get_canvas_transform() * global_position
+		_damage_label.position = screen_pos + Vector2(-20, -60 - (_DAMAGE_LABEL_DURATION - _damage_label_timer) * _DAMAGE_LABEL_RISE_SPEED)
+		_damage_label.modulate.a = clampf(_damage_label_timer / _DAMAGE_LABEL_DURATION, 0.0, 1.0)
+		if _damage_label_timer <= 0.0:
+			_damage_label.visible = false
 
 
 # =========================
 # COMBAT
 # =========================
-### Réfléchir à l'implémentation d'une attaque/défense de la part des villes ?
+
+func take_damage(amount: int, attacker: Player) -> void:
+	current_hp -= amount
+	DEBUG.log("Port [%d] reçoit %d dégâts → %d/%d PV" % [id, amount, current_hp, max_hp])
+	is_under_attack = true
+	_show_damage_feedback(amount)
+	sig_show_port.emit(attacker)
+	if current_hp <= 0:
+		current_hp = 0
+		_on_captured(attacker)
+
+
+func _show_damage_feedback(amount: int) -> void:
+	"""Affiche un label flottant '-X ❤️' au-dessus du port."""
+	if _damage_label == null:
+		return
+	_damage_label.text = "-%d ❤️" % amount
+	_damage_label.modulate.a = 1.0
+	_damage_label.visible = true
+	_damage_label_timer = _DAMAGE_LABEL_DURATION
+
+func _on_captured(new_owner: Player) -> void:
+	var old_owner = player_owner
+	set_as_owner(new_owner)
+	# Le port est capturé à moitié endommagé
+	current_hp = max_hp / 2
+	port_captured.emit(self, new_owner, old_owner)
+	DEBUG.log("Port [%d] capturé par %s ! (PV : %d/%d)" % [id, new_owner.player_name if new_owner else "NEUTRE", current_hp, max_hp])
+
+func repair_ship(navire) -> void:
+	navire.current_hp = min(navire.current_hp + 5, navire.max_hp)
+	DEBUG.log("Navire [%d] réparé au port [%d]" % [navire.id, id])
+
+func can_attack_position(target_pos: Vector2i) -> bool:
+	var map_manager = get_tree().get_first_node_in_group("Map_manager")
+	if not map_manager:
+		return false
+	
+	var a1 = map_manager.grid.offset_to_axial(case_actuelle.x, case_actuelle.y)
+	var a2 = map_manager.grid.offset_to_axial(target_pos.x, target_pos.y)
+	
+	var dq = int(a2.x) - int(a1.x)
+	var dr = int(a2.y) - int(a1.y)
+	var ds = (-dq - dr)  
+	var dist = int((abs(dq) + abs(dr) + abs(ds)) / 2)
+	
+	return dist <= attack_range
+
+func try_attack_ship(navire) -> void:
+	if can_attack_position(navire.case_actuelle):
+		navire.take_damage(attack_damage)
+		DEBUG.log("Port [%d] attaque navire [%d] pour %d dégâts" % [id, navire.id, attack_damage])
+
+func is_neutral() -> bool:
+	return player_owner == null
+
+func heal(amount: int) -> void:
+	current_hp = min(current_hp + amount, max_hp)
+	
+
+## Attaque tous les navires à portée qui n'appartiennent pas au propriétaire du port.
+## Appelé une fois à la fin de chaque tour.
+func attack_nearby_ships(current_player: Player) -> void:
+	if player_owner != null and player_owner == current_player:
+		return  # Port ami => pas d'attaque
+	
+	var all_ships = get_tree().get_nodes_in_group("ships")
+	for navire in all_ships:
+		if not is_instance_valid(navire) or not navire.is_alive():
+			continue
+		if navire.player_owner != current_player:
+			continue
+		if can_attack_position(navire.case_actuelle):
+			navire.take_damage(attack_damage)
+			DEBUG.log("Port [%d] (%s) attaque navire [%d] pour %d dégâts" % [
+				id,
+				"NEUTRE" if is_neutral() else player_owner.player_name,
+				navire.id,
+				attack_damage
+			])
 
 
 # =========================

@@ -91,9 +91,23 @@ func _on_peer_connected(peer_id: int) -> void:
 func _on_peer_disconnected(peer_id: int) -> void:
 	if peer_id == 1:
 		print("[NETWORK] Serveur déconnecté !")
+		# L'hôte s'est déconnecté : le joueur local gagne par forfait
+		_trigger_win_by_disconnect(peer_id)
 		return
 	_peer_to_player_id.erase(peer_id)
 	peer_left.emit(peer_id)
+	# Un client s'est déconnecté : le joueur local (hôte) gagne
+	_trigger_win_by_disconnect(peer_id)
+
+
+func _trigger_win_by_disconnect(disconnected_peer_id: int) -> void:
+	print("[NETWORK] Déconnexion détectée (peer=%d) → victoire par forfait" % disconnected_peer_id)
+	var turn_manager = get_tree().get_first_node_in_group("turn_manager")
+	if turn_manager and turn_manager.has_method("declare_winner_by_disconnect"):
+		turn_manager.declare_winner_by_disconnect(local_player_id)
+	else:
+		# Fallback : retour au menu principal
+		get_tree().change_scene_to_file("res://Scenes/MainMenu.tscn")
 
 @rpc("any_peer", "call_remote", "reliable")
 func _rpc_request_player_id() -> void:
@@ -126,3 +140,13 @@ func get_player_id_for_peer(peer_id: int) -> int:
 @rpc("authority", "call_local", "reliable")
 func _rpc_update_player_count(count: int) -> void:
 	player_count_updated.emit(count)
+	
+func handle_local_player_quit() -> void:
+	print("[NETWORK] Le joueur local quitte volontairement")
+
+	# Déclenche la fermeture réseau
+	if multiplayer.multiplayer_peer != null:
+		multiplayer.multiplayer_peer.close()
+
+	# Nettoyage local
+	shutdown()

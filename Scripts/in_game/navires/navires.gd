@@ -12,6 +12,8 @@ signal sig_show_fishing
 signal sig_inspect_case(case_pos: Vector2i)
 signal sig_open_hex_menu(navire: Navires, screen_pos: Vector2)
 signal sig_switch_ship()
+signal sig_navire_moved(navire: Navires)
+
 #endregion signaux
 
 @export var attack_sound: AudioStream = null
@@ -57,21 +59,30 @@ var _confirm_ui: UI_confirm_deplacement = null
 # =========================
 #region stats
 var stats_panel : UI_stats_navire
-@export var vie: int = 10
-@export var maxvie: int = 10
-@export var energie: int = 20
-@export var maxenergie: int = 20
+@export var vie: int = 15
+@export var maxvie: int = 15
+@export var energie: int = 30
+@export var maxenergie: int = 30
 @export var vitesse: float = 800.0
-@export var nrbequipage: int = 0
+@export var nrbequipage: int = 0   # (gardé pour compatibilité pêche)
+var equipage: Array[CrewMember] = []
+
+# Bonus de synergies actifs (recalculés après chaque recrutement/congédiement)
+var _synergy_dgt_bonus: int              = 0
+var _synergy_peche_mult: float           = 1.0
+var _synergy_regen_mult: float           = 1.0
+var _synergy_move_cost_reduction: float  = 0.0  # Réduction du coût de déplacement par synergie (0.0–1.0)
+var _synergy_full_crew: bool             = false
 @export var interaction_radius: float = 80.0
 @export var stats_duration: float = 2.5
-@export var tir: int = 10		# Portée d'un tir
+@export var tir: int = 4		# Portée d'un tir
 @export var dgt_tir: int = 2	# Dégâts d'un tir
+
+## Indique si ce navire a déjà attaqué ce tour (interdit le switch bateau)
+var has_attacked_this_turn: bool = false
 
 @onready var ui_layer: CanvasLayer = get_tree().get_first_node_in_group("ui_layer")
 @onready var data := get_tree().get_first_node_in_group("shared_entities")
-
-
 
 # Référence au fog manager pour mise à jour en temps réels
 var fog_manager: FogManager = null
@@ -86,7 +97,7 @@ var drawable : Drawable
 # =========================
 #region pêche
 @export var nourriture: int = 0
-@export var fish_energy_cost: int = 1
+@export var fish_energy_cost: int = 5
 @export var fish_duration: float = 1.2
 @export var fish_yield_min: int = 1
 @export var fish_yield_max: int = 3
@@ -102,6 +113,14 @@ var fish_timer := 0.0
 var fish_feedback_label: UI_fish_navires
 @export var fish_feedback_duration: float = 0.8
 var fish_feedback_timer: float = 0.0
+
+# =========================
+# FEEDBACK COMBAT
+# =========================
+#region feedback combat
+## Label flottant partagé par TOUS les navires de la scène (un seul nœud suffit)
+var combat_feedback_label: UI_combat_navires
+#endregion feedback combat
 
 var stats_timer := 0.0
 # stats_visible = true signifie que le joueur a VOLONTAIREMENT activé l'affichage
@@ -170,7 +189,7 @@ func _ready():
 	print_tree()
 	match_context = get_tree().get_first_node_in_group("match_context")
 	network_manager = get_tree().get_first_node_in_group("network_manager")
-	rpc_navire = RPC_Navires.new(self)
+	#rpc_navire = RPC_Navires.new(self)
   
 	case_actuelle = Map_utils.monde_vers_case(global_position)
 
@@ -187,6 +206,7 @@ func _ready():
 	# Initialisation de l'UI
 
 	_init_stats_ui()
+	_init_crew()
 	drawable = Drawable.new(self)
 	add_child(drawable)
 
@@ -326,6 +346,12 @@ func _init_stats_ui():
 		ui_layer.add_child(fish_feedback_label)
 		# Connecter le signal du navire à l'UI fish
 		sig_show_fishing.connect(func(): fish_feedback_label.on_show_fishing(self))
+
+	# ── Feedback combat : un label par navire (comme UI_fish_navires) ──
+	if combat_feedback_label == null:
+		combat_feedback_label = UI_combat_navires.new()
+		ui_layer.add_child(combat_feedback_label)
+
 	DEBUG.log("UI Stats créée pour navire [%d]" % id)
 #endregion initialisation
 
@@ -418,12 +444,18 @@ func is_alive() -> bool:
 	return vie > 0
 
 ## Applique des dégâts au navire
-func take_damage(damage: int) -> void:
+func take_damage(damage: int, show_ui: bool = true) -> void:
 	if not is_alive():
 		return
 	vie = max(vie - damage, 0)
 	emit_signal("sig_navire_damaged", self, damage)
-	stats_panel.show_stats()
+
+	if show_ui:
+		stats_panel.show_stats()
+	# ── Feedback visuel : "-X ❤️" flottant au-dessus du navire touché ──
+	if combat_feedback_label and is_instance_valid(combat_feedback_label):
+		combat_feedback_label.show_damage(self, damage)
+
 	if vie <= 0:
 		die()
 
@@ -441,6 +473,9 @@ func die() -> void:
 	# Masquer le feedback de pêche — close() au lieu de hide() car UI_fish_navires est un Control
 	if fish_feedback_label and is_instance_valid(fish_feedback_label):
 		fish_feedback_label.close()
+	# Masquer le feedback de combat pour ce navire
+	if combat_feedback_label and is_instance_valid(combat_feedback_label):
+		combat_feedback_label.close_for(self)
 	# Notifier le propriétaire
 	if player_owner != null and player_owner.has_method("remove_navire"):
 		player_owner.remove_navire(self)
@@ -462,6 +497,7 @@ func heal(amount: int) -> void:
 ## Réinitialise l'énergie au maximum
 func reset_energie() -> void:
 	energie = maxenergie
+	has_attacked_this_turn = false
 #endregion gestion etat navire
 
 
@@ -534,12 +570,10 @@ func _unhandled_input(event: InputEvent) -> void:
 						return
 
 			# ── PAS DE MODE ACTIF ─────────────────────────────────────
-			# Si un navire allié a un mode actif, ignorer le clic pour éviter
-			# un changement de sélection accidentel. Mais seul le navire
-			# NON-sélectionné vérifie ça — le sélectionné a déjà return ci-dessus.
+			# Si N'IMPORTE QUEL navire (allié OU ennemi) a un mode actif,
 			if not is_selected:
 				for _s in get_tree().get_nodes_in_group("ships"):
-					if _s is Navires and _s.player_owner == player_owner and _s.is_selected:
+					if _s is Navires and _s.is_selected:
 						if _s.current_input_mode != InputMode.NONE:
 							return
 						break
@@ -634,84 +668,117 @@ func attempt_shoot(target_case: Vector2i) -> void:
 		return
 	if not is_in_range(target_case):
 		DEBUG.log("Cible hors de portée!")
+		# ── Feedback visuel : ennemi trop loin ──
+		if combat_feedback_label and is_instance_valid(combat_feedback_label):
+			combat_feedback_label.show_out_of_range(self)
 		return
+			
+	# Tenter d'attaquer un port sur cette case
+	var port = _get_port_at(target_case)
+	if port != null and port.player_owner != player_owner:
+		energie = max(energie - 10, 0)
+		has_attacked_this_turn = true
+		if _audio_player and attack_sound:
+			_audio_player.play()
+		stats_panel.show_ally()
+		if combat_feedback_label and is_instance_valid(combat_feedback_label):
+			combat_feedback_label.show_energy_cost(self, 10)
+		DEBUG.log("Navire [%d] attaque port [%d] pour %d dégâts" % [id, port.id, dgt_tir])
+		if match_context != null and match_context.mode == MatchContext.MatchMode.MULTI:
+			var game_manager = get_tree().get_first_node_in_group("game_manager")
+			if game_manager and game_manager.has_method("apply_port_damage_networked"):
+				game_manager.apply_port_damage_networked(port.id, dgt_tir, player_owner.player_id)
+			else:
+				push_error("[NAVIRE %d] GameManager introuvable pour apply_port_damage_networked" % id)
+		else:
+			port.take_damage(dgt_tir, player_owner)
+		return
+		
 	# Récupérer les navires sur la case cible
 	var target_ships = get_ships_at_position(target_case)
 	if target_ships.is_empty():
 		DEBUG.log("Aucune cible sur cette case!")
 		return
+		
 	# Tirer sur tous les navires ennemis présents
 	var hit_count = 0
 	for target_ship in target_ships:
 		if target_ship.is_enemy_of(self):
 			shoot_at(target_ship)
 			hit_count += 1
+			
 	if hit_count > 0:
 		energie = max(energie - 10, 0)
+		has_attacked_this_turn = true
 		DEBUG.log("Tir effectué sur %d cible(s)!" % hit_count)
 		stats_panel.show_ally()
+		# ── Feedback visuel : coût en énergie sur l'attaquant ──
+		if combat_feedback_label and is_instance_valid(combat_feedback_label):
+			combat_feedback_label.show_energy_cost(self, 10)
 	else:
 		DEBUG.log("Aucun ennemi sur cette case!")
+	
 
 ## Tire sur un navire spécifique
 func shoot_at(target: Navires) -> void:
 	if target == null or not target.is_alive():
 		return
 	DEBUG.log("Tir sur navire [%d]" % target.id)
+	print("[DMG] shoot_at — tireur id=%d owner=%s | cible id=%d | dgt_tir=%d | match_context null=%s" % [
+		id,
+		player_owner.player_name if player_owner else "NULL",
+		target.id,
+		dgt_tir,
+		str(match_context == null)
+	])
 	# ── SON D'ATTAQUE ──────────────────────────────────────────────
 	if _audio_player and attack_sound:
 		_audio_player.stream = attack_sound
 		_audio_player.play()
 
-	# En mode multi : synchroniser les dégâts via l'hôte
+	# En mode multi : déléguer au GameManager qui a un nœud réseau stable
 	if match_context != null and match_context.mode == MatchContext.MatchMode.MULTI:
-		if network_manager != null and network_manager.is_host():
-			# L'hôte applique et broadcaste directement
-			_rpc_apply_damage.rpc(target.id, dgt_tir)
+		var game_manager = get_tree().get_first_node_in_group("game_manager")
+		print("[DMG] shoot_at MULTI — game_manager null=%s" % str(game_manager == null))
+		if game_manager and game_manager.has_method("apply_damage_networked"):
+			game_manager.apply_damage_networked(target.id, dgt_tir)
 		else:
-			# Le client envoie la demande à l'hôte
-			_rpc_sync_damage.rpc(target.id, dgt_tir)
+			push_error("[NAVIRE %d] GameManager introuvable pour apply_damage_networked" % id)
 	else:
-		# Mode solo : application directe comme avant
+		# Mode solo : application directe
+		print("[DMG] shoot_at SOLO — target.vie avant=%d" % target.vie)
 		target.take_damage(dgt_tir)
 #endregion gestion combat
 
 #region sync réseau
-# Synchronise la position d'un navire sur tous les autres peers
-@rpc("any_peer", "call_remote", "reliable")
-func _rpc_sync_position(case_x: int, case_y: int, world_x: float, world_y: float, rotation_angle: float) -> void:
-	if _is_local_human_owner():
-		return
-	case_actuelle = Vector2i(case_x, case_y)
-	global_position = Vector2(world_x, world_y)
-	target_rotation_angle = rotation_angle
-	_set_visual_rotation(rotation_angle)
-	_update_visibility_in_fog()
-
-# Le client envoie une demande de dégât à l'hôte
-@rpc("any_peer", "call_remote", "reliable")
-func _rpc_sync_damage(target_ship_id: int, damage: int) -> void:
-	if network_manager == null:
-		network_manager = get_tree().get_first_node_in_group("network_manager")
-	if network_manager == null or not network_manager.is_host():
-		return
-	# L'hôte valide et broadcaste
-	_rpc_apply_damage.rpc(target_ship_id, damage)
-
-# Appliqué sur tous les peers : infliger les dégâts au navire cible
-@rpc("any_peer", "call_local", "reliable")
-func _rpc_apply_damage(target_ship_id: int, damage: int) -> void:
-	var all_ships = get_tree().get_nodes_in_group("ships")
-	for ship in all_ships:
-		if ship is Navires and ship.id == target_ship_id:
-			ship.take_damage(damage)
-			return
 #endregion sync réseau
 
 #region utils
 func is_in_range(target_case: Vector2i) -> bool:
-	var chemin := Pathfinder.calculer_chemin(case_actuelle, target_case)
-	return chemin.size() <= tir
+	# Pour les ports (cases non navigables), on cherche la case navigable
+	# adjacente la plus proche et on mesure depuis elle
+	if not Map_utils.is_case_navigable(target_case):
+		var neighbors := Map_utils.get_neighbors(target_case)
+		var min_dist := 999
+		for neighbor in neighbors:
+			if Map_utils.is_case_navigable(neighbor):
+				# +1 car on doit encore traverser la case du port lui-même
+				min_dist = mini(min_dist, _hex_distance(case_actuelle, neighbor) + 1)
+		return min_dist <= tir
+	# Pour les navires, on utilise la distance hexagonale directe
+	return _hex_distance(case_actuelle, target_case) <= tir
+
+
+## Calcule la distance hexagonale en cases entre deux positions (sans tenir compte des obstacles).
+func _hex_distance(a: Vector2i, b: Vector2i) -> int:
+	var map_manager = get_tree().get_first_node_in_group("Map_manager")
+	if not map_manager:
+		return 999
+	var a1 = map_manager.grid.offset_to_axial(a.x, a.y)
+	var a2 = map_manager.grid.offset_to_axial(b.x, b.y)
+	var dq = int(a2.x) - int(a1.x)
+	var dr = int(a2.y) - int(a1.y)
+	return int((abs(dq) + abs(dr) + abs(dq + dr)) / 2)
 
 ## Récupère tous les navires présents sur une case
 func get_ships_at_position(target_case: Vector2i) -> Array[Navires]:
@@ -736,6 +803,33 @@ func get_ship_at_position(pos: Vector2) -> Navires:
 ## Retourne la position du navire en coordonnées de case
 func getPosition() -> Vector2i:
 	return case_actuelle
+	
+## Retourne le port présent sur la case donnée, ou null si aucun port n'y est.
+func _get_port_at(target_case: Vector2i) -> Node2D:
+	# Vérification rapide du type de terrain dans le tableau brut
+	if Map_data.tiles[target_case.y][target_case.x] != "port":
+		return null
+
+	# Récupérer le MapManager et sa grille
+	var map_manager = get_tree().get_first_node_in_group("Map_manager")
+	if map_manager == null or not "grid" in map_manager:
+		DEBUG.log("Navire [%d] - _get_port_at : Map_manager/grid introuvable !" % id, DEBUG.ERROR)
+		return null
+
+	var grid: HexGrid = map_manager.grid
+
+	# Convertir offset → axial pour accéder à la bonne clé dans cells{}
+	var axial: Vector2 = grid.offset_to_axial(target_case.x, target_case.y)
+	var q := int(axial.x)
+	var r := int(axial.y)
+	var cell: HexCell = grid.get_cell(q, r, -q - r)
+
+	if cell == null:
+		DEBUG.log("Navire [%d] - _get_port_at : cellule axiale (%d,%d) introuvable" % [id, q, r], DEBUG.WARNING)
+		return null
+
+	return cell.port_instance
+	
 #endregion utils
 
 
@@ -786,8 +880,6 @@ func _process(delta):
 
 ## Gère le déplacement du navire
 func _process_movement(delta: float) -> void:
-	if multiplayer.has_multiplayer_peer():
-		_rpc_sync_position.rpc(case_actuelle.x, case_actuelle.y, global_position.x, global_position.y, target_rotation_angle)
 	if path.is_empty():
 		DEBUG.log("Navire [%d] - Chemin vide, arrêt du mouvement" % id)
 		is_moving  = false
@@ -824,7 +916,7 @@ func _process_movement(delta: float) -> void:
 		global_position = next_pos
 		path.remove_at(0)
 		case_actuelle = next_case
-		energie = max(energie - 1, 0)
+		energie = max(energie - roundi(get_effective_move_cost()), 0)
 
 		DEBUG.log("Navire [%d] arrivé à %s - Cases restantes: %d" % [id, case_actuelle, path.size()])
 		DEBUG.log("old_case: %s, case_actuelle: %s, changé: %s" % [old_case, case_actuelle, old_case != case_actuelle])
@@ -845,9 +937,11 @@ func _process_movement(delta: float) -> void:
 			if _is_local_human_owner():
 				DEBUG.log("✓ CONDITIONS OK - Appel de _update_fog_of_war()")
 				_update_fog_of_war()
-				# Synchroniser la nouvelle position vers tous les autres peers
+				# Synchroniser la nouvelle position vers tous les autres peers via le GameManager
 				if multiplayer.has_multiplayer_peer():
-					_rpc_sync_position.rpc(case_actuelle.x, case_actuelle.y, global_position.x, global_position.y, target_rotation_angle)
+					var game_manager = get_tree().get_first_node_in_group("game_manager")
+					if game_manager and game_manager.has_method("sync_ship_position"):
+						game_manager.sync_ship_position(id, case_actuelle.x, case_actuelle.y, global_position.x, global_position.y, target_rotation_angle)
 			else:
 				DEBUG.log("✗ CONDITIONS PAS OK - Pas de mise à jour du fog")
 				if old_case == case_actuelle:
@@ -865,6 +959,7 @@ func _process_movement(delta: float) -> void:
 			show_arrow = false
 			queue_redraw()
 			DEBUG.log("Navire [%d] DESTINATION FINALE atteinte!" % id)
+			emit_signal("sig_navire_moved", self)  # Signale la fin du déplacement (utilisé par le tutoriel)
 	else:
 		global_position += direction.normalized() * vitesse * delta
 #endregion process
@@ -877,12 +972,14 @@ func _request_move_confirmation(computed_path: Array) -> void:
 	# ── TRONQUER le chemin si l'énergie est insuffisante ──
 	# Le joueur ne peut avancer que d'autant de cases qu'il a d'énergie.
 	var affordable_path: Array = computed_path
-	if computed_path.size() > energie:
-		affordable_path = computed_path.slice(0, energie)
-		DEBUG.log("Navire [%d] — Chemin tronqué à %d cases (énergie: %d)" % [id, affordable_path.size(), energie])
+	var cost_per_case := get_effective_move_cost()
+	var max_cases := int(float(energie) / cost_per_case)
+	if computed_path.size() > max_cases:
+		affordable_path = computed_path.slice(0, max_cases)
+		DEBUG.log("Navire [%d] — Chemin tronqué à %d cases (énergie: %d, coût/case: %.2f)" % [id, affordable_path.size(), energie, cost_per_case])
 
 	pending_path = affordable_path
-	var cost: int = affordable_path.size()  # coût réel = cases effectivement parcourables
+	var cost: int = roundi(float(affordable_path.size()) * cost_per_case)  # coût réel en énergie
 
 	if not _confirm_ui:
 		_confirm_ui = UI_confirm_deplacement.new()
@@ -1053,18 +1150,24 @@ func finish_fishing() -> void:
 	var gain: int = 0
 
 	if fish_manager.is_fish_tile(case_actuelle):
-		# Zone de pêche : rendement élevé (6-7, +1 si équipage >= 6)
+		# Zone de pêche : rendement élevé (6-7, +bonus équipage et synergies)
 		var wanted := randi_range(6, 7)
-		if nrbequipage >= 6:
-			wanted += 1
+		wanted += get_crew_fishing_bonus()
+		wanted = int(float(wanted) * _synergy_peche_mult)
 		gain = fish_manager.harvest_fish(case_actuelle, wanted)
 	else:
 		# Eau libre (peu profonde ou profonde) : rendement faible (1-2)
 		gain = randi_range(1, 2)
-		if nrbequipage >= 6:
-			gain = mini(gain + 1, 2)
+		gain += get_crew_fishing_bonus()
+		gain = mini(int(float(gain) * _synergy_peche_mult), 5)
 
 	nourriture += gain
+
+	# Synchronise la nourriture mise à jour chez tous les peers
+	if multiplayer.has_multiplayer_peer() and _is_local_human_owner():
+		var game_manager = get_tree().get_first_node_in_group("game_manager")
+		if game_manager and game_manager.has_method("sync_ship_nourriture_networked"):
+			game_manager.sync_ship_nourriture_networked(id, nourriture)
 
 	if fish_feedback_label:
 		# Passer self en premier argument — UI_fish_navires.finished_fishing(navire, gain)
@@ -1074,3 +1177,239 @@ func finish_fishing() -> void:
 	var zone_type = "zone de pêche" if fish_manager.is_fish_tile(case_actuelle) else "eau libre"
 	DEBUG.log("Navire [%d] - Pêche terminée : +%d poissons sur %s (case %s)" % [id, gain, zone_type, case_actuelle])
 #endregion peche
+
+
+#region equipage
+
+# =========================
+# CONSTANTES DE SYNERGIES
+# =========================
+const MAX_CREW: int = 6
+
+## Synergie "Flotte de guerre" : Canonnier + Corsaire + Tireur d'élite → dgt_tir ×1.5
+const SYNERGIE_GUERRE := [CrewMember.Role.CANONNIER, CrewMember.Role.CORSAIRE, CrewMember.Role.TIREUR_ELITE]
+
+## Synergie "Navire de pêche" : Pêcheur + Cuisinier → bonus_peche ×2
+const SYNERGIE_PECHE := [CrewMember.Role.PECHEUR, CrewMember.Role.CUISINIER]
+
+## Synergie "Duo de soins" : Médecin + Cuisinier → regen_vie doublée
+const SYNERGIE_SOINS := [CrewMember.Role.MEDECIN, CrewMember.Role.CUISINIER]
+
+## Synergie "Vitesse maximale" : Navigateur + Éclaireur → +200 vitesse
+const SYNERGIE_VITESSE := [CrewMember.Role.NAVIGATEUR, CrewMember.Role.ECLAIREUR]
+
+## Synergie "Équipage complet" : 6 membres → +10% sur toutes les stats
+const SYNERGIE_FULL_CREW_SIZE: int = 6
+
+
+## Initialise l'équipage avec le capitaine par défaut.
+func _init_crew() -> void:
+	if equipage.is_empty():
+		var capitaine = CrewMember.new(CrewMember.Role.CAPITAINE)
+		equipage.append(capitaine)
+		nrbequipage = equipage.size()
+		DEBUG.log("Navire [%d] — Capitaine ajouté, équipage initialisé." % id)
+
+
+## Retourne le coût d'un rôle après réduction Diplomate.
+func get_hire_cost(role: CrewMember.Role) -> int:
+	var base_cost: int = CrewMember.ROLE_COSTS[role]
+	var reduction: float = 0.0
+	for member in equipage:
+		reduction = maxf(reduction, member.reduction_cout)
+	return maxi(1, int(float(base_cost) * (1.0 - reduction)))
+
+
+## Ajoute un membre d'équipage et applique ses bonus.
+func add_crew_member(member: CrewMember) -> void:
+	if equipage.size() >= MAX_CREW:
+		DEBUG.log("Navire [%d] — Équipage plein, impossible d'ajouter %s." % [id, member.nom], DEBUG.WARNING)
+		return
+
+	equipage.append(member)
+	nrbequipage = equipage.size()
+	_apply_crew_bonus(member)
+	compute_crew_synergies()
+	DEBUG.log("Navire [%d] — %s rejoint l'équipage (total : %d)" % [id, member.nom, nrbequipage])
+
+
+## Retire un membre à un index donné (0 = capitaine, protégé).
+func remove_crew_member(index: int) -> void:
+	if index <= 0 or index >= equipage.size():
+		DEBUG.log("Navire [%d] — Impossible de retirer le membre à l'index %d." % [id, index], DEBUG.WARNING)
+		return
+
+	var member: CrewMember = equipage[index]
+	_remove_crew_bonus(member)
+	equipage.remove_at(index)
+	nrbequipage = equipage.size()
+	compute_crew_synergies()
+	DEBUG.log("Navire [%d] — %s a quitté l'équipage (total : %d)" % [id, member.nom, nrbequipage])
+
+
+## Vérifie si un rôle est déjà occupé dans l'équipage.
+func has_crew_role(role: CrewMember.Role) -> bool:
+	for member in equipage:
+		if member.role == role:
+			return true
+	return false
+
+
+## Retourne le nombre de membres ayant un rôle donné.
+func count_crew_role(role: CrewMember.Role) -> int:
+	var count := 0
+	for member in equipage:
+		if member.role == role:
+			count += 1
+	return count
+
+
+## Applique les bonus individuels d'un membre au navire.
+func _apply_crew_bonus(member: CrewMember) -> void:
+	dgt_tir    += member.bonus_dgt_tir
+	tir        += member.bonus_tir
+	maxvie     += member.bonus_maxvie
+	vie         = min(vie + member.bonus_maxvie, maxvie)
+	maxenergie += member.bonus_maxenergie
+	energie     = min(energie + member.bonus_maxenergie, maxenergie)
+	# bonus_vitesse supprimé — la vitesse est purement visuelle (px/s)
+	# reduction_cout_deplacement géré via get_effective_move_cost()
+	# bonus_vision géré via get_crew_vision_bonus() → FogOfWar
+	DEBUG.log("Navire [%d] — Bonus appliqués [%s] : dgt+%d tir+%d vie+%d nrj+%d mvt-%.0f%% vis+%d cases" % [
+		id, member.nom, member.bonus_dgt_tir, member.bonus_tir,
+		member.bonus_maxvie, member.bonus_maxenergie,
+		member.reduction_cout_deplacement * 100.0, member.bonus_vision
+	])
+
+
+## Retire les bonus individuels d'un membre du navire (congédiement).
+func _remove_crew_bonus(member: CrewMember) -> void:
+	dgt_tir    = max(dgt_tir    - member.bonus_dgt_tir,    1)
+	tir        = max(tir        - member.bonus_tir,         1)
+	maxvie     = max(maxvie     - member.bonus_maxvie,      1)
+	vie         = min(vie, maxvie)
+	maxenergie = max(maxenergie - member.bonus_maxenergie,  5)
+	energie     = min(energie, maxenergie)
+	# bonus_vitesse supprimé — la vitesse est purement visuelle (px/s)
+	# reduction_cout_deplacement géré via get_effective_move_cost()
+	# bonus_vision géré via get_crew_vision_bonus() → FogOfWar
+	DEBUG.log("Navire [%d] — Bonus retirés [%s] : dgt-%d tir-%d vie-%d nrj-%d mvt-%.0f%% vis-%d cases" % [
+		id, member.nom, member.bonus_dgt_tir, member.bonus_tir,
+		member.bonus_maxvie, member.bonus_maxenergie,
+		member.reduction_cout_deplacement * 100.0, member.bonus_vision
+	])
+
+
+## Retourne le coût en énergie d'un déplacement d'une case (après réductions équipage + synergies).
+func get_effective_move_cost() -> float:
+	var reduction := _synergy_move_cost_reduction
+	for member in equipage:
+		reduction = maxf(reduction, member.reduction_cout_deplacement)
+	return maxf(1.0 - reduction, 0.5)  # plancher à 0.5 → roundi() donnera toujours au moins 1
+
+
+## Calcule et applique toutes les synergies d'équipage.
+## Appelée après chaque add/remove pour recalculer l'état courant.
+func compute_crew_synergies() -> void:
+	# Retire les anciens bonus de synergie avant recalcul
+	dgt_tir   = max(dgt_tir   - _synergy_dgt_bonus, 1)
+	_synergy_dgt_bonus            = 0
+	_synergy_peche_mult           = 1.0
+	_synergy_regen_mult           = 1.0
+	_synergy_move_cost_reduction  = 0.0
+	_synergy_full_crew            = false
+
+	var roles_presents: Array = equipage.map(func(m): return m.role)
+
+	# ── Flotte de guerre : Canonnier + Corsaire + Tireur d'élite → dgt_tir ×1.5 ──
+	if _has_all_roles(SYNERGIE_GUERRE, roles_presents):
+		var bonus := int(float(dgt_tir) * 0.5)
+		_synergy_dgt_bonus += bonus
+		dgt_tir += bonus
+		DEBUG.log("Navire [%d] — ⚔️ Synergie Flotte de guerre active (+%d dgt)" % [id, bonus])
+
+	# ── Navire de pêche : Pêcheur + Cuisinier → bonus_peche ×2 ──
+	if _has_all_roles(SYNERGIE_PECHE, roles_presents):
+		_synergy_peche_mult = 2.0
+		DEBUG.log("Navire [%d] — 🎣 Synergie Navire de pêche active (pêche ×2)" % id)
+
+	# ── Duo de soins : Médecin + Cuisinier → regen_vie doublée ──
+	if _has_all_roles(SYNERGIE_SOINS, roles_presents):
+		_synergy_regen_mult = 2.0
+		DEBUG.log("Navire [%d] — ⚕️ Synergie Duo de soins active (regen ×2)" % id)
+
+	# ── Vitesse maximale : Navigateur + Éclaireur → -25% coût de déplacement ──
+	if _has_all_roles(SYNERGIE_VITESSE, roles_presents):
+		_synergy_move_cost_reduction = 0.25
+		DEBUG.log("Navire [%d] — 🧭 Synergie Vitesse maximale active (-25%% coût déplacement)" % id)
+
+	# ── Équipage complet : 6 membres → +10% toutes stats ──
+	if equipage.size() >= SYNERGIE_FULL_CREW_SIZE:
+		_synergy_full_crew = true
+		DEBUG.log("Navire [%d] — 👥 Synergie Équipage complet active (+10%% stats)" % id)
+
+
+## Vérifie que tous les rôles de la liste sont présents dans l'équipage.
+func _has_all_roles(required: Array, present: Array) -> bool:
+	for r in required:
+		if not r in present:
+			return false
+	return true
+
+
+## Retourne le bonus total de vision de l'équipage (en cases, pour FogOfWar).
+func get_crew_vision_bonus() -> int:
+	var bonus := 0
+	for member in equipage:
+		bonus += member.bonus_vision
+	return bonus
+
+
+## Retourne le bonus total de pêche de l'équipage (hors synergies mult).
+func get_crew_fishing_bonus() -> int:
+	var bonus := 0
+	for member in equipage:
+		bonus += member.bonus_peche
+	return bonus
+
+
+## Retourne les dégâts de tir effectifs (bonus équipage complet inclus).
+func get_effective_dgt_tir() -> int:
+	var base := dgt_tir
+	if _synergy_full_crew:
+		base = int(float(base) * 1.1)
+	return base
+
+
+## À appeler en fin de tour (par le TurnManager) pour régénération et revenus passifs.
+func apply_crew_end_of_turn() -> void:
+	# Régénération PV (Médecin, ×2 si synergie Duo de soins)
+	for member in equipage:
+		if member.regen_vie_par_tour > 0 and vie < maxvie:
+			var regen := int(float(member.regen_vie_par_tour) * _synergy_regen_mult)
+			vie = min(vie + regen, maxvie)
+			DEBUG.log("Navire [%d] — Regen PV +%d → %d/%d" % [id, regen, vie, maxvie])
+
+	# Poissons passifs (Cuisinier)
+	var poissons_passifs := 0
+	for member in equipage:
+		poissons_passifs += member.poissons_par_tour
+	if _synergy_full_crew:
+		poissons_passifs = int(float(poissons_passifs) * 1.1)
+	if poissons_passifs > 0:
+		nourriture += poissons_passifs
+		DEBUG.log("Navire [%d] — Revenus passifs : +%d poissons" % [id, poissons_passifs])
+
+
+## Retourne un résumé des synergies actives pour l'UI.
+func get_active_synergies() -> Array[String]:
+	var result: Array[String] = []
+	var roles_presents: Array = equipage.map(func(m): return m.role)
+	if _has_all_roles(SYNERGIE_GUERRE,  roles_presents): result.append("⚔️ Flotte de guerre")
+	if _has_all_roles(SYNERGIE_PECHE,   roles_presents): result.append("🎣 Navire de pêche")
+	if _has_all_roles(SYNERGIE_SOINS,   roles_presents): result.append("⚕️ Duo de soins")
+	if _has_all_roles(SYNERGIE_VITESSE, roles_presents): result.append("🧭 Vitesse maximale")
+	if _synergy_full_crew:                               result.append("👥 Équipage complet")
+	return result
+
+#endregion equipage

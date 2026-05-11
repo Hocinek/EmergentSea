@@ -140,3 +140,13 @@ func get_player_id_for_peer(peer_id: int) -> int:
 @rpc("authority", "call_local", "reliable")
 func _rpc_update_player_count(count: int) -> void:
 	player_count_updated.emit(count)
+	
+func handle_local_player_quit() -> void:
+	print("[NETWORK] Le joueur local quitte volontairement")
+
+	# Déclenche la fermeture réseau
+	if multiplayer.multiplayer_peer != null:
+		multiplayer.multiplayer_peer.close()
+
+	# Nettoyage local
+	shutdown()

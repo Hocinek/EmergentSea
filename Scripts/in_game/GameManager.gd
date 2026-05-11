@@ -43,6 +43,9 @@ var case_info_ui: UI_case_info = null
 # UI d'aide — bouton "?" et panneau des commandes
 var aide_ui: UI_aide = null
 
+# UI quitter — bouton "🚪" à côté du bouton "?"
+var quitter_ui: UI_quitter = null
+
 
 # Ce qui sera dans cette fonction sera exécuté en premier (avant que le reste soit prêt)
 func _enter_tree():
@@ -75,6 +78,7 @@ func _ready():
 	_setup_hex_menu()
 	_setup_case_info_ui()
 	_setup_aide_ui()
+	_setup_quitter_ui()
 	# Préparer la fin de partie
 	_setup_game_over_ui()
 	# Récupérer le PlayersManager
@@ -166,6 +170,14 @@ func _setup_aide_ui() -> void:
 	add_child(aide_ui)
 	await aide_ui.setup()
 	DEBUG.log("[GAMEMANAGER] UI_aide créé")
+
+
+func _setup_quitter_ui() -> void:
+	quitter_ui = UI_quitter.new()
+	quitter_ui.name = "UI_quitter"
+	add_child(quitter_ui)
+	await quitter_ui.setup()
+	DEBUG.log("[GAMEMANAGER] UI_quitter créé")
 
 
 func _setup_game_over_ui() -> void:

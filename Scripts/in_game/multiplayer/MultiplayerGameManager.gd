@@ -26,6 +26,7 @@ var case_info_ui: UI_case_info = null
 
 # UI d'aide — bouton "?" et panneau des commandes
 var aide_ui: UI_aide = null
+var ui_quitter: UI_quitter = null
 
 var player1 = null
 var player2 = null
@@ -71,6 +72,7 @@ func _ready() -> void:
 	_setup_hex_menu()
 	_setup_case_info_ui()
 	_setup_aide_ui()
+	_setup_ui_quitter()
 	await _setup_game_over_ui()
 
 func _setup_game_over_ui() -> void:
@@ -151,6 +153,13 @@ func _setup_aide_ui() -> void:
 	add_child(aide_ui)
 	await aide_ui.setup()
 	DEBUG.log("[MULTI GM] UI_aide créé")
+
+func _setup_ui_quitter() -> void:
+	ui_quitter = UI_quitter.new()
+	ui_quitter.name = "UI_quitter"
+	add_child(ui_quitter)
+	await ui_quitter.setup()
+	DEBUG.log("[MULTI GM] UI_quitter créé")
 
 
 func _on_map_generated() -> void:
@@ -401,23 +410,50 @@ func spawn_navire_random(player, is_player_controlled: bool = false, ship_id: in
 	return spawn_navire(player, pos, is_player_controlled, ship_id)
 
 
+## Point d'entrée principal pour spawner un navire en position de case.
+## - L'hôte : spawn local + broadcast RPC call_local aux clients ET à lui-même.
+## - Le client : délègue TOUT à l'hôte via RPC. Ne spawne rien localement.
+##   L'hôte broadcaste en call_local, ce qui couvre le client acheteur aussi.
 func spawn_navire_at(player, case_pos: Vector2i, is_player_controlled: bool = false, ship_id: int = 0):
 	var pos: Vector2 = Map_utils.case_vers_monde(case_pos)
 	# Générer un ID unique si non fourni
 	var final_id := ship_id if ship_id != 0 else (Time.get_ticks_msec() % 100000 + randi() % 1000)
-	var navire = spawn_navire(player, pos, is_player_controlled, final_id)
-	# Synchroniser le nouveau navire chez tous les clients
-	if navire and multiplayer.has_multiplayer_peer() and network_manager and network_manager.is_host():
-		_rpc_spawn_navire.rpc(
-			player.player_id,
-			pos.x, pos.y,
-			is_player_controlled,
-			final_id
-		)
-	return navire
+
+	if network_manager == null:
+		network_manager = get_tree().get_first_node_in_group("network_manager")
+
+	if multiplayer.has_multiplayer_peer() and network_manager != null:
+		if network_manager.is_host():
+			# Hôte : spawn local via RPC call_local (se couvre lui-même + tous les clients)
+			DEBUG.log("[MULTI GM] spawn_navire_at : hôte, broadcast call_local navire [%d] joueur %d" % [final_id, player.player_id])
+			_rpc_spawn_navire.rpc(player.player_id, pos.x, pos.y, is_player_controlled, final_id)
+		else:
+			# Client : délègue entièrement à l'hôte, ne spawne rien localement
+			DEBUG.log("[MULTI GM] spawn_navire_at : client, délégation à l'hôte pour navire [%d] joueur %d" % [final_id, player.player_id])
+			_rpc_request_spawn_navire.rpc(player.player_id, pos.x, pos.y, is_player_controlled, final_id)
+		return null  # Le spawn réel se fait via RPC, pas de retour immédiat
+	else:
+		# Solo / pas de peer réseau : spawn direct local
+		return spawn_navire(player, pos, is_player_controlled, final_id)
 
 
+## Le client demande à l'hôte de spawner le navire pour tout le monde.
 @rpc("any_peer", "call_remote", "reliable")
+func _rpc_request_spawn_navire(player_id: int, pos_x: float, pos_y: float, is_player_controlled: bool, ship_id: int) -> void:
+	if network_manager == null:
+		network_manager = get_tree().get_first_node_in_group("network_manager")
+	if network_manager == null or not network_manager.is_host():
+		DEBUG.log("[MULTI GM] _rpc_request_spawn_navire reçu mais on n'est pas l'hôte — ignoré", DEBUG.WARNING)
+		return
+	DEBUG.log("[MULTI GM] Hôte reçoit demande spawn navire [%d] joueur %d — broadcast call_local vers tous" % [ship_id, player_id])
+	# call_local sur _rpc_spawn_navire : l'hôte ET tous les clients spawneront le navire
+	_rpc_spawn_navire.rpc(player_id, pos_x, pos_y, is_player_controlled, ship_id)
+	# Note : la nourriture déduite est envoyée séparément par le client via
+	# sync_ship_nourriture_networked() juste après cet appel (voir spawn_navire_at).
+
+
+## Reçu par tous les peers (call_local) : spawn effectif du navire.
+@rpc("any_peer", "call_local", "reliable")
 func _rpc_spawn_navire(player_id: int, pos_x: float, pos_y: float, is_player_controlled: bool, ship_id: int) -> void:
 	_refresh_refs()
 	if players_manager == null:
@@ -436,7 +472,7 @@ func _rpc_spawn_navire(player_id: int, pos_x: float, pos_y: float, is_player_con
 	# Mettre à jour le fog pour le joueur local
 	if fog_manager:
 		fog_manager.update_fog()
-	DEBUG.log("[MULTI GM] Navire [%d] reçu via RPC pour joueur %d" % [ship_id, player_id])
+	DEBUG.log("[MULTI GM] _rpc_spawn_navire : navire [%d] spawné pour joueur %d (local_controlled=%s)" % [ship_id, player_id, str(local_controlled)])
 
 
 func select_ship(ship) -> void:
@@ -525,7 +561,121 @@ func deselect_port() -> void:
 # ===============================
 # Gestion Port
 # ===============================
-	
+
+# ── SYNCHRONISATION NOURRITURE ────────────────────────────────────────────────
+
+## Synchronise la nourriture d'un navire chez tous les peers.
+## Appelé après achat de navire (déduction du coût) ou toute modification locale.
+func sync_ship_nourriture_networked(ship_id: int, new_nourriture: int) -> void:
+	DEBUG.log("[MULTI GM] sync_ship_nourriture_networked : navire [%d] → nourriture=%d" % [ship_id, new_nourriture])
+	if network_manager == null:
+		network_manager = get_tree().get_first_node_in_group("network_manager")
+	if network_manager != null and network_manager.is_host():
+		_rpc_sync_ship_nourriture.rpc(ship_id, new_nourriture)
+	else:
+		_rpc_request_ship_nourriture.rpc(ship_id, new_nourriture)
+
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_request_ship_nourriture(ship_id: int, new_nourriture: int) -> void:
+	if network_manager == null:
+		network_manager = get_tree().get_first_node_in_group("network_manager")
+	if network_manager == null or not network_manager.is_host():
+		return
+	DEBUG.log("[MULTI GM] Hôte reçoit demande sync nourriture navire [%d] → %d" % [ship_id, new_nourriture])
+	_apply_ship_nourriture_local(ship_id, new_nourriture)
+	_rpc_sync_ship_nourriture.rpc(ship_id, new_nourriture)
+
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_sync_ship_nourriture(ship_id: int, new_nourriture: int) -> void:
+	DEBUG.log("[MULTI GM] _rpc_sync_ship_nourriture reçu : navire [%d] → nourriture=%d" % [ship_id, new_nourriture])
+	_apply_ship_nourriture_local(ship_id, new_nourriture)
+
+func _apply_ship_nourriture_local(ship_id: int, new_nourriture: int) -> void:
+	for ship in get_tree().get_nodes_in_group("ships"):
+		if ship is Navires and ship.id == ship_id:
+			DEBUG.log("[MULTI GM] _apply_ship_nourriture_local : navire [%d] nourriture %d → %d" % [ship_id, ship.nourriture, new_nourriture])
+			ship.nourriture = new_nourriture
+			return
+	push_error("[MULTI GM] _apply_ship_nourriture_local : navire [%d] introuvable" % ship_id)
+
+
+# ── SYNCHRONISATION FIN DE TOUR (médecin / cuisinier) ────────────────────────
+
+## Envoie le DELTA de vie et nourriture produit par apply_crew_end_of_turn().
+## On applique un delta et non une valeur absolue car l'hôte peut ne pas
+## connaître les valeurs à jour du joueur distant (joueur 2).
+func sync_end_of_turn_delta_networked(ship_id: int, delta_vie: int, delta_nourriture: int, maxvie: int) -> void:
+	DEBUG.log("[MULTI GM] sync_end_of_turn_delta_networked : navire [%d] Δvie=%d Δnourriture=%d" % [ship_id, delta_vie, delta_nourriture])
+	_rpc_apply_end_of_turn_delta.rpc(ship_id, delta_vie, delta_nourriture, maxvie)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_apply_end_of_turn_delta(ship_id: int, delta_vie: int, delta_nourriture: int, maxvie: int) -> void:
+	DEBUG.log("[MULTI GM] _rpc_apply_end_of_turn_delta reçu : navire [%d] Δvie=%d Δnourriture=%d" % [ship_id, delta_vie, delta_nourriture])
+	for ship in get_tree().get_nodes_in_group("ships"):
+		if ship is Navires and ship.id == ship_id:
+			ship.vie        = min(ship.vie + delta_vie, maxvie)
+			ship.nourriture = ship.nourriture + delta_nourriture
+			return
+	push_error("[MULTI GM] _rpc_apply_end_of_turn_delta : navire [%d] introuvable" % ship_id)
+
+
+# ── SYNCHRONISATION ÉQUIPAGE ──────────────────────────────────────────────────
+
+## Synchronise l'état complet d'un navire après recrutement ou congédiement.
+## Transmet : nourriture, vie, maxvie, energie, maxenergie, et la liste d'équipage (rôles).
+func sync_crew_networked(ship_id: int, new_nourriture: int, new_vie: int, new_maxvie: int, new_energie: int, new_maxenergie: int, crew_roles: Array) -> void:
+	DEBUG.log("[MULTI GM] sync_crew_networked : navire [%d] nourriture=%d vie=%d/%d nrj=%d/%d équipage=%s" % [
+		ship_id, new_nourriture, new_vie, new_maxvie, new_energie, new_maxenergie, str(crew_roles)
+	])
+	if network_manager == null:
+		network_manager = get_tree().get_first_node_in_group("network_manager")
+	if network_manager != null and network_manager.is_host():
+		_rpc_sync_crew.rpc(ship_id, new_nourriture, new_vie, new_maxvie, new_energie, new_maxenergie, crew_roles)
+	else:
+		_rpc_request_sync_crew.rpc(ship_id, new_nourriture, new_vie, new_maxvie, new_energie, new_maxenergie, crew_roles)
+
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_request_sync_crew(ship_id: int, new_nourriture: int, new_vie: int, new_maxvie: int, new_energie: int, new_maxenergie: int, crew_roles: Array) -> void:
+	if network_manager == null:
+		network_manager = get_tree().get_first_node_in_group("network_manager")
+	if network_manager == null or not network_manager.is_host():
+		return
+	DEBUG.log("[MULTI GM] Hôte reçoit demande sync équipage navire [%d]" % ship_id)
+	_apply_crew_local(ship_id, new_nourriture, new_vie, new_maxvie, new_energie, new_maxenergie, crew_roles)
+	_rpc_sync_crew.rpc(ship_id, new_nourriture, new_vie, new_maxvie, new_energie, new_maxenergie, crew_roles)
+
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_sync_crew(ship_id: int, new_nourriture: int, new_vie: int, new_maxvie: int, new_energie: int, new_maxenergie: int, crew_roles: Array) -> void:
+	DEBUG.log("[MULTI GM] _rpc_sync_crew reçu : navire [%d] vie=%d/%d nrj=%d/%d" % [ship_id, new_vie, new_maxvie, new_energie, new_maxenergie])
+	_apply_crew_local(ship_id, new_nourriture, new_vie, new_maxvie, new_energie, new_maxenergie, crew_roles)
+
+func _apply_crew_local(ship_id: int, new_nourriture: int, new_vie: int, new_maxvie: int, new_energie: int, new_maxenergie: int, crew_roles: Array) -> void:
+	for ship in get_tree().get_nodes_in_group("ships"):
+		if not (ship is Navires and ship.id == ship_id):
+			continue
+		DEBUG.log("[MULTI GM] _apply_crew_local : navire [%d] — application stats + équipage" % ship_id)
+		ship.nourriture = new_nourriture
+		ship.vie        = new_vie
+		ship.maxvie     = new_maxvie
+		ship.energie    = new_energie
+		ship.maxenergie = new_maxenergie
+		# Reconstruire l'équipage à partir des rôles reçus.
+		# On garde le capitaine (index 0) et on remplace le reste.
+		var capitaine: CrewMember = ship.equipage[0] if not ship.equipage.is_empty() else null
+		ship.equipage.clear()
+		if capitaine != null:
+			ship.equipage.append(capitaine)
+		for i in range(1, crew_roles.size()):
+			var role: int = crew_roles[i]
+			ship.equipage.append(CrewMember.new(role))
+		ship.nrbequipage = ship.equipage.size()
+		ship.compute_crew_synergies()
+		DEBUG.log("[MULTI GM] _apply_crew_local : navire [%d] — %d membres, synergies recalculées" % [ship_id, ship.nrbequipage])
+		return
+	push_error("[MULTI GM] _apply_crew_local : navire [%d] introuvable" % ship_id)
+
+
 ## Appelé par un navire local pour synchroniser sa position chez les autres peers.
 func sync_ship_position(ship_id: int, case_x: int, case_y: int, world_x: float, world_y: float, rotation_angle: float) -> void:
 	_rpc_sync_ship_position.rpc(ship_id, case_x, case_y, world_x, world_y, rotation_angle)
@@ -626,6 +776,114 @@ func _apply_damage_local(target_ship_id: int, damage: int, show_ui: bool = true)
 			ship.take_damage(damage, show_ui)
 			return
 	push_error("[MULTI GM] _apply_damage_local : navire %d introuvable" % target_ship_id)
+
+
+# ── SOIN NAVIRE ──────────────────────────────────────────────────────────────
+
+## Point d'entrée réseau pour soigner un navire depuis la boutique.
+## Appelé par port.gd après déduction locale des poissons et des PV.
+func sync_heal_ship_networked(ship_id: int, new_vie: int, paying_ship_id: int, new_nourriture: int) -> void:
+	DEBUG.log("[MULTI GM] sync_heal_ship_networked : navire [%d] → vie=%d | navire payeur [%d] → nourriture=%d" % [
+		ship_id, new_vie, paying_ship_id, new_nourriture
+	])
+	if network_manager == null:
+		network_manager = get_tree().get_first_node_in_group("network_manager")
+	if network_manager != null and network_manager.is_host():
+		_rpc_sync_heal_ship.rpc(ship_id, new_vie, paying_ship_id, new_nourriture)
+	else:
+		_rpc_request_heal_ship.rpc(ship_id, new_vie, paying_ship_id, new_nourriture)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_request_heal_ship(ship_id: int, new_vie: int, paying_ship_id: int, new_nourriture: int) -> void:
+	if network_manager == null:
+		network_manager = get_tree().get_first_node_in_group("network_manager")
+	if network_manager == null or not network_manager.is_host():
+		DEBUG.log("[MULTI GM] _rpc_request_heal_ship reçu mais on n'est pas hôte — ignoré", DEBUG.WARNING)
+		return
+	DEBUG.log("[MULTI GM] Hôte reçoit demande soin navire [%d] → vie=%d — application locale + broadcast" % [ship_id, new_vie])
+	_apply_heal_ship_local(ship_id, new_vie, paying_ship_id, new_nourriture)
+	_rpc_sync_heal_ship.rpc(ship_id, new_vie, paying_ship_id, new_nourriture)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_sync_heal_ship(ship_id: int, new_vie: int, paying_ship_id: int, new_nourriture: int) -> void:
+	DEBUG.log("[MULTI GM] _rpc_sync_heal_ship reçu : navire [%d] → vie=%d" % [ship_id, new_vie])
+	_apply_heal_ship_local(ship_id, new_vie, paying_ship_id, new_nourriture)
+
+
+func _apply_heal_ship_local(ship_id: int, new_vie: int, paying_ship_id: int, new_nourriture: int) -> void:
+	var found_target := false
+	var found_payer := false
+	for ship in get_tree().get_nodes_in_group("ships"):
+		if ship is Navires:
+			if ship.id == ship_id:
+				DEBUG.log("[MULTI GM] _apply_heal_ship_local : navire [%d] vie %d → %d" % [ship_id, ship.vie, new_vie])
+				ship.vie = new_vie
+				found_target = true
+			if ship.id == paying_ship_id:
+				DEBUG.log("[MULTI GM] _apply_heal_ship_local : navire payeur [%d] nourriture %d → %d" % [paying_ship_id, ship.nourriture, new_nourriture])
+				ship.nourriture = new_nourriture
+				found_payer = true
+	if not found_target:
+		push_error("[MULTI GM] _apply_heal_ship_local : navire cible [%d] introuvable" % ship_id)
+	if not found_payer:
+		push_error("[MULTI GM] _apply_heal_ship_local : navire payeur [%d] introuvable" % paying_ship_id)
+
+
+# ── SOIN PORT ────────────────────────────────────────────────────────────────
+
+## Point d'entrée réseau pour soigner un port depuis la boutique.
+func sync_heal_port_networked(port_id: int, new_hp: int, paying_ship_id: int, new_nourriture: int) -> void:
+	DEBUG.log("[MULTI GM] sync_heal_port_networked : port [%d] → hp=%d | navire payeur [%d] → nourriture=%d" % [
+		port_id, new_hp, paying_ship_id, new_nourriture
+	])
+	if network_manager == null:
+		network_manager = get_tree().get_first_node_in_group("network_manager")
+	if network_manager != null and network_manager.is_host():
+		_rpc_sync_heal_port.rpc(port_id, new_hp, paying_ship_id, new_nourriture)
+	else:
+		_rpc_request_heal_port.rpc(port_id, new_hp, paying_ship_id, new_nourriture)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_request_heal_port(port_id: int, new_hp: int, paying_ship_id: int, new_nourriture: int) -> void:
+	if network_manager == null:
+		network_manager = get_tree().get_first_node_in_group("network_manager")
+	if network_manager == null or not network_manager.is_host():
+		DEBUG.log("[MULTI GM] _rpc_request_heal_port reçu mais on n'est pas hôte — ignoré", DEBUG.WARNING)
+		return
+	DEBUG.log("[MULTI GM] Hôte reçoit demande soin port [%d] → hp=%d — application locale + broadcast" % [port_id, new_hp])
+	_apply_heal_port_local(port_id, new_hp, paying_ship_id, new_nourriture)
+	_rpc_sync_heal_port.rpc(port_id, new_hp, paying_ship_id, new_nourriture)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_sync_heal_port(port_id: int, new_hp: int, paying_ship_id: int, new_nourriture: int) -> void:
+	DEBUG.log("[MULTI GM] _rpc_sync_heal_port reçu : port [%d] → hp=%d" % [port_id, new_hp])
+	_apply_heal_port_local(port_id, new_hp, paying_ship_id, new_nourriture)
+
+
+func _apply_heal_port_local(port_id: int, new_hp: int, paying_ship_id: int, new_nourriture: int) -> void:
+	var found_port := false
+	for port in get_tree().get_nodes_in_group("ports"):
+		if port is Ports and port.id == port_id:
+			DEBUG.log("[MULTI GM] _apply_heal_port_local : port [%d] hp %d → %d" % [port_id, port.current_hp, new_hp])
+			port.current_hp = new_hp
+			found_port = true
+			break
+	if not found_port:
+		push_error("[MULTI GM] _apply_heal_port_local : port [%d] introuvable" % port_id)
+
+	var found_payer := false
+	for ship in get_tree().get_nodes_in_group("ships"):
+		if ship is Navires and ship.id == paying_ship_id:
+			DEBUG.log("[MULTI GM] _apply_heal_port_local : navire payeur [%d] nourriture %d → %d" % [paying_ship_id, ship.nourriture, new_nourriture])
+			ship.nourriture = new_nourriture
+			found_payer = true
+			break
+	if not found_payer:
+		push_error("[MULTI GM] _apply_heal_port_local : navire payeur [%d] introuvable" % paying_ship_id)
 
 
 # ── DÉGÂTS SUR PORT ──────────────────────────────────────────────────────────

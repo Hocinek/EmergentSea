@@ -59,8 +59,8 @@ var _confirm_ui: UI_confirm_deplacement = null
 # =========================
 #region stats
 var stats_panel : UI_stats_navire
-@export var vie: int = 10
-@export var maxvie: int = 10
+@export var vie: int = 15
+@export var maxvie: int = 15
 @export var energie: int = 30
 @export var maxenergie: int = 30
 @export var vitesse: float = 800.0
@@ -97,7 +97,7 @@ var drawable : Drawable
 # =========================
 #region pêche
 @export var nourriture: int = 0
-@export var fish_energy_cost: int = 1
+@export var fish_energy_cost: int = 5
 @export var fish_duration: float = 1.2
 @export var fish_yield_min: int = 1
 @export var fish_yield_max: int = 3
@@ -677,9 +677,12 @@ func attempt_shoot(target_case: Vector2i) -> void:
 	var port = _get_port_at(target_case)
 	if port != null and port.player_owner != player_owner:
 		energie = max(energie - 10, 0)
+		has_attacked_this_turn = true
 		if _audio_player and attack_sound:
 			_audio_player.play()
-		take_damage(0) #Désolé Desiar mais j'arrive pas à résoudre un bug donc faudra se contenter de ça
+		stats_panel.show_ally()
+		if combat_feedback_label and is_instance_valid(combat_feedback_label):
+			combat_feedback_label.show_energy_cost(self, 10)
 		DEBUG.log("Navire [%d] attaque port [%d] pour %d dégâts" % [id, port.id, dgt_tir])
 		if match_context != null and match_context.mode == MatchContext.MatchMode.MULTI:
 			var game_manager = get_tree().get_first_node_in_group("game_manager")
@@ -1159,6 +1162,12 @@ func finish_fishing() -> void:
 		gain = mini(int(float(gain) * _synergy_peche_mult), 5)
 
 	nourriture += gain
+
+	# Synchronise la nourriture mise à jour chez tous les peers
+	if multiplayer.has_multiplayer_peer() and _is_local_human_owner():
+		var game_manager = get_tree().get_first_node_in_group("game_manager")
+		if game_manager and game_manager.has_method("sync_ship_nourriture_networked"):
+			game_manager.sync_ship_nourriture_networked(id, nourriture)
 
 	if fish_feedback_label:
 		# Passer self en premier argument — UI_fish_navires.finished_fishing(navire, gain)

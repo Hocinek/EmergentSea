@@ -39,10 +39,10 @@ var stats_panel : UI_stats_port
 @onready var ui_layer: CanvasLayer = get_tree().get_first_node_in_group("ui_layer")
 @onready var data := get_tree().get_first_node_in_group("shared_entities")
 
-@export var max_hp: int = 20
-var current_hp: int = 20
+@export var max_hp: int = 30
+var current_hp: int = 30
 var is_under_attack: bool = false  # true quand le port neutre est attaqué (force l'affichage ennemi)
-@export var attack_damage: int = 1
+@export var attack_damage: int = 2
 @export var attack_range: int = 5  # en cases
 signal port_captured(port: Ports, new_owner: Player, old_owner: Player)
 
@@ -55,6 +55,15 @@ var case_actuelle: Vector2i
 
 # Référence à la zone de clic (pour pouvoir la recréer si le propriétaire change)
 var _click_area: Area2D = null
+
+# =========================
+# FEEDBACK COMBAT
+# =========================
+## Label flottant affichant les dégâts reçus par le port
+var _damage_label: Label = null
+var _damage_label_timer: float = 0.0
+const _DAMAGE_LABEL_DURATION: float = 1.5
+const _DAMAGE_LABEL_RISE_SPEED: float = 40.0
 
 
 # =========================
@@ -82,6 +91,7 @@ func _ready():
 	
 	# Initialisation de l'UI
 	_init_stats_ui()
+	_init_damage_label()
 
 	# Configuration de la zone de clic
 	_setup_click_area()
@@ -250,18 +260,26 @@ func _on_boutique_buy_ship(port: Ports, buyer: Player, buying_ship: Node) -> voi
 		id, UI_boutique.SHIP_COST, buying_ship.id, buying_ship.nourriture
 	])
 
-	# Spawne le nouveau navire
-	var new_ship = game_manager.ship_manager.spawn_navire_at(buyer, spawn_case, true)
+	# Synchronise la déduction chez tous les peers avant le spawn
+	if game_manager.has_method("sync_ship_nourriture_networked"):
+		game_manager.sync_ship_nourriture_networked(buying_ship.id, buying_ship.nourriture)
+
+	# Spawne le nouveau navire via le GameManager (gère les RPC en multi)
+	DEBUG.log("Port [%d] — appel spawn_navire_at pour joueur %s, case %s" % [id, buyer.player_name, str(spawn_case)])
+	var new_ship = game_manager.spawn_navire_at(buyer, spawn_case, true)
 	if new_ship:
 		DEBUG.log("Port [%d] — nouveau navire [%d] spawné en %s" % [id, new_ship.id, str(spawn_case)])
-	else:
-		# Rembourse si le spawn a échoué
+	elif not multiplayer.has_multiplayer_peer():
+		# En solo seulement : rembourse si spawn échoué (en multi le spawn est async via RPC)
 		buying_ship.nourriture += UI_boutique.SHIP_COST
+		if game_manager.has_method("sync_ship_nourriture_networked"):
+			game_manager.sync_ship_nourriture_networked(buying_ship.id, buying_ship.nourriture)
 		DEBUG.log("Port [%d] — spawn échoué, remboursement effectué" % id, DEBUG.ERROR)
 
 ## Soin du navire amarré :
 ## - Déduit le coût du navire soigné (c'est lui qui paie avec ses propres poissons)
 ## - Restaure des PV au navire
+## - Synchronise les nouvelles valeurs via le GameManager en multi
 func _on_boutique_heal_ship(port: Ports, ship: Node, buyer: Player) -> void:
 	DEBUG.log("Port [%d] — soin navire [%d] demandé par %s" % [port.id, ship.id, buyer.player_name])
 
@@ -280,7 +298,7 @@ func _on_boutique_heal_ship(port: Ports, ship: Node, buyer: Player) -> void:
 		DEBUG.log("Port [%d] — soin refusé (navire déjà au maximum)" % id)
 		return
 
-	# Déduit le coût et soigne
+	# Déduit le coût et soigne localement
 	ship.nourriture -= UI_boutique.HEAL_SHIP_COST
 	var soin := 5
 	ship.vie = min(ship.vie + soin, ship.maxvie)
@@ -288,10 +306,21 @@ func _on_boutique_heal_ship(port: Ports, ship: Node, buyer: Player) -> void:
 		id, ship.id, soin, ship.vie, ship.maxvie, UI_boutique.HEAL_SHIP_COST
 	])
 
+	# Synchronisation réseau
+	var game_manager = get_tree().get_first_node_in_group("game_manager")
+	if game_manager and game_manager.has_method("sync_heal_ship_networked"):
+		DEBUG.log("Port [%d] — envoi sync_heal_ship_networked (navire=%d vie=%d, payeur=%d nourriture=%d)" % [
+			id, ship.id, ship.vie, ship.id, ship.nourriture
+		])
+		game_manager.sync_heal_ship_networked(ship.id, ship.vie, ship.id, ship.nourriture)
+	else:
+		DEBUG.log("Port [%d] — sync_heal_ship_networked introuvable sur game_manager", DEBUG.WARNING)
+
 
 ## Soin du port :
 ## - Déduit le coût du navire amarré (c'est lui qui paie)
 ## - Restaure des PV au port
+## - Synchronise les nouvelles valeurs via le GameManager en multi
 func _on_boutique_heal_port(port: Ports, buyer: Player, paying_ship: Node) -> void:
 	DEBUG.log("Port [%d] — soin port demandé par %s" % [port.id, buyer.player_name])
 
@@ -310,13 +339,23 @@ func _on_boutique_heal_port(port: Ports, buyer: Player, paying_ship: Node) -> vo
 		DEBUG.log("Port [%d] — soin port refusé (port déjà au maximum)" % id)
 		return
 
-	# Déduit le coût et soigne
+	# Déduit le coût et soigne localement
 	paying_ship.nourriture -= UI_boutique.HEAL_PORT_COST
 	var soin := 5
 	port.current_hp = min(port.current_hp + soin, port.max_hp)
 	DEBUG.log("Port [%d] — port soigné (+%d PV → %d/%d), %d poissons déduits du navire [%d]" % [
 		id, soin, port.current_hp, port.max_hp, UI_boutique.HEAL_PORT_COST, paying_ship.id
 	])
+
+	# Synchronisation réseau
+	var game_manager = get_tree().get_first_node_in_group("game_manager")
+	if game_manager and game_manager.has_method("sync_heal_port_networked"):
+		DEBUG.log("Port [%d] — envoi sync_heal_port_networked (port=%d hp=%d, payeur=%d nourriture=%d)" % [
+			id, port.id, port.current_hp, paying_ship.id, paying_ship.nourriture
+		])
+		game_manager.sync_heal_port_networked(port.id, port.current_hp, paying_ship.id, paying_ship.nourriture)
+	else:
+		DEBUG.log("Port [%d] — sync_heal_port_networked introuvable sur game_manager", DEBUG.WARNING)
 
 
 ## Ouvre l'interface de recrutement d'équipage.
@@ -397,6 +436,30 @@ func _init_stats_ui():
 	DEBUG.log("UI Stats créée pour port [%d]" % id)
 
 
+func _init_damage_label() -> void:
+	"""Crée le label flottant de feedback de dégâts, ajouté au ui_layer."""
+	if not ui_layer:
+		return
+	_damage_label = Label.new()
+	_damage_label.visible = false
+	_damage_label.z_index = 10
+	_damage_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_damage_label.add_theme_font_size_override("font_size", 18)
+	_damage_label.add_theme_color_override("font_color", Color(1, 0.3, 0.3))
+	ui_layer.add_child(_damage_label)
+
+
+func _process(delta: float) -> void:
+	if _damage_label and _damage_label.visible:
+		_damage_label_timer -= delta
+		# Repositionner en coordonnées écran à chaque frame
+		var screen_pos: Vector2 = get_viewport().get_canvas_transform() * global_position
+		_damage_label.position = screen_pos + Vector2(-20, -60 - (_DAMAGE_LABEL_DURATION - _damage_label_timer) * _DAMAGE_LABEL_RISE_SPEED)
+		_damage_label.modulate.a = clampf(_damage_label_timer / _DAMAGE_LABEL_DURATION, 0.0, 1.0)
+		if _damage_label_timer <= 0.0:
+			_damage_label.visible = false
+
+
 # =========================
 # COMBAT
 # =========================
@@ -405,10 +468,21 @@ func take_damage(amount: int, attacker: Player) -> void:
 	current_hp -= amount
 	DEBUG.log("Port [%d] reçoit %d dégâts → %d/%d PV" % [id, amount, current_hp, max_hp])
 	is_under_attack = true
+	_show_damage_feedback(amount)
 	sig_show_port.emit(attacker)
 	if current_hp <= 0:
 		current_hp = 0
 		_on_captured(attacker)
+
+
+func _show_damage_feedback(amount: int) -> void:
+	"""Affiche un label flottant '-X ❤️' au-dessus du port."""
+	if _damage_label == null:
+		return
+	_damage_label.text = "-%d ❤️" % amount
+	_damage_label.modulate.a = 1.0
+	_damage_label.visible = true
+	_damage_label_timer = _DAMAGE_LABEL_DURATION
 
 func _on_captured(new_owner: Player) -> void:
 	var old_owner = player_owner

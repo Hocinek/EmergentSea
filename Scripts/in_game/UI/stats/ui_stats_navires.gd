@@ -44,7 +44,14 @@ func _init(ship: Navires) -> void:
 	self.navire = ship
 	navire.add_child(self)
 	navire.sig_show_stats.connect(handler)
+	navire.tree_exiting.connect(_on_navire_exiting)
 	build_ui()
+
+
+func _on_navire_exiting() -> void:
+	hide_all_stats()
+	if cadre_layer and is_instance_valid(cadre_layer):
+		cadre_layer.queue_free()
 
 
 func _process(delta):
@@ -355,12 +362,15 @@ func show_ally_persistent() -> void:
 
 
 func show_ally():
+	if stats_panel_ally == null:
+		await get_tree().process_frame
 	update_stats(label_list_ally)
 	if stats_panel_ally:
 		stats_panel_ally.visible = true
 		if cadre_ally:
 			cadre_ally.visible = true
 		stats_visible = true
+		stats_timer = stats_duration
 	_show_crew_panel()
 
 
@@ -369,8 +379,9 @@ func _show_crew_panel():
 	if navire.player_owner == null:
 		return
 	# En multi : allié = is_local ; en solo : allié = is_human
+	var match_context = get_tree().get_first_node_in_group("match_context")
 	var is_local_ally: bool
-	if navire.player_owner.get("is_local") != null:
+	if match_context != null and match_context.mode == MatchContext.MatchMode.MULTI:
 		is_local_ally = navire.player_owner.is_local
 	else:
 		is_local_ally = navire.player_owner.is_human

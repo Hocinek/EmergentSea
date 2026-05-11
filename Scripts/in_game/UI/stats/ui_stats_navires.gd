@@ -44,7 +44,14 @@ func _init(ship: Navires) -> void:
 	self.navire = ship
 	navire.add_child(self)
 	navire.sig_show_stats.connect(handler)
+	navire.tree_exiting.connect(_on_navire_exiting)
 	build_ui()
+
+
+func _on_navire_exiting() -> void:
+	hide_all_stats()
+	if cadre_layer and is_instance_valid(cadre_layer):
+		cadre_layer.queue_free()
 
 
 func _process(delta):

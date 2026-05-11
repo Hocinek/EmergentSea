@@ -26,6 +26,7 @@ var case_info_ui: UI_case_info = null
 
 # UI d'aide — bouton "?" et panneau des commandes
 var aide_ui: UI_aide = null
+var ui_quitter: UI_quitter = null
 
 var player1 = null
 var player2 = null
@@ -71,6 +72,7 @@ func _ready() -> void:
 	_setup_hex_menu()
 	_setup_case_info_ui()
 	_setup_aide_ui()
+	_setup_ui_quitter()
 	await _setup_game_over_ui()
 
 func _setup_game_over_ui() -> void:
@@ -151,6 +153,13 @@ func _setup_aide_ui() -> void:
 	add_child(aide_ui)
 	await aide_ui.setup()
 	DEBUG.log("[MULTI GM] UI_aide créé")
+
+func _setup_ui_quitter() -> void:
+	ui_quitter = UI_quitter.new()
+	ui_quitter.name = "UI_quitter"
+	add_child(ui_quitter)
+	await ui_quitter.setup()
+	DEBUG.log("[MULTI GM] UI_quitter créé")
 
 
 func _on_map_generated() -> void:

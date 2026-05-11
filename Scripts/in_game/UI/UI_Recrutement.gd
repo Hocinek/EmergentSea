@@ -583,6 +583,9 @@ func _on_hire_pressed(role: CrewMember.Role) -> void:
 		if fog_manager:
 			fog_manager.force_update()
 
+	# Synchronisation réseau : transmet stats + équipage complet à tous les peers
+	_sync_crew_to_network()
+
 	_show_feedback("✅ %s recruté(e) pour %d 🐟 !" % [member.nom, real_cost], Color(0.4, 1.0, 0.5))
 	DEBUG.log("UI_recrutement — %s recruté(e) sur navire [%d] (-%d 🐟)" % [member.nom, _ship.id, real_cost])
 	_refresh_ui()
@@ -605,6 +608,10 @@ func _on_fire_crew(slot_index: int) -> void:
 
 	_show_feedback("👋 %s a quitté l'équipage." % member.nom, Color(1.0, 0.8, 0.4))
 	DEBUG.log("UI_recrutement — %s congédié du navire [%d]" % [member.nom, _ship.id])
+
+	# Synchronisation réseau : transmet stats + équipage complet à tous les peers
+	_sync_crew_to_network()
+
 	_refresh_ui()
 
 
@@ -640,6 +647,38 @@ func _get_port_display_name() -> String:
 	if _port.Nom_port != "" and _port.Nom_port != "Nom du Port":
 		return _port.Nom_port
 	return "Port"
+
+
+# =========================
+# RÉSEAU
+# =========================
+
+## Synchronise l'état complet du navire (stats + équipage) chez tous les peers.
+## Délègue à MultiplayerGameManager.sync_crew_networked().
+func _sync_crew_to_network() -> void:
+	if _ship == null or not is_instance_valid(_ship):
+		return
+	if not multiplayer.has_multiplayer_peer():
+		return
+
+	var game_manager = _ship.get_tree().get_first_node_in_group("game_manager")
+	if game_manager == null or not game_manager.has_method("sync_crew_networked"):
+		return
+
+	# Construire la liste des rôles (index 0 = capitaine inclus)
+	var crew_roles: Array = []
+	for member in _ship.equipage:
+		crew_roles.append(member.role)
+
+	game_manager.sync_crew_networked(
+		_ship.id,
+		_ship.nourriture,
+		_ship.vie,
+		_ship.maxvie,
+		_ship.energie,
+		_ship.maxenergie,
+		crew_roles
+	)
 
 
 # =========================

@@ -260,18 +260,26 @@ func _on_boutique_buy_ship(port: Ports, buyer: Player, buying_ship: Node) -> voi
 		id, UI_boutique.SHIP_COST, buying_ship.id, buying_ship.nourriture
 	])
 
-	# Spawne le nouveau navire
-	var new_ship = game_manager.ship_manager.spawn_navire_at(buyer, spawn_case, true)
+	# Synchronise la déduction chez tous les peers avant le spawn
+	if game_manager.has_method("sync_ship_nourriture_networked"):
+		game_manager.sync_ship_nourriture_networked(buying_ship.id, buying_ship.nourriture)
+
+	# Spawne le nouveau navire via le GameManager (gère les RPC en multi)
+	DEBUG.log("Port [%d] — appel spawn_navire_at pour joueur %s, case %s" % [id, buyer.player_name, str(spawn_case)])
+	var new_ship = game_manager.spawn_navire_at(buyer, spawn_case, true)
 	if new_ship:
 		DEBUG.log("Port [%d] — nouveau navire [%d] spawné en %s" % [id, new_ship.id, str(spawn_case)])
-	else:
-		# Rembourse si le spawn a échoué
+	elif not multiplayer.has_multiplayer_peer():
+		# En solo seulement : rembourse si spawn échoué (en multi le spawn est async via RPC)
 		buying_ship.nourriture += UI_boutique.SHIP_COST
+		if game_manager.has_method("sync_ship_nourriture_networked"):
+			game_manager.sync_ship_nourriture_networked(buying_ship.id, buying_ship.nourriture)
 		DEBUG.log("Port [%d] — spawn échoué, remboursement effectué" % id, DEBUG.ERROR)
 
 ## Soin du navire amarré :
 ## - Déduit le coût du navire soigné (c'est lui qui paie avec ses propres poissons)
 ## - Restaure des PV au navire
+## - Synchronise les nouvelles valeurs via le GameManager en multi
 func _on_boutique_heal_ship(port: Ports, ship: Node, buyer: Player) -> void:
 	DEBUG.log("Port [%d] — soin navire [%d] demandé par %s" % [port.id, ship.id, buyer.player_name])
 
@@ -290,7 +298,7 @@ func _on_boutique_heal_ship(port: Ports, ship: Node, buyer: Player) -> void:
 		DEBUG.log("Port [%d] — soin refusé (navire déjà au maximum)" % id)
 		return
 
-	# Déduit le coût et soigne
+	# Déduit le coût et soigne localement
 	ship.nourriture -= UI_boutique.HEAL_SHIP_COST
 	var soin := 5
 	ship.vie = min(ship.vie + soin, ship.maxvie)
@@ -298,10 +306,21 @@ func _on_boutique_heal_ship(port: Ports, ship: Node, buyer: Player) -> void:
 		id, ship.id, soin, ship.vie, ship.maxvie, UI_boutique.HEAL_SHIP_COST
 	])
 
+	# Synchronisation réseau
+	var game_manager = get_tree().get_first_node_in_group("game_manager")
+	if game_manager and game_manager.has_method("sync_heal_ship_networked"):
+		DEBUG.log("Port [%d] — envoi sync_heal_ship_networked (navire=%d vie=%d, payeur=%d nourriture=%d)" % [
+			id, ship.id, ship.vie, ship.id, ship.nourriture
+		])
+		game_manager.sync_heal_ship_networked(ship.id, ship.vie, ship.id, ship.nourriture)
+	else:
+		DEBUG.log("Port [%d] — sync_heal_ship_networked introuvable sur game_manager", DEBUG.WARNING)
+
 
 ## Soin du port :
 ## - Déduit le coût du navire amarré (c'est lui qui paie)
 ## - Restaure des PV au port
+## - Synchronise les nouvelles valeurs via le GameManager en multi
 func _on_boutique_heal_port(port: Ports, buyer: Player, paying_ship: Node) -> void:
 	DEBUG.log("Port [%d] — soin port demandé par %s" % [port.id, buyer.player_name])
 
@@ -320,13 +339,23 @@ func _on_boutique_heal_port(port: Ports, buyer: Player, paying_ship: Node) -> vo
 		DEBUG.log("Port [%d] — soin port refusé (port déjà au maximum)" % id)
 		return
 
-	# Déduit le coût et soigne
+	# Déduit le coût et soigne localement
 	paying_ship.nourriture -= UI_boutique.HEAL_PORT_COST
 	var soin := 5
 	port.current_hp = min(port.current_hp + soin, port.max_hp)
 	DEBUG.log("Port [%d] — port soigné (+%d PV → %d/%d), %d poissons déduits du navire [%d]" % [
 		id, soin, port.current_hp, port.max_hp, UI_boutique.HEAL_PORT_COST, paying_ship.id
 	])
+
+	# Synchronisation réseau
+	var game_manager = get_tree().get_first_node_in_group("game_manager")
+	if game_manager and game_manager.has_method("sync_heal_port_networked"):
+		DEBUG.log("Port [%d] — envoi sync_heal_port_networked (port=%d hp=%d, payeur=%d nourriture=%d)" % [
+			id, port.id, port.current_hp, paying_ship.id, paying_ship.nourriture
+		])
+		game_manager.sync_heal_port_networked(port.id, port.current_hp, paying_ship.id, paying_ship.nourriture)
+	else:
+		DEBUG.log("Port [%d] — sync_heal_port_networked introuvable sur game_manager", DEBUG.WARNING)
 
 
 ## Ouvre l'interface de recrutement d'équipage.

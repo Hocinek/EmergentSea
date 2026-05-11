@@ -1163,6 +1163,12 @@ func finish_fishing() -> void:
 
 	nourriture += gain
 
+	# Synchronise la nourriture mise à jour chez tous les peers
+	if multiplayer.has_multiplayer_peer() and _is_local_human_owner():
+		var game_manager = get_tree().get_first_node_in_group("game_manager")
+		if game_manager and game_manager.has_method("sync_ship_nourriture_networked"):
+			game_manager.sync_ship_nourriture_networked(id, nourriture)
+
 	if fish_feedback_label:
 		# Passer self en premier argument — UI_fish_navires.finished_fishing(navire, gain)
 		fish_feedback_label.finished_fishing(self, gain)

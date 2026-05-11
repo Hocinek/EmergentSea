@@ -94,9 +94,19 @@ func _process_end_turn() -> void:
 	turn_ended.emit(previous_player)
 
 	# Appliquer les effets de fin de tour de l'équipage (soin, poissons passifs…)
+	# On broadcaste uniquement le DELTA (diff avant/après) pour ne pas écraser
+	# les valeurs absolues que l'hôte ne connaît pas forcément à jour (ex : joueur 2).
+	var game_manager = get_tree().get_first_node_in_group("game_manager")
 	for n in previous_player.get_navires():
 		if is_instance_valid(n) and n.is_alive():
+			var vie_avant        : int = n.vie
+			var nourriture_avant : int = n.nourriture
 			n.apply_crew_end_of_turn()
+			var delta_vie        : int = n.vie        - vie_avant
+			var delta_nourriture : int = n.nourriture - nourriture_avant
+			if (delta_vie != 0 or delta_nourriture != 0) and game_manager \
+					and game_manager.has_method("sync_end_of_turn_delta_networked"):
+				game_manager.sync_end_of_turn_delta_networked(n.id, delta_vie, delta_nourriture, n.maxvie)
 
 	# Attaques des ports ennemis/neutres
 	_ports_attack_current_player(previous_player)

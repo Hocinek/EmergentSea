@@ -145,32 +145,11 @@ var show_arrow: bool = false
 #region rotation du bateau
 ## Angle cible vers lequel le bateau doit se tourner (en radians)
 var target_rotation_angle: float = 0.0
-## Vitesse de rotation en radians/seconde
-@export var rotation_speed: float = 5.0
-## Correction d'angle selon l'orientation par défaut de votre asset (en degrés).
-@export var rotation_offset_deg: float = -90.0
-## Inverser le sens de rotation si le bateau tourne à l'envers
-@export var rotation_invert: bool = false
-
-## Nœud visuel à tourner (Sprite2D) — résolu dans _ready
-var _visual_node: Node2D = null
-
-## Décalage du centre visuel réel du bateau par rapport au centre de la texture.
-@export var pivot_offset_y: float = 0.0
-
-## Centre visuel du bateau en coordonnées locales du Node2D racine (calculé au _ready).
-var _pivot_local: Vector2 = Vector2.ZERO
-
-## Référence au Node3D pirateShip — tourné via Transform3D axe Y uniquement
-var _pirate_ship_3d: Node3D = null
 #endregion rotation du bateau
 
-# =========================
-# DÉCALAGE VISUEL DU SPRITE
-# =========================
-## Décale le Sprite2D pour que le centre VISUEL du bateau coïncide avec
-## global_position (= l'ancre logique utilisée pour déterminer la case occupée).
-@export var hull_offset: Vector2 = Vector2.ZERO
+## Gestionnaire d'animations du navire. Il gère :
+## - l'animation de la rotation du navire
+var visuals : NaviresVisuals = null
 
 var rpc_navire : RPC_Navires = null
 
@@ -190,12 +169,13 @@ func _ready():
 	match_context = get_tree().get_first_node_in_group("match_context")
 	network_manager = get_tree().get_first_node_in_group("network_manager")
 	#rpc_navire = RPC_Navires.new(self)
+	
   
 	case_actuelle = Map_utils.monde_vers_case(global_position)
 
-	# Résoudre le nœud visuel (Sprite2D) et configurer la rotation 3D
-	# ship_model_path a déjà été défini par GameManager avant add_child()
-	_setup_node3d_instance()
+	# Initialisation du gestionnaire d'animations du navire
+	self.visuals = NaviresVisuals.new(self)
+	add_child(visuals)
 
 	# Configuration de la caméra pour le navire contrôlé par le joueur
 	_setup_camera()
@@ -235,85 +215,6 @@ func _ready():
 		_arrow_overlay.navire = self
 		ui_layer.add_child(_arrow_overlay)
 
-
-func _setup_node3d_instance() -> void:
-	"""
-	SOLUTION FINALE — doc Godot Transform3D + own_world_3d :
-
-	1. own_world_3d = true sur le SubViewport → chaque navire a son propre
-	   monde 3D isolé, les rotations ne se partagent plus entre instances.
-
-	2. On charge dynamiquement le modèle défini dans ship_model_path,
-	   ce qui permet d'avoir des modèles différents selon le joueur propriétaire.
-	   Le modèle est nommé "pirateShip" après instanciation pour que le reste
-	   du code (rotation, etc.) fonctionne de manière uniforme.
-
-	3. Le Sprite2D n'est jamais tourné → pas de problème de pivot 2D.
-	"""
-	# Isoler le monde 3D de ce SubViewport pour éviter le partage entre instances
-	var subviewport = get_node_or_null("Sprite2D/SubViewport")
-	if subviewport:
-		subviewport.own_world_3d = true
-		DEBUG.log("Navire [%d] - SubViewport.own_world_3d = true" % id)
-
-	# Récupérer le Node3D parent qui contiendra notre modèle
-	var node3d = get_node_or_null("Sprite2D/SubViewport/Node3D")
-	if not node3d:
-		DEBUG.log("Navire [%d] - ERREUR : Node3D introuvable" % id)
-		return
-
-	# Supprimer le modèle par défaut présent dans la scène de base
-	# (free() immédiat : on est dans _ready avant que le modèle soit utilisé)
-	var existing = node3d.get_node_or_null("pirateShip")
-	if existing:
-		existing.free()
-		DEBUG.log("Navire [%d] - Modèle par défaut supprimé" % id)
-
-	# Charger et instancier le bon modèle selon ship_model_path
-	var model_scene: PackedScene = load(ship_model_path)
-	if model_scene:
-		var model_instance: Node3D = model_scene.instantiate()
-		# Nom uniforme "pirateShip" pour que toute la logique de rotation
-		# reste identique quel que soit le modèle chargé
-		model_instance.name = "pirateShip"
-		node3d.add_child(model_instance)
-		_pirate_ship_3d = model_instance
-		target_rotation_angle = model_instance.rotation.y
-		DEBUG.log("Navire [%d] - Modèle chargé avec succès : '%s'" % [id, ship_model_path])
-	else:
-		DEBUG.log("Navire [%d] - ERREUR : Impossible de charger le modèle '%s'" % [id, ship_model_path])
-
-	# Le Sprite2D reste en place — on ne le tourne pas.
-	# hull_offset décale le sprite pour que le centre VISUEL du bateau
-	# coïncide avec global_position (ancre logique = case occupée).
-	_visual_node = get_node_or_null("Sprite2D")
-	if _visual_node:
-		_visual_node.position = hull_offset
-		DEBUG.log("Navire [%d] - hull_offset appliqué : %s" % [id, hull_offset])
-
-
-
-func _resolve_visual_node() -> void:
-	pass
-
-
-func _get_visual_rotation() -> float:
-	if _pirate_ship_3d:
-		return _pirate_ship_3d.rotation.y
-	return target_rotation_angle
-
-
-func _set_visual_rotation(angle: float) -> void:
-	"""
-	Tourne le pirateShip UNIQUEMENT sur l'axe Y via Transform3D.basis.
-	Les axes X et Z restent intacts → pas de surrélevement quelle que soit
-	la position du modèle dans le SubViewport.
-	own_world_3d = true garantit que cette rotation n'affecte pas les autres navires.
-	"""
-	if _pirate_ship_3d == null:
-		return
-	var new_basis = Basis.from_euler(Vector3(0.0, angle, 0.0))
-	_pirate_ship_3d.transform = Transform3D(new_basis, _pirate_ship_3d.transform.origin)
 
 
 func set_input_mode(mode: InputMode) -> void:
@@ -833,30 +734,6 @@ func _get_port_at(target_case: Vector2i) -> Node2D:
 #endregion utils
 
 
-#region rotation
-func _update_ship_rotation(delta: float) -> void:
-	if _pirate_ship_3d == null:
-		return
-	var current = _pirate_ship_3d.rotation.y
-	var diff    = angle_difference(current, target_rotation_angle)
-	if abs(diff) < 0.009:
-		_set_visual_rotation(target_rotation_angle)
-		return
-	_set_visual_rotation(lerp_angle(current, target_rotation_angle, rotation_speed * delta))
-
-
-func _compute_target_rotation(direction: Vector2) -> float:
-	# Le SubViewport 3D a son axe X miroir par rapport au 2D :
-	# → haut/bas sont corrects, mais gauche/droite sont inversés.
-	# On négative uniquement X pour corriger ce miroir horizontal.
-	var mirrored := Vector2(-direction.x, direction.y)
-	var angle = mirrored.angle() + deg_to_rad(rotation_offset_deg)
-	if rotation_invert:
-		angle += PI
-	return angle
-#endregion rotation
-
-
 #region process
 func _process(delta):
 	# Animation de la sélection et de la flèche
@@ -869,10 +746,6 @@ func _process(delta):
 	# Déplacement (pour TOUS les navires en mouvement, pas juste le sélectionné)
 	if is_moving and not path.is_empty():
 		_process_movement(delta)
-
-	# Rotation progressive du bateau (uniquement pendant le déplacement)
-	if is_moving:
-		_update_ship_rotation(delta)
 
 	# Mettre à jour la visibilité dans le fog (pour navires ennemis)
 	if player_owner and not _is_local_human_owner():
@@ -903,7 +776,7 @@ func _process_movement(delta: float) -> void:
 			if next_dir.length() > 0.1:
 				var blend := 1.0 - clampf(distance / 60.0, 0.0, 1.0)
 				look_dir = look_dir.lerp(next_dir, blend).normalized()
-		target_rotation_angle = _compute_target_rotation(look_dir)
+		target_rotation_angle = visuals.compute_target_rotation(look_dir)
 
 	# --- DÉPLACEMENT À VITESSE CONSTANTE ---
 	# Pas de décélération entre waypoints : le bateau garde sa vitesse pleine

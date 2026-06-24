@@ -1,7 +1,7 @@
 [gd_scene load_steps=5 format=3 uid="uid://cfhs5uyx5g4go"]
 
 [ext_resource type="Script" uid="uid://dhuetiveiynws" path="res://Scripts/in_game/navires/navires.gd" id="1_32h2o"]
-[ext_resource type="PackedScene" uid="uid://cl2n4rsqsb6wa" path="res://Assets/navire/pirateShip.glb" id="2_32h2o"]
+[ext_resource type="PackedScene" uid="uid://dr4w82yq6lojk" path="res://Assets/navire/pirateShip.glb" id="2_32h2o"]
 
 [sub_resource type="ViewportTexture" id="ViewportTexture_p8r5l"]
 viewport_path = NodePath("Sprite2D/SubViewport")
@@ -10,28 +10,6 @@ viewport_path = NodePath("Sprite2D/SubViewport")
 
 [node name="Node2D" type="Node2D"]
 script = ExtResource("1_32h2o")
-id = null
-vie = null
-maxvie = null
-energie = null
-maxenergie = null
-vitesse = null
-nrbequipage = null
-interaction_radius = null
-stats_duration = null
-tir = null
-dgt_tir = null
-nourriture = null
-fish_energy_cost = null
-fish_duration = null
-fish_yield_min = null
-fish_yield_max = null
-fish_feedback_duration = null
-rotation_speed = null
-rotation_offset_deg = null
-rotation_invert = null
-pivot_offset_y = null
-hull_offset = null
 
 [node name="Sprite2D" type="Sprite2D" parent="."]
 scale = Vector2(1.3, 1.3)

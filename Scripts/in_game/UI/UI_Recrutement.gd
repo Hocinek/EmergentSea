@@ -36,68 +36,6 @@ var _synergy_drag_offset: Vector2 = Vector2.ZERO
 # Chaque entrée est un dictionnaire { panel, icon, name_lbl, fire_btn }
 var _slot_panels: Array = []
 
-# Membres disponibles à l'achat (tous les rôles sauf capitaine)
-const HIREABLE_ROLES: Array = [
-	CrewMember.Role.CANONNIER,
-	CrewMember.Role.NAVIGATEUR,
-	CrewMember.Role.MEDECIN,
-	CrewMember.Role.PECHEUR,
-	CrewMember.Role.CORSAIRE,
-	CrewMember.Role.TIREUR_ELITE,
-	CrewMember.Role.ECLAIREUR,
-	CrewMember.Role.INGENIEUR,
-	CrewMember.Role.CUISINIER,
-	CrewMember.Role.MATELOT,
-	CrewMember.Role.DIPLOMATE,
-]
-
-const MAX_CREW: int = 6  # Capitaine + 5 membres
-
-# Limite maximale par rôle (-1 ou absent = pas de limite)
-const ROLE_MAX: Dictionary = {
-	CrewMember.Role.DIPLOMATE:  1,
-	CrewMember.Role.INGENIEUR:  2,
-	CrewMember.Role.NAVIGATEUR: 1,
-}
-
-# =========================
-# DONNÉES DES SYNERGIES (pour le panel d'info)
-# Chaque entrée : { icon, nom, membres_requis, effet }
-# Les noms correspondent exactement aux chaînes retournées par get_active_synergies()
-# =========================
-const SYNERGY_DATA: Array = [
-	{
-		"icon":           "⚔️",
-		"nom":            "Flotte de guerre",
-		"membres_requis": ["💣 Canonnier", "🏴 Corsaire", "🎯 Tireur d'élite"],
-		"effet":          "dgt_tir × 1.5 (bonus proportionnel aux dégâts déjà accumulés)",
-	},
-	{
-		"icon":           "🎣",
-		"nom":            "Navire de pêche",
-		"membres_requis": ["🎣 Pêcheur", "🍳 Cuisinier"],
-		"effet":          "Rendement de pêche × 2",
-	},
-	{
-		"icon":           "⚕️",
-		"nom":            "Duo de soins",
-		"membres_requis": ["⚕️ Médecin", "🍳 Cuisinier"],
-		"effet":          "Régénération de PV du Médecin × 2 par tour",
-	},
-	{
-		"icon":           "🧭",
-		"nom":            "Vitesse maximale",
-		"membres_requis": ["🧭 Navigateur", "🔭 Éclaireur"],
-		"effet":          "-25% coût de déplacement",
-	},
-	{
-		"icon":           "👥",
-		"nom":            "Équipage complet",
-		"membres_requis": ["6 membres à bord (Capitaine inclus)"],
-		"effet":          "+10% sur les dégâts de tir et les poissons passifs par tour",
-	},
-]
-
 
 func _init(port: Ports, player: Player, ship: Navires) -> void:
 	_port = port
@@ -155,7 +93,7 @@ func _build_ui() -> void:
 
 	# ── Section : Équipage actuel ──
 	var crew_title = Label.new()
-	crew_title.text = "👥  Équipage actuel  (max %d membres)" % MAX_CREW
+	crew_title.text = "👥  Équipage actuel  (max %d membres)" % CrewConsts.MAX_CREW
 	crew_title.add_theme_font_size_override("font_size", 15)
 	vbox.add_child(crew_title)
 
@@ -232,7 +170,7 @@ func _build_crew_slots() -> void:
 		child.queue_free()
 	_slot_panels.clear()
 
-	for i in range(MAX_CREW):
+	for i in range(CrewConsts.MAX_CREW):
 		var slot_panel = PanelContainer.new()
 		slot_panel.custom_minimum_size = Vector2(90, 100)
 
@@ -277,7 +215,7 @@ func _build_hire_list() -> void:
 	for child in _available_container.get_children():
 		child.queue_free()
 
-	for role in HIREABLE_ROLES:
+	for role in CrewConsts.HIREABLE_ROLES:
 		var member_proto = CrewMember.new(role)
 
 		var hbox = HBoxContainer.new()
@@ -388,7 +326,7 @@ func _on_synergy_info_pressed() -> void:
 	vbox.add_child(_separator())
 
 	# ── Une carte par synergie ──
-	for data in SYNERGY_DATA:
+	for data in CrewConsts.SYNERGY_DATA:
 		var active: bool = _is_synergy_active(data["nom"])
 
 		var card = PanelContainer.new()
@@ -482,8 +420,8 @@ func _refresh_ui() -> void:
 	_fish_label.text = "Poissons disponibles : %d 🐟" % _ship.nourriture
 
 	# ── Slots équipage ──
-	var crew: Array = _ship.equipage
-	for i in range(MAX_CREW):
+	var crew: Array = _ship.get_equipage_array()
+	for i in range(CrewConsts.MAX_CREW):
 		var slot: Dictionary = _slot_panels[i]
 		var icon_lbl: Label  = slot["icon"]
 		var name_lbl: Label  = slot["name_lbl"]
@@ -510,11 +448,11 @@ func _refresh_ui() -> void:
 		_synergy_label.add_theme_color_override("font_color", Color(0.6, 1.0, 0.7))
 
 	# ── Boutons recruter ──
-	var crew_full: bool = _ship.equipage.size() >= MAX_CREW
+	var crew_full: bool = _ship.get_equipage_size() >= CrewConsts.MAX_CREW
 	var fish_count: int = _ship.nourriture
 
 	var btn_idx = 0
-	for role in HIREABLE_ROLES:
+	for role in CrewConsts.HIREABLE_ROLES:
 		var hbox: HBoxContainer = _available_container.get_child(btn_idx)
 		var hire_btn: Button = hbox.get_node("HireBtn_%d" % role)
 		var cost_lbl: Label  = hbox.get_node("CostLabel")
@@ -532,12 +470,10 @@ func _refresh_ui() -> void:
 		var can_afford: bool = fish_count >= real_cost
 
 		# Vérifier si la limite de ce rôle est atteinte
-		var role_limit: int = ROLE_MAX.get(role, -1)  # -1 = pas de limite
+		var role_limit: int = CrewConsts.ROLE_MAX.get(role, -1)  # -1 = pas de limite
 		var role_count: int = 0
 		if role_limit > 0:
-			for m in _ship.equipage:
-				if m.role == role:
-					role_count += 1
+			role_count = _ship.count_crew_role(role)
 		var limit_reached: bool = (role_limit > 0 and role_count >= role_limit)
 
 		hire_btn.disabled = crew_full or not can_afford or limit_reached
@@ -568,8 +504,8 @@ func _on_hire_pressed(role: CrewMember.Role) -> void:
 		_show_feedback("❌ Pas assez de poissons ! (besoin : %d 🐟)" % real_cost, Color(1, 0.3, 0.3))
 		return
 
-	if _ship.equipage.size() >= MAX_CREW:
-		_show_feedback("❌ L'équipage est complet ! (max %d)" % MAX_CREW, Color(1, 0.3, 0.3))
+	if _ship.get_equipage_size() >= CrewConsts.MAX_CREW:
+		_show_feedback("❌ L'équipage est complet ! (max %d)" % CrewConsts.MAX_CREW, Color(1, 0.3, 0.3))
 		return
 
 	# Transaction
@@ -594,10 +530,10 @@ func _on_hire_pressed(role: CrewMember.Role) -> void:
 func _on_fire_crew(slot_index: int) -> void:
 	if _ship == null or not is_instance_valid(_ship):
 		return
-	if slot_index <= 0 or slot_index >= _ship.equipage.size():
+	if slot_index <= 0 or slot_index >= _ship.get_equipage_size():
 		return
 
-	var member: CrewMember = _ship.equipage[slot_index]
+	var member: CrewMember = _ship.get_equipage_array()[slot_index]
 	_ship.remove_crew_member(slot_index)
 
 	# Mettre à jour le fog si on congédie un membre avec bonus de vision
@@ -667,7 +603,7 @@ func _sync_crew_to_network() -> void:
 
 	# Construire la liste des rôles (index 0 = capitaine inclus)
 	var crew_roles: Array = []
-	for member in _ship.equipage:
+	for member in _ship.get_equipage_array():
 		crew_roles.append(member.role)
 
 	game_manager.sync_crew_networked(

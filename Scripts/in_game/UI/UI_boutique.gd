@@ -265,7 +265,7 @@ func _refresh_ui() -> void:
 	# -- Équipage --
 	if has_ship and _current_ship is Navires:
 		var navire: Navires = _current_ship as Navires
-		var crew_count: int = navire.equipage.size()
+		var crew_count: int = navire.get_equipage_size()
 		var crew_max: int = 6
 		_crew_info_label.text = "Membres d'équipage : %d / %d" % [crew_count, crew_max]
 		_crew_button.disabled = false

@@ -456,7 +456,7 @@ func update_stats(label_list: Dictionary):
 	if label_list.has("energie"):
 		label_list["energie"].text = "⚡ %d / %d" % [navire.energie, navire.maxenergie]
 	if label_list.has("equipage"):
-		label_list["equipage"].text = "👥 %d / %d" % [navire.nrbequipage, navire.MAX_CREW]
+		label_list["equipage"].text = "👥 %d / %d" % [navire.get_equipage_size(), CrewConsts.MAX_CREW]
 	if label_list.has("nourriture"):
 		label_list["nourriture"].text = "🐟 %d" % navire.nourriture
 
@@ -469,7 +469,7 @@ func _update_crew_panel():
 	# Membres d'équipage
 	if navire.get("equipage") != null:
 		var lines: Array[String] = []
-		for member: CrewMember in navire.equipage:
+		for member: CrewMember in navire.get_equipage_array():
 			lines.append("%s %s" % [member.get_icon(), member.nom])
 		crew_list_label.text = "\n".join(lines)
 	else:

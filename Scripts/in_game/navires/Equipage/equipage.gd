@@ -47,6 +47,12 @@ func reset_stats() -> void:
 	ship.tir = ship.DEFAULT_PORTEE_TIR
 	ship.dgt_tir = ship.DEFAULT_DEGAT_TIR
 
+func reset_crew() -> void:
+	equipage.clear()
+	var capitaine = CrewMember.new(CrewMember.Role.CAPITAINE)
+	equipage.append(capitaine)
+	nbequipage = equipage.size()
+
 ## Calcule les bonus apportés par l'équipage
 func compute_crew_bonus():
 	reset_stats()

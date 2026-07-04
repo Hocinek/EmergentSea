@@ -661,17 +661,11 @@ func _apply_crew_local(ship_id: int, new_nourriture: int, new_vie: int, new_maxv
 		ship.energie    = new_energie
 		ship.maxenergie = new_maxenergie
 		# Reconstruire l'équipage à partir des rôles reçus.
-		# On garde le capitaine (index 0) et on remplace le reste.
-		var capitaine: CrewMember = ship.equipage[0] if not ship.equipage.is_empty() else null
-		ship.equipage.clear()
-		if capitaine != null:
-			ship.equipage.append(capitaine)
+		ship.equipage.reset_crew()
 		for i in range(1, crew_roles.size()):
 			var role: int = crew_roles[i]
-			ship.equipage.append(CrewMember.new(role))
-		ship.nrbequipage = ship.equipage.size()
-		ship.compute_crew_synergies()
-		DEBUG.log("[MULTI GM] _apply_crew_local : navire [%d] — %d membres, synergies recalculées" % [ship_id, ship.nrbequipage])
+			ship.add_crew_member(CrewMember.new(role))
+		DEBUG.log("[MULTI GM] _apply_crew_local : navire [%d] — %d membres, synergies recalculées" % [ship_id, ship.get_equipage_size()])
 		return
 	push_error("[MULTI GM] _apply_crew_local : navire [%d] introuvable" % ship_id)
 

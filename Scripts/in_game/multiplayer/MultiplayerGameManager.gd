@@ -163,6 +163,9 @@ func _setup_ui_quitter() -> void:
 
 
 func _on_map_generated() -> void:
+	if multiplayer.is_server():
+		return
+	
 	_refresh_refs()
 	if bootstrap == null or network_manager == null:
 		push_error("[MULTI GM] Bootstrap ou NetworkManager introuvable")
@@ -175,7 +178,15 @@ func _on_map_generated() -> void:
 		_ensure_client_match_context()
 
 
-func _ensure_client_match_context() -> void:
+func _ensure_client_match_context(retry_count: int = 0) -> void:
+	if multiplayer.is_server():
+		return
+
+	# Failsafe : on arrête tout après 50 tentatives (environ 10 secondes)
+	if retry_count > 50:
+		push_error("[MULTI GM] Timeout : impossible de récupérer le local_player_id.")
+		return
+
 	if network_manager == null:
 		network_manager = get_tree().get_first_node_in_group("network_manager")
 	if match_context == null:
@@ -184,9 +195,10 @@ func _ensure_client_match_context() -> void:
 	if network_manager != null and network_manager.local_player_id != -1:
 		match_context.configure_multi(network_manager.local_player_id)
 	else:
-		push_warning("[MULTI GM] local_player_id pas encore assigné, on patiente...")
+		push_warning("[MULTI GM] local_player_id pas encore assigné, on patiente... (Essai %d)" % retry_count)
 		await get_tree().create_timer(0.2).timeout
-		_ensure_client_match_context()
+		# On relance la fonction en incrémentant le compteur
+		_ensure_client_match_context(retry_count + 1)
 
 
 func _initialize_host_match() -> void:
@@ -289,6 +301,10 @@ func _sync_initial_state_to_clients() -> void:
 
 @rpc("any_peer", "call_remote", "reliable")
 func _rpc_receive_initial_state(players_data: Array, ships_data: Array, turn_order: Array, ports_data: Array) -> void:
+	# Le serveur dédié ignore la synchronisation initiale
+	if multiplayer.is_server():
+		return
+	
 	_refresh_refs()
 
 	if players_manager == null or turn_manager == null or match_context == null:
@@ -682,7 +698,7 @@ func _rpc_sync_ship_position(ship_id: int, case_x: int, case_y: int, world_x: fl
 			ship.case_actuelle = Vector2i(case_x, case_y)
 			ship.global_position = Vector2(world_x, world_y)
 			ship.target_rotation_angle = rotation_angle
-			ship._set_visual_rotation(rotation_angle)
+			ship.set_visual_rotation(rotation_angle)
 			ship._update_visibility_in_fog()
 			return
 
@@ -765,6 +781,8 @@ func _rpc_apply_damage(target_ship_id: int, damage: int, show_ui: bool) -> void:
 
 # Application locale des dégâts
 func _apply_damage_local(target_ship_id: int, damage: int, show_ui: bool = true) -> void:
+	if multiplayer.is_server():
+		return
 	for ship in get_tree().get_nodes_in_group("ships"):
 		if ship is Navires and ship.id == target_ship_id:
 			ship.take_damage(damage, show_ui)

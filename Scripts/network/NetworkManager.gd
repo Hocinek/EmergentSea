@@ -101,11 +101,14 @@ func _on_peer_disconnected(peer_id: int) -> void:
 
 
 func _trigger_win_by_disconnect(disconnected_peer_id: int) -> void:
+	if multiplayer.is_server():
+		return
+	
 	print("[NETWORK] Déconnexion détectée (peer=%d) → victoire par forfait" % disconnected_peer_id)
 	var turn_manager = get_tree().get_first_node_in_group("turn_manager")
 	if turn_manager and turn_manager.has_method("declare_winner_by_disconnect"):
 		turn_manager.declare_winner_by_disconnect(local_player_id)
-	else:
+	elif not OS.has_feature("dedicated_server"):
 		# Fallback : retour au menu principal
 		get_tree().change_scene_to_file("res://Scenes/MainMenu.tscn")
 

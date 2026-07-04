@@ -1107,3 +1107,10 @@ func get_equipage_size() -> int:
 	return equipage.get_equipage_size()
 
 #endregion equipage
+
+#region visual (extern calls)
+
+func set_visual_rotation(angle):
+	visuals.set_target_rotation(angle)
+
+#endregion visual (extern calls)

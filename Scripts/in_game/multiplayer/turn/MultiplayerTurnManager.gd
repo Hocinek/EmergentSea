@@ -129,6 +129,9 @@ func _process_end_turn() -> void:
 
 @rpc("any_peer", "call_local", "reliable")
 func _rpc_sync_active_player(active_player_id: int) -> void:
+	if multiplayer.is_server():
+		return
+	
 	if match_context == null:
 		match_context = get_tree().get_first_node_in_group("match_context")
 
@@ -343,6 +346,8 @@ func declare_winner_by_disconnect(winner_player_id: int) -> void:
 # pour afficher l'écran victoire ou défaite approprié.
 @rpc("any_peer", "call_local", "reliable")
 func _rpc_sync_game_over(winner_player_id: int, raison: String) -> void:
+	if multiplayer.is_server():
+		return
 	if match_context == null:
 		match_context = get_tree().get_first_node_in_group("match_context")
 

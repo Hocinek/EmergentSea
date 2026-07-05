@@ -1,6 +1,6 @@
 ###===================================================================###
 ##                        HexContextMenu                              ##
-# Menu contextuel hexagonal — 6 actions fonctionnelles + retour       #
+# Menu contextuel hexagonal - 6 actions fonctionnelles + retour       #
 ###===================================================================###
 class_name HexContextMenu
 extends Control
@@ -19,7 +19,7 @@ const CENTER_HEX_SIZE := 58.0
 const ANIM_DURATION   := 0.25
 
 # ================================
-# ACTIONS — 6 boutons, répartis sur 6 angles symétriques
+# ACTIONS - 6 boutons, répartis sur 6 angles symétriques
 # ================================
 const ACTIONS: Array = [
 	{ "id": "move",    "label": "Déplacer\n 1 ⚡ /case",     "icon": "\u27A4",  "color": Color(0.30, 0.80, 0.47), "bg": Color(0.07, 0.18, 0.10), "tip": "Puis clic gauche = destination",  "cursor": "CURSOR_CROSS"          },
@@ -217,7 +217,7 @@ func _draw_action_hex(index: int, scale_t: float) -> void:
 	)
 
 # ================================
-# HEXAGONE CENTRAL — Retour
+# HEXAGONE CENTRAL - Retour
 # ================================
 func _draw_center_hex(scale_t: float) -> void:
 	var hex_r: float   = CENTER_HEX_SIZE * scale_t
@@ -350,7 +350,7 @@ func _draw_fish_icon(center: Vector2, size: float, color: Color) -> void:
 	body_closed.append(body_closed[0])
 	draw_polyline(body_closed, Color(Color.WHITE, 0.4), 1.0, true)
 
-	# Œil : petit cercle blanc + pupille sombre
+	# Oeil : petit cercle blanc + pupille sombre
 	var eye_pos := center + Vector2(bw * 0.45, -bh * 0.15)
 	var eye_r   := size * 0.13
 	draw_circle(eye_pos, eye_r,       Color(Color.WHITE, 0.95))
@@ -368,7 +368,7 @@ func _on_action_clicked(index: int) -> void:
 	var action_id: String = ACTIONS[index]["id"]
 	DEBUG.log("[HexMenu] Action : %s sur navire %d" % [action_id, _navire.id if _navire else -1])
 	var navire_ref: Navires = _navire  # Garder la référence avant close()
-	# switch et fish : fermer D'ABORD puis émettre → action instantanée sans voir le menu
+	# switch et fish : fermer D'ABORD puis émettre -> action instantanée sans voir le menu
 	if action_id == "switch" or action_id == "fish":
 		close()
 		emit_signal("action_selected", action_id, navire_ref)

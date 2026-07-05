@@ -5,7 +5,7 @@ extends RefCounted
 # TYPES DE MEMBRES D'ÉQUIPAGE
 # =========================
 enum Role {
-	CAPITAINE,       # Slot 0 — toujours présent, ne peut pas être retiré
+	CAPITAINE,       # Slot 0 - toujours présent, ne peut pas être retiré
 	CANONNIER,       # Augmente les dégâts de tir
 	NAVIGATEUR,      # Augmente la vitesse et l'énergie max
 	MEDECIN,         # Augmente les PV max et régénère des PV

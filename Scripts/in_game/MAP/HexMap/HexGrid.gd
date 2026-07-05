@@ -59,7 +59,7 @@ func axial_to_offset(q: int, r: int) -> Vector2:
 # var s = -q - r
 
 # ============================================================
-# Conversion Monde → Offset
+# Conversion Monde -> Offset
 # ============================================================
 
 func world_to_offset(pos: Vector2) -> Vector2:
@@ -75,7 +75,7 @@ func world_to_offset(pos: Vector2) -> Vector2:
 	return Vector2(col, row)
 
 # ============================================================
-# Conversion Monde → Cellule
+# Conversion Monde -> Cellule
 # ============================================================
 
 func get_cell_from_world(pos: Vector2) -> HexCell:

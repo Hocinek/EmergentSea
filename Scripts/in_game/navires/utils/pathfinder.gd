@@ -47,7 +47,7 @@ static func calculer_chemin(start: Vector2i, goal: Vector2i) -> Array:
 				
 				# Gestion de la liste ouverte
 				# On ajoute en doublon si le voisin est déjà présent :
-				# le nœud avec le meilleur f_score sortira en premier (pop_back),
+				# le noeud avec le meilleur f_score sortira en premier (pop_back),
 				# et l'ancien doublon sera ignoré car g_score sera déjà optimal.
 				var new_node = AStarNode.new(neighbor, f)
 				_insert_sorted(open_list, new_node)

@@ -44,7 +44,7 @@ func _create_btn_quitter() -> void:
 	btn_quitter.add_theme_font_size_override("font_size", 20)
 	btn_quitter.tooltip_text = "Quitter la partie"
 
-	# Ancrage bas-gauche, décalé de 48px à droite du bouton "?" (qui occupe 16→60)
+	# Ancrage bas-gauche, décalé de 48px à droite du bouton "?" (qui occupe 16->60)
 	btn_quitter.anchor_left   = 0.0
 	btn_quitter.anchor_right  = 0.0
 	btn_quitter.anchor_top    = 1.0

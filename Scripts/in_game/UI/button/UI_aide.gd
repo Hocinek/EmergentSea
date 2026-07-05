@@ -45,12 +45,12 @@ const COMMANDES: Array = [
 	["🖱️ Souris au bord de l'écran", "Déplacer la caméra sur la carte"],
 	["🖱️ Molette souris", "Zoomer / dézoomer"],
 	["", ""],  # Séparateur visuel
-	["⚓ Menu → Déplacer", "Activer le mode déplacement"],
-	["⚔️ Menu → Attaquer", "Activer le mode attaque"],
-	["🔍 Menu → Inspecter", "Inspecter une case (poissons, navires)"],
-	["📊 I ou Menu → Stats", "Afficher / masquer les statistiques"],
-	["🐟 F ou Menu → Pêcher", "Pêcher sur la case actuelle (1⚡)"],
-	["🔄 Menu → Changer", "Passer au navire suivant"],
+	["⚓ Menu -> Déplacer", "Activer le mode déplacement"],
+	["⚔️ Menu -> Attaquer", "Activer le mode attaque"],
+	["🔍 Menu -> Inspecter", "Inspecter une case (poissons, navires)"],
+	["📊 I ou Menu -> Stats", "Afficher / masquer les statistiques"],
+	["🐟 F ou Menu -> Pêcher", "Pêcher sur la case actuelle (1⚡)"],
+	["🔄 Menu -> Changer", "Passer au navire suivant"],
 	["", ""],  # Séparateur visuel
 	["❤️  Vie", "Points de vie du navire"],
 	["⚡ Énergie", "Actions restantes ce tour"],
@@ -142,7 +142,7 @@ func _create_panel_aide() -> void:
 
 	# Titre du panneau
 	var title := Label.new()
-	title.text = "📖 Aide — Commandes et mécaniques"
+	title.text = "📖 Aide - Commandes et mécaniques"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_color_override("font_color", COLOR_TITLE)
 	title.add_theme_font_size_override("font_size", 18)

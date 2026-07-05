@@ -88,7 +88,7 @@ static func clamp_case(c: Vector2i) -> Vector2i:
 	)
 
 ## Clamps a world position so it always maps to a valid tile.
-## Converts world → case (clamped) → world (center of tile).
+## Converts world -> case (clamped) -> world (center of tile).
 static func clamp_world_position(world_pos: Vector2) -> Vector2:
 	var c := monde_vers_case(world_pos)
 	c = clamp_case(c)
@@ -177,7 +177,7 @@ static func get_movement_cost(c: Vector2i) -> float:
 		_: return 1.0
 
 
-## Retourne tous les voisins d'une case (sans filtre de navigabilité) — utilisé par le fog BFS
+## Retourne tous les voisins d'une case (sans filtre de navigabilité) - utilisé par le fog BFS
 static func get_neighbors_all(c: Vector2i) -> Array[Vector2i]:
 	var res: Array[Vector2i] = []
 	var directions: Array[Vector2i]

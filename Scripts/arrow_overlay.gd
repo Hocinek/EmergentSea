@@ -19,7 +19,7 @@ func _draw() -> void:
 	if world_distance < 10:
 		return
 
-	# Conversion monde → écran
+	# Conversion monde -> écran
 	var xform      := navire.get_canvas_transform()
 	var target_scr := xform * navire.target_position
 
@@ -27,7 +27,7 @@ func _draw() -> void:
 	var scale_factor := sqrt(1.0 / cam_zoom) * 2.0
 	var arrow_scale  := sqrt(scale_factor)
 
-	# ── Même calculs que Drawable.arrow(), transposés en pixels écran ──
+	# -- Même calculs que Drawable.arrow(), transposés en pixels écran --
 	var pulse     := sin(Time.get_ticks_msec() * 0.005) * 0.2 + 1.0
 	var offset_y  := (-80.0 + sin(Time.get_ticks_msec() * 0.003) * 15.0) * arrow_scale * cam_zoom
 	var h         := Drawable.arrow_height * arrow_scale * cam_zoom

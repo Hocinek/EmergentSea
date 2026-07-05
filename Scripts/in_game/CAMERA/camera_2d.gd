@@ -70,7 +70,7 @@ func _input(event):
 			Vector2(max_zoom, max_zoom)
 		)
 
-	# Click and drag — début / fin
+	# Click and drag - début / fin
 	if drag_enabled and event is InputEventMouseButton:
 		if event.button_index == drag_button:
 			if event.pressed:
@@ -80,7 +80,7 @@ func _input(event):
 			else:
 				_is_dragging = false
 
-	# Click and drag — mouvement
+	# Click and drag - mouvement
 	if drag_enabled and _is_dragging and event is InputEventMouseMotion:
 		var delta_mouse := get_viewport().get_mouse_position() - _drag_start_mouse_pos
 		# On divise par le zoom pour que la vitesse soit cohérente quel que soit le niveau de zoom

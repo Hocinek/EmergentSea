@@ -20,11 +20,11 @@ func _ready() -> void:
 	set_process_input(true)
 	hide()
 
-# ─────────────────────────────────────────
+# -----------------------------------------
 # API
-# ─────────────────────────────────────────
+# -----------------------------------------
 func show_for(nb_cases: int, energy_cost: int, screen_pos: Vector2) -> void:
-	_label_text = "Déplacement : %d case(s) — %d ⚡" % [nb_cases, energy_cost]
+	_label_text = "Déplacement : %d case(s) - %d ⚡" % [nb_cases, energy_cost]
 	# Clamp dans le viewport
 	var vp := get_viewport_rect().size
 	_screen_pos = Vector2(
@@ -40,9 +40,9 @@ func hide_ui() -> void:
 	hide()
 	queue_redraw()
 
-# ─────────────────────────────────────────
+# -----------------------------------------
 # DESSIN
-# ─────────────────────────────────────────
+# -----------------------------------------
 func _draw() -> void:
 	if not visible:
 		return
@@ -90,9 +90,9 @@ func _draw() -> void:
 		FONT_SIZE,
 		Color(1.0, 0.65, 0.65))
 
-# ─────────────────────────────────────────
+# -----------------------------------------
 # INPUT
-# ─────────────────────────────────────────
+# -----------------------------------------
 func _input(event: InputEvent) -> void:
 	if not visible:
 		return
@@ -120,9 +120,9 @@ func _input(event: InputEvent) -> void:
 				emit_signal("cancelled")
 				get_viewport().set_input_as_handled()
 
-# ─────────────────────────────────────────
+# -----------------------------------------
 # HELPERS
-# ─────────────────────────────────────────
+# -----------------------------------------
 func _btn_rect(index: int) -> Rect2:
 	# index 0 = Confirmer (gauche), 1 = Annuler (droite)
 	var gap    := (W - BTN_W * 2 - PADDING * 2) / 1.0

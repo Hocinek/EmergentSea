@@ -132,9 +132,9 @@ func update_all_visible_snapshots_for_player(player: Player, fog: FogOfWar) -> v
 func get_stock_for_player(player: Player, pos: Vector2i, fog: FogOfWar) -> Dictionary:
 	"""
 	Retourne les infos de stock à afficher selon l'état du fog :
-	- VISIBLE     → stock réel en temps réel
-	- EXPLORED    → dernier snapshot connu du joueur
-	- UNEXPLORED  → rien (case inconnue)
+	- VISIBLE     -> stock réel en temps réel
+	- EXPLORED    -> dernier snapshot connu du joueur
+	- UNEXPLORED  -> rien (case inconnue)
 	Retourne { "known": bool, "stock": int, "is_live": bool, "turn": int }
 	"""
 	if not fish_stocks.has(pos):
@@ -144,7 +144,7 @@ func get_stock_for_player(player: Player, pos: Vector2i, fog: FogOfWar) -> Dicti
 
 	match fog_state:
 		FogOfWar.FogState.VISIBLE:
-			# Données en temps réel — mettre à jour le snapshot au passage
+			# Données en temps réel - mettre à jour le snapshot au passage
 			update_snapshot_for_player(player, pos)
 			return {
 				"known": true,
@@ -175,7 +175,7 @@ func get_stock_for_player(player: Player, pos: Vector2i, fog: FogOfWar) -> Dicti
 # UTILITAIRES
 # =========================
 func get_real_stock(pos: Vector2i) -> int:
-	"""Stock réel (sans filtre fog — usage interne / IA)"""
+	"""Stock réel (sans filtre fog - usage interne / IA)"""
 	return int(fish_stocks.get(pos, 0.0))
 
 

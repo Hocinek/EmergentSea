@@ -120,7 +120,7 @@ var fish_feedback_timer: float = 0.0
 # FEEDBACK COMBAT
 # =========================
 #region feedback combat
-## Label flottant partagé par TOUS les navires de la scène (un seul nœud suffit)
+## Label flottant partagé par TOUS les navires de la scène (un seul noeud suffit)
 var combat_feedback_label: UI_combat_navires
 #endregion feedback combat
 
@@ -226,13 +226,13 @@ func set_input_mode(mode: InputMode) -> void:
 	match mode:
 		InputMode.MOVE:
 			Input.set_default_cursor_shape(Input.CURSOR_CROSS)
-			DEBUG.log("Navire [%d] — Mode DÉPLACEMENT actif" % id)
+			DEBUG.log("Navire [%d] - Mode DÉPLACEMENT actif" % id)
 		InputMode.ATTACK:
 			Input.set_default_cursor_shape(Input.CURSOR_CROSS)
-			DEBUG.log("Navire [%d] — Mode ATTAQUE actif" % id)
+			DEBUG.log("Navire [%d] - Mode ATTAQUE actif" % id)
 		InputMode.INSPECT:
 			Input.set_default_cursor_shape(Input.CURSOR_HELP)
-			DEBUG.log("Navire [%d] — Mode INSPECTION actif" % id)
+			DEBUG.log("Navire [%d] - Mode INSPECTION actif" % id)
 		InputMode.NONE:
 			Input.set_default_cursor_shape(Input.CURSOR_ARROW)
 
@@ -244,7 +244,7 @@ func _init_stats_ui():
 	# On vérifie si le panel existe déjà avant d'en créer un nouveau
 	if stats_panel == null:
 		stats_panel = UI_stats_navire.new(self)
-	# UI_fish_navires extends Control → new() sans argument obligatoire
+	# UI_fish_navires extends Control -> new() sans argument obligatoire
 	# On l'ajoute au ui_layer (comme HexContextMenu) pour qu'il s'affiche par-dessus tout
 	if fish_feedback_label == null:
 		fish_feedback_label = UI_fish_navires.new()
@@ -252,7 +252,7 @@ func _init_stats_ui():
 		# Connecter le signal du navire à l'UI fish
 		sig_show_fishing.connect(func(): fish_feedback_label.on_show_fishing(self))
 
-	# ── Feedback combat : un label par navire (comme UI_fish_navires) ──
+	# -- Feedback combat : un label par navire (comme UI_fish_navires) --
 	if combat_feedback_label == null:
 		combat_feedback_label = UI_combat_navires.new()
 		ui_layer.add_child(combat_feedback_label)
@@ -357,7 +357,7 @@ func take_damage(damage: int, show_ui: bool = true) -> void:
 
 	if show_ui:
 		stats_panel.show_stats()
-	# ── Feedback visuel : "-X ❤️" flottant au-dessus du navire touché ──
+	# -- Feedback visuel : "-X ❤️" flottant au-dessus du navire touché --
 	if combat_feedback_label and is_instance_valid(combat_feedback_label):
 		combat_feedback_label.show_damage(self, damage)
 
@@ -375,7 +375,7 @@ func die() -> void:
 		set_selected(false)
 	# Masquer TOUS les panneaux de stats
 	stats_panel.hide_all_stats()
-	# Masquer le feedback de pêche — close() au lieu de hide() car UI_fish_navires est un Control
+	# Masquer le feedback de pêche - close() au lieu de hide() car UI_fish_navires est un Control
 	if fish_feedback_label and is_instance_valid(fish_feedback_label):
 		fish_feedback_label.close()
 	# Masquer le feedback de combat pour ce navire
@@ -443,7 +443,7 @@ func _unhandled_input(event: InputEvent) -> void:
 						var clicked_ship := get_ship_at_position(mouse_pos)
 						if not clicked_ship:
 							if energie <= 0:
-								DEBUG.log("Navire [%d] — Pas assez d'énergie pour se déplacer!" % id)
+								DEBUG.log("Navire [%d] - Pas assez d'énergie pour se déplacer!" % id)
 							else:
 								var target_case: Vector2i = Map_utils.monde_vers_case(mouse_pos)
 								if Map_utils.is_case_navigable(target_case):
@@ -474,7 +474,7 @@ func _unhandled_input(event: InputEvent) -> void:
 						get_viewport().set_input_as_handled()
 						return
 
-			# ── PAS DE MODE ACTIF ─────────────────────────────────────
+			# -- PAS DE MODE ACTIF -------------------------------------
 			# Si N'IMPORTE QUEL navire (allié OU ennemi) a un mode actif,
 			if not is_selected:
 				for _s in get_tree().get_nodes_in_group("ships"):
@@ -524,7 +524,7 @@ func _unhandled_input(event: InputEvent) -> void:
 				get_viewport().set_input_as_handled()
 				return
 
-			# Sur le navire → ouvrir le menu hexagonal
+			# Sur le navire -> ouvrir le menu hexagonal
 			if distance <= interaction_radius:
 				var canvas_xform := get_canvas_transform()
 				var screen_pos: Vector2 = canvas_xform * global_position
@@ -532,7 +532,7 @@ func _unhandled_input(event: InputEvent) -> void:
 				get_viewport().set_input_as_handled()
 				return
 
-			# En dehors → tir direct (clic droit hors menu)
+			# En dehors -> tir direct (clic droit hors menu)
 			var target_case: Vector2i = Map_utils.monde_vers_case(mouse_pos)
 			attempt_shoot(target_case)
 			get_viewport().set_input_as_handled()
@@ -543,7 +543,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	if not is_selected:
 		return
 
-	# Echap → annuler la confirmation en attente ou le mode actif
+	# Echap -> annuler la confirmation en attente ou le mode actif
 	if event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE:
 		if not pending_path.is_empty():
 			_cancel_pending_move()
@@ -573,7 +573,7 @@ func attempt_shoot(target_case: Vector2i) -> void:
 		return
 	if not is_in_range(target_case):
 		DEBUG.log("Cible hors de portée!")
-		# ── Feedback visuel : ennemi trop loin ──
+		# -- Feedback visuel : ennemi trop loin --
 		if combat_feedback_label and is_instance_valid(combat_feedback_label):
 			combat_feedback_label.show_out_of_range(self)
 		return
@@ -617,7 +617,7 @@ func attempt_shoot(target_case: Vector2i) -> void:
 		has_attacked_this_turn = true
 		DEBUG.log("Tir effectué sur %d cible(s)!" % hit_count)
 		stats_panel.show_ally()
-		# ── Feedback visuel : coût en énergie sur l'attaquant ──
+		# -- Feedback visuel : coût en énergie sur l'attaquant --
 		if combat_feedback_label and is_instance_valid(combat_feedback_label):
 			combat_feedback_label.show_energy_cost(self, 10)
 	else:
@@ -629,29 +629,29 @@ func shoot_at(target: Navires) -> void:
 	if target == null or not target.is_alive():
 		return
 	DEBUG.log("Tir sur navire [%d]" % target.id)
-	print("[DMG] shoot_at — tireur id=%d owner=%s | cible id=%d | dgt_tir=%d | match_context null=%s" % [
+	print("[DMG] shoot_at - tireur id=%d owner=%s | cible id=%d | dgt_tir=%d | match_context null=%s" % [
 		id,
 		player_owner.player_name if player_owner else "NULL",
 		target.id,
 		dgt_tir,
 		str(match_context == null)
 	])
-	# ── SON D'ATTAQUE ──────────────────────────────────────────────
+	# -- SON D'ATTAQUE ----------------------------------------------
 	if _audio_player and attack_sound:
 		_audio_player.stream = attack_sound
 		_audio_player.play()
 
-	# En mode multi : déléguer au GameManager qui a un nœud réseau stable
+	# En mode multi : déléguer au GameManager qui a un noeud réseau stable
 	if match_context != null and match_context.mode == MatchContext.MatchMode.MULTI:
 		var game_manager = get_tree().get_first_node_in_group("game_manager")
-		print("[DMG] shoot_at MULTI — game_manager null=%s" % str(game_manager == null))
+		print("[DMG] shoot_at MULTI - game_manager null=%s" % str(game_manager == null))
 		if game_manager and game_manager.has_method("apply_damage_networked"):
 			game_manager.apply_damage_networked(target.id, dgt_tir)
 		else:
 			push_error("[NAVIRE %d] GameManager introuvable pour apply_damage_networked" % id)
 	else:
 		# Mode solo : application directe
-		print("[DMG] shoot_at SOLO — target.vie avant=%d" % target.vie)
+		print("[DMG] shoot_at SOLO - target.vie avant=%d" % target.vie)
 		target.take_damage(dgt_tir)
 #endregion gestion combat
 
@@ -723,7 +723,7 @@ func _get_port_at(target_case: Vector2i) -> Node2D:
 
 	var grid: HexGrid = map_manager.grid
 
-	# Convertir offset → axial pour accéder à la bonne clé dans cells{}
+	# Convertir offset -> axial pour accéder à la bonne clé dans cells{}
 	var axial: Vector2 = grid.offset_to_axial(target_case.x, target_case.y)
 	var q := int(axial.x)
 	var r := int(axial.y)
@@ -802,7 +802,7 @@ func _process_movement(delta: float) -> void:
 			show_arrow = false
 			path.clear()
 			queue_redraw()
-			DEBUG.log("Navire [%d] — Énergie épuisée, arrêt du déplacement" % id)
+			DEBUG.log("Navire [%d] - Énergie épuisée, arrêt du déplacement" % id)
 			return
 		if player_owner:
 			DEBUG.log("player_owner existe: %s, is_human: %s, is_local: %s" % [player_owner.player_name, player_owner.is_human, player_owner.is_local])
@@ -846,14 +846,14 @@ func _request_move_confirmation(computed_path: Array) -> void:
 	# Fermer une confirmation précédente si elle traîne
 	_cancel_pending_move()
 
-	# ── TRONQUER le chemin si l'énergie est insuffisante ──
+	# -- TRONQUER le chemin si l'énergie est insuffisante --
 	# Le joueur ne peut avancer que d'autant de cases qu'il a d'énergie.
 	var affordable_path: Array = computed_path
 	var cost_per_case := equipage.get_effective_move_cost()
 	var max_cases := int(float(energie) / cost_per_case)
 	if computed_path.size() > max_cases:
 		affordable_path = computed_path.slice(0, max_cases)
-		DEBUG.log("Navire [%d] — Chemin tronqué à %d cases (énergie: %d, coût/case: %.2f)" % [id, affordable_path.size(), energie, cost_per_case])
+		DEBUG.log("Navire [%d] - Chemin tronqué à %d cases (énergie: %d, coût/case: %.2f)" % [id, affordable_path.size(), energie, cost_per_case])
 
 	pending_path = affordable_path
 	var cost: int = roundi(float(affordable_path.size()) * cost_per_case)  # coût réel en énergie
@@ -873,7 +873,7 @@ func _request_move_confirmation(computed_path: Array) -> void:
 	show_arrow = true
 	target_position = Map_utils.case_vers_monde(affordable_path.back())
 	queue_redraw()
-	DEBUG.log("Navire [%d] — Confirmation demandée : %d case(s) pour %d ⚡" % [id, affordable_path.size(), cost])
+	DEBUG.log("Navire [%d] - Confirmation demandée : %d case(s) pour %d ⚡" % [id, affordable_path.size(), cost])
 
 func _on_move_confirmed() -> void:
 	if pending_path.is_empty():
@@ -884,11 +884,11 @@ func _on_move_confirmed() -> void:
 	show_arrow     = true
 	target_position = Map_utils.case_vers_monde(path.back())
 	queue_redraw()
-	DEBUG.log("Navire [%d] — Déplacement confirmé, %d cases" % [id, path.size()])
+	DEBUG.log("Navire [%d] - Déplacement confirmé, %d cases" % [id, path.size()])
 
 func _on_move_cancelled() -> void:
 	_cancel_pending_move()
-	DEBUG.log("Navire [%d] — Déplacement annulé" % id)
+	DEBUG.log("Navire [%d] - Déplacement annulé" % id)
 
 func _cancel_pending_move() -> void:
 	pending_path = []
@@ -1001,7 +1001,7 @@ func try_start_fishing() -> void:
 	if not Map_utils.is_on_water(global_position):
 		return
 
-	# Zone de pêche épuisée → on signale mais on ne bloque pas (eau ordinaire possible)
+	# Zone de pêche épuisée -> on signale mais on ne bloque pas (eau ordinaire possible)
 	if fish_manager.is_fish_tile(case_actuelle) and not fish_manager.can_fish_at(case_actuelle):
 		DEBUG.log("Navire [%d] - Cette zone de pêche est épuisée !" % id)
 		if fish_feedback_label:
@@ -1045,7 +1045,7 @@ func finish_fishing() -> void:
 			game_manager.sync_ship_nourriture_networked(id, nourriture)
 
 	if fish_feedback_label:
-		# Passer self en premier argument — UI_fish_navires.finished_fishing(navire, gain)
+		# Passer self en premier argument - UI_fish_navires.finished_fishing(navire, gain)
 		fish_feedback_label.finished_fishing(self, gain)
 		sig_show_stats.emit()
 

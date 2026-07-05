@@ -82,7 +82,7 @@ func _ready() -> void:
 	if ui_layer and get_parent() == null:
 		ui_layer.add_child(self)
 
-	DEBUG.log("UI_boutique ouverte — Port [%d] | Joueur : %s" % [
+	DEBUG.log("UI_boutique ouverte - Port [%d] | Joueur : %s" % [
 		_port.id if _port else -1,
 		_player.player_name if _player else "?"
 	])
@@ -117,7 +117,7 @@ func _build_ui() -> void:
 
 	# -- Titre --
 	_title_label = Label.new()
-	_title_label.text = "⚓ Boutique — %s" % _get_port_display_name()
+	_title_label.text = "⚓ Boutique - %s" % _get_port_display_name()
 	_title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_title_label.add_theme_font_size_override("font_size", 20)
 	vbox.add_child(_title_label)
@@ -278,7 +278,7 @@ func _refresh_ui() -> void:
 # CALLBACKS BOUTONS
 # =========================
 func _on_buy_ship_pressed() -> void:
-	DEBUG.log("UI_boutique — Demande d'achat de navire (Port [%d])" % _port.id)
+	DEBUG.log("UI_boutique - Demande d'achat de navire (Port [%d])" % _port.id)
 	buy_ship_requested.emit(_port, _player, _current_ship)
 	_refresh_ui()
 
@@ -287,13 +287,13 @@ func _on_heal_ship_pressed() -> void:
 	if _current_ship == null or not is_instance_valid(_current_ship):
 		_show_feedback("❌ Aucun navire à soigner.", Color(1, 0.3, 0.3))
 		return
-	DEBUG.log("UI_boutique — Demande de soin du navire [%d] (Port [%d])" % [_current_ship.id, _port.id])
+	DEBUG.log("UI_boutique - Demande de soin du navire [%d] (Port [%d])" % [_current_ship.id, _port.id])
 	heal_ship_requested.emit(_port, _current_ship, _player)
 	_refresh_ui()
 
 
 func _on_heal_port_pressed() -> void:
-	DEBUG.log("UI_boutique — Demande de soin du port [%d]" % _port.id)
+	DEBUG.log("UI_boutique - Demande de soin du port [%d]" % _port.id)
 	heal_port_requested.emit(_port, _player, _current_ship)
 	_refresh_ui()
 
@@ -308,7 +308,7 @@ func _on_crew_pressed() -> void:
 	if _current_ship == null or not is_instance_valid(_current_ship):
 		_show_feedback("❌ Aucun navire pour gérer l'équipage.", Color(1, 0.3, 0.3))
 		return
-	DEBUG.log("UI_boutique — Ouverture recrutement (Port [%d], navire [%d])" % [_port.id, _current_ship.id])
+	DEBUG.log("UI_boutique - Ouverture recrutement (Port [%d], navire [%d])" % [_port.id, _current_ship.id])
 	open_recrutement_requested.emit(_port, _player, _current_ship)
 	# On ferme la boutique principale pour éviter l'empilement d'UI
 	queue_free()

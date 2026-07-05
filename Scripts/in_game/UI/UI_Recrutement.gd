@@ -78,7 +78,7 @@ func _build_ui() -> void:
 
 	# Titre
 	var title = Label.new()
-	title.text = "⚓ Recrutement d'équipage — %s" % _get_port_display_name()
+	title.text = "⚓ Recrutement d'équipage - %s" % _get_port_display_name()
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_font_size_override("font_size", 19)
 	vbox.add_child(title)
@@ -91,7 +91,7 @@ func _build_ui() -> void:
 
 	vbox.add_child(_separator())
 
-	# ── Section : Équipage actuel ──
+	# -- Section : Équipage actuel --
 	var crew_title = Label.new()
 	crew_title.text = "👥  Équipage actuel  (max %d membres)" % CrewConsts.MAX_CREW
 	crew_title.add_theme_font_size_override("font_size", 15)
@@ -104,7 +104,7 @@ func _build_ui() -> void:
 
 	_build_crew_slots()
 
-	# ── Ligne : synergies actives + bouton d'info ──
+	# -- Ligne : synergies actives + bouton d'info --
 	var synergy_hbox = HBoxContainer.new()
 	synergy_hbox.alignment = BoxContainer.ALIGNMENT_CENTER
 	synergy_hbox.add_theme_constant_override("separation", 8)
@@ -129,7 +129,7 @@ func _build_ui() -> void:
 
 	vbox.add_child(_separator())
 
-	# ── Section : Recruter ──
+	# -- Section : Recruter --
 	var hire_title = Label.new()
 	hire_title.text = "🪙  Recruter un membre"
 	hire_title.add_theme_font_size_override("font_size", 15)
@@ -271,7 +271,7 @@ func _on_synergy_info_pressed() -> void:
 		return
 
 	_synergy_panel = PanelContainer.new()
-	# Positionné à droite du panel principal (largeur 620, centré → bord droit à +310)
+	# Positionné à droite du panel principal (largeur 620, centré -> bord droit à +310)
 	# On ajoute 10px de marge pour ne pas coller les deux panels
 	_synergy_panel.set_anchors_preset(Control.PRESET_CENTER_LEFT)
 	_synergy_panel.custom_minimum_size = Vector2(480, 0)
@@ -295,7 +295,7 @@ func _on_synergy_info_pressed() -> void:
 	vbox.offset_bottom = -14
 	_synergy_panel.add_child(vbox)
 
-	# ── Barre de titre draggable ──
+	# -- Barre de titre draggable --
 	# On intercepte les événements souris sur le titre pour déplacer le panel
 	var drag_bar = HBoxContainer.new()
 	drag_bar.add_theme_constant_override("separation", 0)
@@ -325,7 +325,7 @@ func _on_synergy_info_pressed() -> void:
 
 	vbox.add_child(_separator())
 
-	# ── Une carte par synergie ──
+	# -- Une carte par synergie --
 	for data in CrewConsts.SYNERGY_DATA:
 		var active: bool = _is_synergy_active(data["nom"])
 
@@ -419,7 +419,7 @@ func _refresh_ui() -> void:
 	# Solde poissons
 	_fish_label.text = "Poissons disponibles : %d 🐟" % _ship.nourriture
 
-	# ── Slots équipage ──
+	# -- Slots équipage --
 	var crew: Array = _ship.get_equipage_array()
 	for i in range(CrewConsts.MAX_CREW):
 		var slot: Dictionary = _slot_panels[i]
@@ -438,7 +438,7 @@ func _refresh_ui() -> void:
 			name_lbl.text = "Slot libre"
 			fire_btn.visible = false
 
-	# ── Synergies actives ──
+	# -- Synergies actives --
 	var synergies := _ship.get_active_synergies()
 	if synergies.is_empty():
 		_synergy_label.text = "Aucune synergie active"
@@ -447,7 +447,7 @@ func _refresh_ui() -> void:
 		_synergy_label.text = "✨ " + "  |  ".join(synergies)
 		_synergy_label.add_theme_color_override("font_color", Color(0.6, 1.0, 0.7))
 
-	# ── Boutons recruter ──
+	# -- Boutons recruter --
 	var crew_full: bool = _ship.get_equipage_size() >= CrewConsts.MAX_CREW
 	var fish_count: int = _ship.nourriture
 
@@ -523,7 +523,7 @@ func _on_hire_pressed(role: CrewMember.Role) -> void:
 	_sync_crew_to_network()
 
 	_show_feedback("✅ %s recruté(e) pour %d 🐟 !" % [member.nom, real_cost], Color(0.4, 1.0, 0.5))
-	DEBUG.log("UI_recrutement — %s recruté(e) sur navire [%d] (-%d 🐟)" % [member.nom, _ship.id, real_cost])
+	DEBUG.log("UI_recrutement - %s recruté(e) sur navire [%d] (-%d 🐟)" % [member.nom, _ship.id, real_cost])
 	_refresh_ui()
 
 
@@ -543,7 +543,7 @@ func _on_fire_crew(slot_index: int) -> void:
 			fog_manager.force_update()
 
 	_show_feedback("👋 %s a quitté l'équipage." % member.nom, Color(1.0, 0.8, 0.4))
-	DEBUG.log("UI_recrutement — %s congédié du navire [%d]" % [member.nom, _ship.id])
+	DEBUG.log("UI_recrutement - %s congédié du navire [%d]" % [member.nom, _ship.id])
 
 	# Synchronisation réseau : transmet stats + équipage complet à tous les peers
 	_sync_crew_to_network()

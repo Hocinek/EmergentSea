@@ -75,7 +75,7 @@ func _rpc_broadcast_start_game() -> void:
 
 func _on_connected_to_server() -> void:
 	local_peer_id = multiplayer.get_unique_id()
-	print("[NETWORK] Connecté — peer_id=%d" % local_peer_id)
+	print("[NETWORK] Connecté - peer_id=%d" % local_peer_id)
 	_rpc_request_player_id.rpc_id(1)
 
 func _on_connection_failed() -> void:
@@ -104,7 +104,7 @@ func _trigger_win_by_disconnect(disconnected_peer_id: int) -> void:
 	if multiplayer.is_server():
 		return
 	
-	print("[NETWORK] Déconnexion détectée (peer=%d) → victoire par forfait" % disconnected_peer_id)
+	print("[NETWORK] Déconnexion détectée (peer=%d) -> victoire par forfait" % disconnected_peer_id)
 	var turn_manager = get_tree().get_first_node_in_group("turn_manager")
 	if turn_manager and turn_manager.has_method("declare_winner_by_disconnect"):
 		turn_manager.declare_winner_by_disconnect(local_player_id)

@@ -77,7 +77,7 @@ const ETAPES: Array = [
 	],
 	[
 		"🚢 Déplacer un navire",
-		"Faites un clic droit sur une case bleue (navigable) pour déplacer votre navire.\n\nLe coût en énergie vous sera affiché — confirmez pour valider le déplacement.\n\nSe déplacer coûte 1⚡ par case.\n\n➡️ Déplacez votre navire pour continuer.",
+		"Faites un clic droit sur une case bleue (navigable) pour déplacer votre navire.\n\nLe coût en énergie vous sera affiché - confirmez pour valider le déplacement.\n\nSe déplacer coûte 1⚡ par case.\n\n➡️ Déplacez votre navire pour continuer.",
 		false
 	],
 	[
@@ -87,12 +87,12 @@ const ETAPES: Array = [
 	],
 	[
 		"🐟 Pêcher",
-		"La pêche vous permet de collecter de la nourriture (🐟).\n\nOuvrez le menu hexagonal → « Pêcher », ou utilisez la touche F.\n\nLes zones de pêche rapportent plus que l'eau libre. Pêcher coûte 1⚡.\n\n➡️ Pêchez pour continuer.",
+		"La pêche vous permet de collecter de la nourriture (🐟).\n\nOuvrez le menu hexagonal -> « Pêcher », ou utilisez la touche F.\n\nLes zones de pêche rapportent plus que l'eau libre. Pêcher coûte 1⚡.\n\n➡️ Pêchez pour continuer.",
 		false
 	],
 	[
 		"⚔️ Attaquer un ennemi",
-		"Faites un clic gauche sur une case ennemie pour tirer dessus.\n\nVous pouvez aussi passer par le menu → « Attaquer » puis cliquer sur la case cible.\n\nAttention : tirer coûte 10⚡.\n\n➡️ Attaquez un navire ennemi pour continuer.",
+		"Faites un clic gauche sur une case ennemie pour tirer dessus.\n\nVous pouvez aussi passer par le menu -> « Attaquer » puis cliquer sur la case cible.\n\nAttention : tirer coûte 10⚡.\n\n➡️ Attaquez un navire ennemi pour continuer.",
 		false
 	],
 	[
@@ -205,7 +205,7 @@ func _build_ui() -> void:
 	_title_bar.add_theme_stylebox_override("panel", style_bar)
 	# Label dans la barre
 	var bar_label := Label.new()
-	bar_label.text = "✦ Tutoriel — glissez pour déplacer"
+	bar_label.text = "✦ Tutoriel - glissez pour déplacer"
 	bar_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	bar_label.add_theme_color_override("font_color", COLOR_TITLE)
 	bar_label.add_theme_font_size_override("font_size", 13)
@@ -251,24 +251,24 @@ func _build_ui() -> void:
 # On écoute les signaux existants pour détecter les actions du joueur
 # =========================
 func _connect_game_signals() -> void:
-	# Déplacement d'un navire → étape 2
+	# Déplacement d'un navire -> étape 2
 	var ships = get_tree().get_nodes_in_group("ships")
 	for ship in ships:
 		if ship is Navires and ship.is_player_controlled:
 			if ship.has_signal("sig_navire_moved") and not ship.sig_navire_moved.is_connected(_on_navire_moved):
 				ship.sig_navire_moved.connect(_on_navire_moved)
 
-	# Menu hexagonal ouvert → étape 3
+	# Menu hexagonal ouvert -> étape 3
 	var game_manager = get_tree().get_first_node_in_group("game_manager")
 	if game_manager and game_manager.has_signal("ship_selected"):
 		# On utilise sig_open_hex_menu via GameManager
 		pass
 
-	# Fin de pêche → étape 4
+	# Fin de pêche -> étape 4
 	# On connecte directement sur les navires du joueur
 	_reconnect_ship_signals()
 
-	# Fin de tour → étape 6
+	# Fin de tour -> étape 6
 	var turn_manager = get_tree().get_first_node_in_group("turn_manager")
 	if turn_manager and turn_manager.has_signal("turn_ended"):
 		if not turn_manager.turn_ended.is_connected(_on_turn_ended):
@@ -283,18 +283,18 @@ func _reconnect_ship_signals() -> void:
 	var ships = get_tree().get_nodes_in_group("ships")
 	for ship in ships:
 		if ship is Navires and ship.is_player_controlled:
-			# Pêche terminée → étape 4
+			# Pêche terminée -> étape 4
 			if ship.has_signal("sig_show_fishing") and not ship.sig_show_fishing.is_connected(_on_fishing_done):
 				ship.sig_show_fishing.connect(_on_fishing_done)
-			# Tir effectué → on écoute les dégâts infligés
+			# Tir effectué -> on écoute les dégâts infligés
 			if ship.has_signal("sig_navire_damaged"):
 				pass  # géré via _on_navire_damaged sur les navires ennemis
-		# Dégâts reçus par n'importe quel navire → étape 5
+		# Dégâts reçus par n'importe quel navire -> étape 5
 		if ship is Navires and not ship.is_player_controlled:
 			if ship.has_signal("sig_navire_damaged") and not ship.sig_navire_damaged.is_connected(_on_navire_damaged):
 				ship.sig_navire_damaged.connect(_on_navire_damaged)
 
-	# Menu hexagonal → étape 3
+	# Menu hexagonal -> étape 3
 	var game_manager = get_tree().get_first_node_in_group("game_manager")
 	if game_manager:
 		for ship in ships:
@@ -350,7 +350,7 @@ func _end_tutorial() -> void:
 
 
 # =========================
-# CALLBACKS — ACTIONS DU JOUEUR
+# CALLBACKS - ACTIONS DU JOUEUR
 # =========================
 
 ## Bouton "Suivant" / "Terminer" cliqué
@@ -358,31 +358,31 @@ func _on_btn_next_pressed() -> void:
 	_advance_step()
 
 
-## Navire du joueur déplacé → valide l'étape 2
+## Navire du joueur déplacé -> valide l'étape 2
 func _on_navire_moved(_ship) -> void:
 	if current_step == 2:
 		_advance_step()
 
 
-## Menu hexagonal ouvert → valide l'étape 3
+## Menu hexagonal ouvert -> valide l'étape 3
 func _on_hex_menu_opened(_navire, _screen_pos) -> void:
 	if current_step == 3:
 		_advance_step()
 
 
-## Pêche déclenchée → valide l'étape 4
+## Pêche déclenchée -> valide l'étape 4
 func _on_fishing_done() -> void:
 	if current_step == 4:
 		_advance_step()
 
 
-## Navire ennemi touché → valide l'étape 5
+## Navire ennemi touché -> valide l'étape 5
 func _on_navire_damaged(_navire, _damage) -> void:
 	if current_step == 5:
 		_advance_step()
 
 
-## Fin de tour → valide l'étape 6
+## Fin de tour -> valide l'étape 6
 func _on_turn_ended(_player) -> void:
 	if current_step == 6:
 		_advance_step()

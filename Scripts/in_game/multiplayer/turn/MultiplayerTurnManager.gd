@@ -111,7 +111,7 @@ func _process_end_turn() -> void:
 	# Attaques des ports ennemis/neutres
 	_ports_attack_current_player(previous_player)
 
-	# Vérification des conditions de victoire — hôte uniquement, puis broadcast si game over
+	# Vérification des conditions de victoire - hôte uniquement, puis broadcast si game over
 	if network_manager != null and network_manager.is_host():
 		fin_de_partie()
 		if state == MultiplayerTurnState.State.GAME_OVER:
@@ -337,7 +337,7 @@ func _ports_attack_current_player(player) -> void:
 func declare_winner_by_disconnect(winner_player_id: int) -> void:
 	if state == MultiplayerTurnState.State.GAME_OVER:
 		return
-	DEBUG.log("[MULTI TURN] Victoire par forfait — gagnant player_id: %d" % winner_player_id)
+	DEBUG.log("[MULTI TURN] Victoire par forfait - gagnant player_id: %d" % winner_player_id)
 	_rpc_sync_game_over.rpc(winner_player_id, "déconnexion de l'adversaire")
 
 
@@ -365,15 +365,15 @@ func _rpc_sync_game_over(winner_player_id: int, raison: String) -> void:
 	var local_id := match_context.local_player_id if match_context != null else -1
 	var is_winner := (local_id == winner_player_id)
 
-	DEBUG.log("[MULTI TURN] Game over reçu — gagnant player_id: %d, local: %d, victoire: %s, raison: %s" % [
+	DEBUG.log("[MULTI TURN] Game over reçu - gagnant player_id: %d, local: %d, victoire: %s, raison: %s" % [
 		winner_player_id, local_id, str(is_winner), raison
 	])
 	_trigger_game_over(winner, raison, is_winner)
 
 
 # Déclenche la fin de partie localement.
-# is_winner = true  → écran de victoire
-# is_winner = false → écran de défaite
+# is_winner = true  -> écran de victoire
+# is_winner = false -> écran de défaite
 func _trigger_game_over(winner, raison: String, is_winner: bool = true) -> void:
 	state = MultiplayerTurnState.State.GAME_OVER
 	game_over.emit(winner)
@@ -383,4 +383,4 @@ func _trigger_game_over(winner, raison: String, is_winner: bool = true) -> void:
 		else:
 			game_over_panel.show_defeat(winner, raison)     # écran défaite
 	else:
-		DEBUG.log("[MULTI TURN] game_over_panel est null — assigne-le depuis le GameManager.", DEBUG.ERROR)
+		DEBUG.log("[MULTI TURN] game_over_panel est null - assigne-le depuis le GameManager.", DEBUG.ERROR)

@@ -40,10 +40,10 @@ var ship_manager: ShipManager = null
 # UI d'inspection de case
 var case_info_ui: UI_case_info = null
 
-# UI d'aide — bouton "?" et panneau des commandes
+# UI d'aide - bouton "?" et panneau des commandes
 var aide_ui: UI_aide = null
 
-# UI quitter — bouton "🚪" à côté du bouton "?"
+# UI quitter - bouton "🚪" à côté du bouton "?"
 var quitter_ui: UI_quitter = null
 
 
@@ -228,7 +228,7 @@ func _on_map_generated():
 	if fish_manager:
 		fish_manager.initialize_fish_tiles()
 
-	# Navires du joueur humain → pirateShip (grand navire)
+	# Navires du joueur humain -> pirateShip (grand navire)
 	#var ship1 = spawn_navire_random(player1, true, SHIP_MODEL_PLAYER)
 	#var ship2 = spawn_navire_random(player1, true, SHIP_MODEL_PLAYER)
 
@@ -243,7 +243,7 @@ func _on_map_generated():
 		DEBUG.log("Ship2 créé avec succès")
 	
 
-	# Navire ennemi → smolPirateShip (petit navire)
+	# Navire ennemi -> smolPirateShip (petit navire)
 	# En mode tutoriel : spawner l'ennemi près du joueur pour faciliter l'apprentissage
 	# En mode normal : spawn aléatoire comme avant
 	var enemy1
@@ -454,16 +454,16 @@ func _inspect_tile_info(case_pos: Vector2i, fog_state: int) -> void:
 		if info["known"]:
 			fish_count = info["stock"]
 
-	# screen_pos vient directement du clic — pas de conversion, pas de dérive caméra
+	# screen_pos vient directement du clic - pas de conversion, pas de dérive caméra
 	case_info_ui.show_tile_info(tile_type, case_pos, is_visible, fish_count)
-	DEBUG.log("[INSPECT] Case %s → type='%s' visible=%s" % [str(case_pos), tile_type, str(is_visible)])
+	DEBUG.log("[INSPECT] Case %s -> type='%s' visible=%s" % [str(case_pos), tile_type, str(is_visible)])
 
 ## Action : lorsqu'une case de pêche est inspectée
 func _inspect_fish_on_case(case_pos: Vector2i) -> void:
 	if not case_info_ui or not fish_manager or not fog_of_war or not player1:
 		return
 
-	# FishManager gère lui-même la logique fog → valeur réelle ou snapshot
+	# FishManager gère lui-même la logique fog -> valeur réelle ou snapshot
 	var info: Dictionary = fish_manager.get_stock_for_player(player1, case_pos, fog_of_war)
 
 	if not info["known"]:
@@ -475,9 +475,9 @@ func _inspect_fish_on_case(case_pos: Vector2i) -> void:
 	case_info_ui.show_fish_info(info["stock"], spos, info["is_live"])
 
 	if info["is_live"]:
-		DEBUG.log("[INSPECT] Case %s → %d 🐟 (vue directe)" % [str(case_pos), info["stock"]])
+		DEBUG.log("[INSPECT] Case %s -> %d 🐟 (vue directe)" % [str(case_pos), info["stock"]])
 	else:
-		DEBUG.log("[INSPECT] Case %s → %d 🐟 (dernière observation, tour %d)" % [
+		DEBUG.log("[INSPECT] Case %s -> %d 🐟 (dernière observation, tour %d)" % [
 			str(case_pos), info["stock"], info["turn"]
 		])
 
@@ -497,7 +497,7 @@ func _world_to_screen(world_pos: Vector2) -> Vector2:
 # ===============================
 	
 func _on_port_captured(port: Ports, new_owner: Player, old_owner: Player) -> void:
-	DEBUG.log("Port [%d] capturé : %s → %s" % [
+	DEBUG.log("Port [%d] capturé : %s -> %s" % [
 		port.id,
 		old_owner.player_name if old_owner else "NEUTRE",
 		new_owner.player_name if new_owner else "NEUTRE"

@@ -14,7 +14,7 @@ static var fish_underlying: Dictionary = {}  # {Vector2i: String} terrain sous-j
 
 # =========================
 # RESSOURCES DE PÊCHE
-# Dictionnaire {Vector2i: int} — nombre de poissons par case de pêche
+# Dictionnaire {Vector2i: int} - nombre de poissons par case de pêche
 # Rempli par le MapGenerator lors de la génération
 # =========================
 static var fish_counts: Dictionary = {}

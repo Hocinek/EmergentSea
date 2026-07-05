@@ -126,7 +126,7 @@ func _create_cadre_layer():
 
 
 func _create_ally_stats_panel():
-	"""Panneau allié — droite, fond BoisFond, cadre CadreBois"""
+	"""Panneau allié - droite, fond BoisFond, cadre CadreBois"""
 	stats_panel_ally = build_base()
 	attach_panel_to_right(stats_panel_ally)
 	attach_panel_to_top(stats_panel_ally)
@@ -146,7 +146,7 @@ func _create_ally_stats_panel():
 
 
 func _create_enemy_stats_panel():
-	"""Panneau ennemi — droite sous l'allié, fond BoisNoirFond, cadre CadreBoisNoir"""
+	"""Panneau ennemi - droite sous l'allié, fond BoisNoirFond, cadre CadreBoisNoir"""
 	stats_panel_enemy = build_base()
 	attach_panel_to_right(stats_panel_enemy)
 	attach_panel_to_below_ally(stats_panel_enemy)
@@ -166,7 +166,7 @@ func _create_enemy_stats_panel():
 
 
 func _create_neutral_stats_panel():
-	"""Panneau neutre — gauche, assets bois teinté gris"""
+	"""Panneau neutre - gauche, assets bois teinté gris"""
 	stats_panel_neutral = build_base()
 	attach_panel_to_left(stats_panel_neutral)
 	attach_panel_to_top(stats_panel_neutral)
@@ -394,7 +394,7 @@ func _reposition_panels_for_inspect():
 	_set_cadre_top_left(cadre_neutral)
 
 
-## Repositionne tous les panneaux à droite (mode attaque — positions d'origine)
+## Repositionne tous les panneaux à droite (mode attaque - positions d'origine)
 func _reposition_panels_for_attack():
 	attach_panel_to_right(stats_panel_ally)
 	attach_panel_to_top(stats_panel_ally)

@@ -1,6 +1,6 @@
 ###===================================================================###
 ##                        UI_fish_navires                             ##
-# Affichage pêche — calqué sur HexContextMenu                        ##
+# Affichage pêche - calqué sur HexContextMenu                        ##
 # Ajouté dans la scène via ui_layer.add_child() depuis Navires.gd    ##
 ###===================================================================###
 class_name UI_fish_navires
@@ -23,7 +23,7 @@ var _timer:    float   = 0.0
 var _duration: float   = 0.8
 
 # ================================
-# READY — identique à HexContextMenu
+# READY - identique à HexContextMenu
 # ================================
 func _ready() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -32,7 +32,7 @@ func _ready() -> void:
 	hide()
 
 # ================================
-# PROCESS — timer feedback + redraw
+# PROCESS - timer feedback + redraw
 # ================================
 func _process(delta: float) -> void:
 	if not visible:
@@ -45,7 +45,7 @@ func _process(delta: float) -> void:
 	queue_redraw()
 
 # ================================
-# DRAW — coords écran comme HexContextMenu
+# DRAW - coords écran comme HexContextMenu
 # ================================
 func _draw() -> void:
 	if not visible or _navire == null:
@@ -66,7 +66,7 @@ func _draw() -> void:
 		_text, HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE, _color)
 
 # ================================
-# API PUBLIQUE — appelée depuis Navires.gd
+# API PUBLIQUE - appelée depuis Navires.gd
 # ================================
 
 # Appelée quand sig_show_fishing est émis

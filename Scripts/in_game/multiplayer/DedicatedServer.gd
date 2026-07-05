@@ -44,16 +44,16 @@ func _start_server() -> void:
 
 func _on_peer_connected(peer_id: int) -> void:
 	if _game_started:
-		print("[SERVER] Refus de %d — partie déjà en cours" % peer_id)
+		print("[SERVER] Refus de %d - partie déjà en cours" % peer_id)
 		multiplayer.multiplayer_peer.disconnect_peer(peer_id)
 		return
 	_connected_peers.append(peer_id)
-	print("[SERVER] Joueur connecté : %d — Total : %d" % [peer_id, _connected_peers.size()])
+	print("[SERVER] Joueur connecté : %d - Total : %d" % [peer_id, _connected_peers.size()])
 	_rpc_update_player_count.rpc(_connected_peers.size())
 
 func _on_peer_disconnected(peer_id: int) -> void:
 	_connected_peers.erase(peer_id)
-	print("[SERVER] Joueur déconnecté : %d — Total : %d" % [peer_id, _connected_peers.size()])
+	print("[SERVER] Joueur déconnecté : %d - Total : %d" % [peer_id, _connected_peers.size()])
 	if _connected_peers.is_empty():
 		_game_started = false
 		# Réinitialiser le NetworkManager côté serveur

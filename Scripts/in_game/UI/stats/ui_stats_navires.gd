@@ -16,7 +16,7 @@ var stats_panel_enemy: PanelContainer
 var cadre_enemy: TextureRect
 var label_list_enemy: Dictionary
 
-# Panneau équipage/synergies — bas droite, hors cadre bois
+# Panneau équipage/synergies - bas droite, hors cadre bois
 var crew_panel: PanelContainer
 var crew_list_label: Label
 var synergy_label: Label
@@ -74,11 +74,11 @@ func handler():
 func handler_ally_persistent():
 	if isVisible():
 		hide_all_stats()
-		DEBUG.log("Navire [%d] — Stats CACHÉES" % navire.id)
+		DEBUG.log("Navire [%d] - Stats CACHÉES" % navire.id)
 	else:
 		stats_timer = stats_duration
 		show_ally_persistent()
-		DEBUG.log("Navire [%d] — Stats AFFICHÉES (persistant)" % navire.id)
+		DEBUG.log("Navire [%d] - Stats AFFICHÉES (persistant)" % navire.id)
 
 
 func isVisible() -> bool:
@@ -181,7 +181,7 @@ func _create_enemy_stats_panel():
 
 
 func _create_crew_panel():
-	"""Panneau équipage + synergies — bas droite, indépendant du cadre bois.
+	"""Panneau équipage + synergies - bas droite, indépendant du cadre bois.
 	Visible uniquement quand le navire est allié et que les stats sont affichées."""
 	crew_panel = PanelContainer.new()
 	crew_panel.visible = false
@@ -304,7 +304,7 @@ func build_vbox() -> VBoxContainer:
 
 
 func add_stats_to_vbox(vbox: VBoxContainer) -> Dictionary:
-	# Uniquement les 4 stats de base dans le cadre bois — équipage/synergies sont ailleurs
+	# Uniquement les 4 stats de base dans le cadre bois - équipage/synergies sont ailleurs
 	var labels_names = ["vie", "energie", "nourriture", "equipage"]
 	var labels: Dictionary = create_labels(labels_names)
 	for label: Label in labels.values():
@@ -418,7 +418,7 @@ func show_stats():
 	if navire.player_owner == null:
 		is_ally = false
 	else:
-		# Solo : vrai uniquement pour le joueur humain — Multi : vrai uniquement pour le joueur local
+		# Solo : vrai uniquement pour le joueur humain - Multi : vrai uniquement pour le joueur local
 		is_ally = navire._is_local_human_owner()
 	if is_ally:
 		if stats_panel_ally:
@@ -473,7 +473,7 @@ func _update_crew_panel():
 			lines.append("%s %s" % [member.get_icon(), member.nom])
 		crew_list_label.text = "\n".join(lines)
 	else:
-		crew_list_label.text = "—"
+		crew_list_label.text = "-"
 
 	# Synergies actives
 	if navire.has_method("get_active_synergies"):

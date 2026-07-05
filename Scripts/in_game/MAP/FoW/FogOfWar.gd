@@ -177,7 +177,7 @@ func update_vision_for_player(player: Player):
 	for ship in player_ships:
 		if ship is Navires and ship.is_alive():
 			var ship_pos = ship.case_actuelle
-			# Rayon de base + bonus équipage (bonus_vision est en unités monde → on convertit en cases)
+			# Rayon de base + bonus équipage (bonus_vision est en unités monde -> on convertit en cases)
 			var ship_vision_bonus: int = 0
 			if ship.has_method("get_crew_vision_bonus"):
 				ship_vision_bonus = ship.get_crew_vision_bonus()
@@ -196,7 +196,7 @@ func update_vision_for_player(player: Player):
 		DEBUG.log("[FOG] ✓ Révélé %d nouvelles cases" % revealed_count)
 		queue_redraw()
 
-## Calcule la vraie distance hexagonale — grille Odd-Q Pointy-Top
+## Calcule la vraie distance hexagonale - grille Odd-Q Pointy-Top
 func _hex_distance(a: Vector2i, b: Vector2i) -> int:
 	# Conversion Odd-Q entière : forcer int pour éviter dérive float
 	var aq: int = a.x
@@ -210,7 +210,7 @@ func _hex_distance(a: Vector2i, b: Vector2i) -> int:
 func reveal_around_position(center: Vector2i, radius_override: int = -1) -> int:
 	"""Révèle les cases atteignables depuis center en au plus `radius` déplacements hex.
 	Utilise un BFS sur les voisins réels (get_neighbors_all) pour coller
-	exactement à la topologie de la grille — sans compter la case de départ."""
+	exactement à la topologie de la grille - sans compter la case de départ."""
 	var radius := radius_override if radius_override >= 0 else vision_radius
 
 	var visited: Dictionary = {}

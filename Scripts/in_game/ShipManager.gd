@@ -83,7 +83,7 @@ func spawn_navire(player: Player, position: Vector2, is_player_controlled: bool 
 
 	if data and data.has_method("addNavireToData"):
 		data.addNavireToData(navire)
-	DEBUG.log("Navire créé avec ID : %d — modèle : %s" % [navire.id, model_path] if navire.has_method("get") else "N/A")
+	DEBUG.log("Navire créé avec ID : %d - modèle : %s" % [navire.id, model_path] if navire.has_method("get") else "N/A")
 	return navire
 
 ## Faire apparaître un bateau à un emplacement aléatoire sur la carte

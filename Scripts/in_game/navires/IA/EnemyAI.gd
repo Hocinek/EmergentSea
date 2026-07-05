@@ -52,7 +52,7 @@ func _ready() -> void:
 	## Pas de décision pendant le déplacement
 	#if navire.is_moving:
 		#return
-	## Détecter si la cible courante vient de mourir → reciblement immédiat
+	## Détecter si la cible courante vient de mourir -> reciblement immédiat
 	#if _target_just_died():
 		#DEBUG.log("[IA %d] Cible éliminée ! Recherche d'une nouvelle cible..." % navire.id)
 		#_invalidate_target()

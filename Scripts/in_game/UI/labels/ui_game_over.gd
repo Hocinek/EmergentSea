@@ -5,11 +5,11 @@ var ui_layer: CanvasLayer
 
 # Panneau principal
 var game_over_panel: PanelContainer
-var label_title:  Label   # ← référence ajoutée pour pouvoir changer "Victoire" / "Défaite"
+var label_title:  Label   # <- référence ajoutée pour pouvoir changer "Victoire" / "Défaite"
 var label_winner: Label
 var label_raison: Label
 
-# Chemin vers la scène d'accueil — modifie selon ton projet
+# Chemin vers la scène d'accueil - modifie selon ton projet
 @export var main_menu_scene: String = "res://Scenes/accueil/MainMenu.tscn"
 
 const COLOR_BG      : Color = Color(0, 0.2, 0.4, 0.9)
@@ -38,7 +38,7 @@ func _build_ui() -> void:
 
 
 # =========================================================
-# Affichage — Victoire
+# Affichage - Victoire
 # =========================================================
 
 func show_game_over(winner: Player, raison: String) -> void:
@@ -61,7 +61,7 @@ func show_game_over(winner: Player, raison: String) -> void:
 
 
 # =========================================================
-# Affichage — Défaite
+# Affichage - Défaite
 # =========================================================
 
 func show_defeat(winner: Player, raison: String) -> void:
@@ -113,7 +113,7 @@ func _create_end_game_panel() -> void:
 	vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	vbox.size_flags_vertical   = Control.SIZE_EXPAND_FILL
 
-	# Titre — stocké dans label_title pour pouvoir le modifier à l'affichage
+	# Titre - stocké dans label_title pour pouvoir le modifier à l'affichage
 	label_title = Label.new()
 	label_title.text = "Partie terminée"
 	label_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER

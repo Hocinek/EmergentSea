@@ -1,10 +1,10 @@
 ###===================================================================###
 ##                      UI_combat_navires                              ##
-# Feedback visuel du combat — calqué sur UI_fish_navires              ##
+# Feedback visuel du combat - calqué sur UI_fish_navires              ##
 # Affiche sur le navire :                                             ##
-#   • les dégâts reçus   → "-X ❤️"  (rouge)                          ##
-#   • le coût en énergie → "-X ⚡"  (jaune)                          ##
-#   • ennemi trop loin   → "🚫 Ennemi trop loin !"  (orange)         ##
+#   • les dégâts reçus   -> "-X ❤️"  (rouge)                          ##
+#   • le coût en énergie -> "-X ⚡"  (jaune)                          ##
+#   • ennemi trop loin   -> "🚫 Ennemi trop loin !"  (orange)         ##
 # Ajouté dans la scène via ui_layer.add_child() depuis Navires.gd    ##
 ###===================================================================###
 class_name UI_combat_navires
@@ -16,9 +16,9 @@ extends Control
 const FONT_SIZE := 22
 
 # Décalage vertical de base au-dessus du navire
-const OFFSET_Y_DMG    := -50.0   # dégâts   → légèrement au-dessus
-const OFFSET_Y_ENERGY := -50.0  # énergie  → encore plus haut
-const OFFSET_Y_MSG    := -80.0   # message  → même niveau que dégâts
+const OFFSET_Y_DMG    := -50.0   # dégâts   -> légèrement au-dessus
+const OFFSET_Y_ENERGY := -50.0  # énergie  -> encore plus haut
+const OFFSET_Y_MSG    := -80.0   # message  -> même niveau que dégâts
 
 # Durée d'affichage (secondes)
 const DURATION := 1.2
@@ -83,7 +83,7 @@ func _draw() -> void:
 		var text_w: float = font.get_string_size(s["text"], HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE).x
 		var draw_pos := Vector2(screen_pos.x - text_w * 0.5, screen_pos.y)
 
-		# Ombre unique (1 seule copie décalée → pas de fantômes)
+		# Ombre unique (1 seule copie décalée -> pas de fantômes)
 		draw_string(font, draw_pos + Vector2(1.0, 1.0),
 			s["text"], HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE, shadow)
 
@@ -117,20 +117,20 @@ func _push(navire: Navires, text: String, color: Color, offset_y: float) -> void
 # API PUBLIQUE
 # ================================
 
-## Dégâts reçus par ce navire  →  "-X ❤️"  (rouge vif)
+## Dégâts reçus par ce navire  ->  "-X ❤️"  (rouge vif)
 func show_damage(navire: Navires, amount: int) -> void:
 	_push(navire,
 		"-%d ❤️" % amount,
 		Color(1.0, 0.25, 0.25), OFFSET_Y_DMG)
 
-## Coût en énergie du tir  →  "-X ⚡"  (jaune)
+## Coût en énergie du tir  ->  "-X ⚡"  (jaune)
 func show_energy_cost(navire: Navires, amount: int) -> void:
 	_push(navire,
 		"-%d ⚡ " % amount,
 		Color(1.0, 0.85, 0.15),
 		OFFSET_Y_ENERGY)
 
-## Ennemi hors de portée  →  "🚫 Ennemi trop loin !"  (orange)
+## Ennemi hors de portée  ->  "🚫 Ennemi trop loin !"  (orange)
 func show_out_of_range(navire: Navires) -> void:
 	_push(navire,
 		"🚫 Ennemi trop loin !",

@@ -9,7 +9,7 @@ var label: Label
 var timer: float = 0.0
 const DURATION: float = 3.5
 
-# Position monde de la case inspectée — mise à jour à chaque _process
+# Position monde de la case inspectée - mise à jour à chaque _process
 var _world_pos: Vector2 = Vector2.ZERO
 
 const COLOR_TXT_VISIBLE: Color = Color(1.0, 1.0, 1.0, 1.0)
@@ -45,7 +45,7 @@ func _build_ui() -> void:
 	if not tex:
 		DEBUG.log("[UI_case_info] CarteInspection.png introuvable dans textures/ !", DEBUG.ERROR)
 
-	# TextureRect affiché à sa taille native — c'est lui le "panel"
+	# TextureRect affiché à sa taille native - c'est lui le "panel"
 	bg_texture = TextureRect.new()
 	bg_texture.texture = tex
 	bg_texture.stretch_mode = TextureRect.STRETCH_KEEP  # taille native, pas de redim

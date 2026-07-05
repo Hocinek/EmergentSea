@@ -243,7 +243,7 @@ func _trigger_game_over(winner: Player, raison: String) -> void:
 	if game_over_panel != null:
 		game_over_panel.show_game_over(winner, raison)
 	else:
-		DEBUG.log("[TURNMANAGER] game_over_panel est null — assigne-le depuis le GameManager.", DEBUG.ERROR)
+		DEBUG.log("[TURNMANAGER] game_over_panel est null - assigne-le depuis le GameManager.", DEBUG.ERROR)
 
 
 # =========================================================

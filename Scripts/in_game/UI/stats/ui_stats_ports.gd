@@ -441,14 +441,14 @@ func update():
 func update_stats(label_list: Dictionary):
 	if not label_list:
 		return
-	var owner := self._port.player_owner
+	var _owner := self._port.player_owner
 	# Titre dynamique selon le panneau
 	if label_list == label_list_neutral and title_label_neutral:
 		title_label_neutral.text = "⚓ Port Neutre"
 	elif label_list == label_list_enemy and title_label_enemy:
-		title_label_enemy.text = "☠️ " + (owner.player_name if owner else "Neutre")
+		title_label_enemy.text = "☠️ " + (_owner.player_name if _owner else "Neutre")
 	elif label_list == label_list_ally and title_label_ally:
-		title_label_ally.text = "🏰 " + (owner.player_name if owner else "Neutre")
+		title_label_ally.text = "🏰 " + (_owner.player_name if _owner else "Neutre")
 	# Stats
 	if label_list.has("nom_port"):
 		label_list["nom_port"].text = "⚓ %s" % _nom_affiche

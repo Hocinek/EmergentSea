@@ -63,7 +63,7 @@ static func _insert_sorted(list: Array[AStarNode], node: AStarNode):
 	var high = list.size() - 1
 	
 	while low <= high:
-		var mid = (low + high) / 2
+		var mid = int((low + high) / 2.)
 		if list[mid].f_score < node.f_score:
 			high = mid - 1
 		else:

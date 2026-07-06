@@ -138,8 +138,8 @@ func draw_fog_tile(pos: Vector2i, opacity: float, tint: Color):
 	var local_pos = world_pos - global_position
 	
 	# Calculer l'échelle pour couvrir la case
-	var scale_x = Map_data.hex_width / fog_texture.get_width()
-	var scale_y = Map_data.hex_height / fog_texture.get_height()
+	var scale_x = int(float(Map_data.hex_width) / fog_texture.get_width())
+	var scale_y = int(float(Map_data.hex_height) / fog_texture.get_height())
 	var scale_factor = Vector2(scale_x, scale_y)
 	
 	# Dessiner la texture avec la couleur et l'opacité
@@ -200,9 +200,9 @@ func update_vision_for_player(player: Player):
 func _hex_distance(a: Vector2i, b: Vector2i) -> int:
 	# Conversion Odd-Q entière : forcer int pour éviter dérive float
 	var aq: int = a.x
-	var ar: int = a.y - (a.x - (a.x & 1)) / 2
+	var ar: int = a.y - int((a.x - (a.x & 1)) / 2.)
 	var bq: int = b.x
-	var br: int = b.y - (b.x - (b.x & 1)) / 2
+	var br: int = b.y - int((b.x - (b.x & 1)) / 2.)
 	var dq: int = bq - aq
 	var dr: int = br - ar
 	return (abs(dq) + abs(dr) + abs(dq + dr)) / 2
@@ -353,7 +353,7 @@ func reveal_all():
 func reveal_area(center: Vector2i, radius: int):
 	"""Révèle une zone spécifique"""
 	var cq: int = center.x
-	var cr: int = center.y - (center.x - (center.x & 1)) / 2
+	var cr: int = center.y - int((center.x - (center.x & 1)) / 2.)
 
 	for dq in range(-radius, radius + 1):
 		var r_min = max(-radius, -dq - radius)
@@ -362,7 +362,7 @@ func reveal_area(center: Vector2i, radius: int):
 			var q: int = cq + dq
 			var r: int = cr + dr
 			var col: int = q
-			var row: int = r + (q - (q & 1)) / 2
+			var row: int = r + int((q - (q & 1)) / 2.)
 			var pos = Vector2i(col, row)
 
 			if not Map_utils.is_case_valid(pos):
@@ -379,7 +379,7 @@ func get_fog_stats() -> Dictionary:
 	"""Retourne des statistiques sur l'état du fog"""
 	var unexplored = 0
 	var explored = 0
-	var visible = 0
+	var _visible = 0
 	
 	for state in fog_states.values():
 		match state:
@@ -388,18 +388,18 @@ func get_fog_stats() -> Dictionary:
 			FogState.EXPLORED:
 				explored += 1
 			FogState.VISIBLE:
-				visible += 1
+				_visible += 1
 	
-	var total = unexplored + explored + visible
+	var total = unexplored + explored + _visible
 	
 	return {
 		"unexplored": unexplored,
 		"explored": explored,
 		"visible": visible,
 		"total": total,
-		"unexplored_percent": (unexplored * 100.0 / total) if total > 0 else 0,
-		"explored_percent": (explored * 100.0 / total) if total > 0 else 0,
-		"visible_percent": (visible * 100.0 / total) if total > 0 else 0
+		"unexplored_percent": (unexplored * 100.0 / total) if total > 0 else 0.,
+		"explored_percent": (explored * 100.0 / total) if total > 0 else 0.,
+		"visible_percent": (_visible * 100.0 / total) if total > 0 else 0.
 	}
 
 func print_fog_stats():

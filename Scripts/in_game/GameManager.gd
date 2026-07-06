@@ -184,7 +184,7 @@ func _setup_game_over_ui() -> void:
 	var ui_game_over := UI_game_over.new()
 	ui_game_over.name = "UI_game_over"
 	add_child(ui_game_over)
-	await ui_game_over.init()
+	ui_game_over.init()
 	
 	if turn_manager:
 		turn_manager.game_over_panel = ui_game_over

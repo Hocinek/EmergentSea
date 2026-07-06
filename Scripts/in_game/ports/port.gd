@@ -488,7 +488,7 @@ func _on_captured(new_owner: Player) -> void:
 	var old_owner = player_owner
 	set_as_owner(new_owner)
 	# Le port est capturé à moitié endommagé
-	current_hp = max_hp / 2
+	current_hp = int(max_hp / 2.)
 	port_captured.emit(self, new_owner, old_owner)
 	DEBUG.log("Port [%d] capturé par %s ! (PV : %d/%d)" % [id, new_owner.player_name if new_owner else "NEUTRE", current_hp, max_hp])
 

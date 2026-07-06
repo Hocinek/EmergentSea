@@ -578,7 +578,7 @@ func deselect_port() -> void:
 # Gestion Port
 # ===============================
 
-# ── SYNCHRONISATION NOURRITURE ────────────────────────────────────────────────
+# -- SYNCHRONISATION NOURRITURE ------------------------------------------------
 
 ## Synchronise la nourriture d'un navire chez tous les peers.
 ## Appelé après achat de navire (déduction du coût) ou toute modification locale.
@@ -615,7 +615,7 @@ func _apply_ship_nourriture_local(ship_id: int, new_nourriture: int) -> void:
 	push_error("[MULTI GM] _apply_ship_nourriture_local : navire [%d] introuvable" % ship_id)
 
 
-# ── SYNCHRONISATION FIN DE TOUR (médecin / cuisinier) ────────────────────────
+# -- SYNCHRONISATION FIN DE TOUR (médecin / cuisinier) ------------------------
 
 ## Envoie le DELTA de vie et nourriture produit par apply_crew_end_of_turn().
 ## On applique un delta et non une valeur absolue car l'hôte peut ne pas
@@ -636,7 +636,7 @@ func _rpc_apply_end_of_turn_delta(ship_id: int, delta_vie: int, delta_nourriture
 	push_error("[MULTI GM] _rpc_apply_end_of_turn_delta : navire [%d] introuvable" % ship_id)
 
 
-# ── SYNCHRONISATION ÉQUIPAGE ──────────────────────────────────────────────────
+# -- SYNCHRONISATION ÉQUIPAGE --------------------------------------------------
 
 ## Synchronise l'état complet d'un navire après recrutement ou congédiement.
 ## Transmet : nourriture, vie, maxvie, energie, maxenergie, et la liste d'équipage (rôles).
@@ -790,7 +790,7 @@ func _apply_damage_local(target_ship_id: int, damage: int, show_ui: bool = true)
 	push_error("[MULTI GM] _apply_damage_local : navire %d introuvable" % target_ship_id)
 
 
-# ── SOIN NAVIRE ──────────────────────────────────────────────────────────────
+# -- SOIN NAVIRE --------------------------------------------------------------
 
 ## Point d'entrée réseau pour soigner un navire depuis la boutique.
 ## Appelé par port.gd après déduction locale des poissons et des PV.
@@ -843,7 +843,7 @@ func _apply_heal_ship_local(ship_id: int, new_vie: int, paying_ship_id: int, new
 		push_error("[MULTI GM] _apply_heal_ship_local : navire payeur [%d] introuvable" % paying_ship_id)
 
 
-# ── SOIN PORT ────────────────────────────────────────────────────────────────
+# -- SOIN PORT ----------------------------------------------------------------
 
 ## Point d'entrée réseau pour soigner un port depuis la boutique.
 func sync_heal_port_networked(port_id: int, new_hp: int, paying_ship_id: int, new_nourriture: int) -> void:
@@ -898,7 +898,7 @@ func _apply_heal_port_local(port_id: int, new_hp: int, paying_ship_id: int, new_
 		push_error("[MULTI GM] _apply_heal_port_local : navire payeur [%d] introuvable" % paying_ship_id)
 
 
-# ── DÉGÂTS SUR PORT ──────────────────────────────────────────────────────────
+# -- DÉGÂTS SUR PORT ----------------------------------------------------------
 
 ## Point d'entrée réseau pour les dégâts sur un port.
 ## Même pattern que apply_damage_networked pour les navires.

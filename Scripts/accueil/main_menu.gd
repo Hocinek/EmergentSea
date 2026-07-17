@@ -20,6 +20,12 @@ var screen_lobby: Control
 var screen_options: Control
 var screen_controls: Control
 
+# écran de connexion : on choisi l'ip et le port du serveur auquel se connecter
+var screen_join: Control
+var name_input: LineEdit
+var ip_input: LineEdit
+var port_input: LineEdit
+
 var hint_label: Label
 var actions_box: VBoxContainer
 
@@ -66,11 +72,13 @@ func _build_ui() -> void:
 
 	screen_main = _make_main_screen()
 	screen_lobby = _make_lobby_screen()
+	screen_join = _make_join_screen()
 	screen_options = _make_options_screen()
 	screen_controls = _make_controls_screen()
 
 	add_child(screen_main)
 	add_child(screen_lobby)
+	add_child(screen_join)
 	add_child(screen_options)
 	add_child(screen_controls)
 
@@ -243,12 +251,95 @@ func _make_controls_screen() -> Control:
 	wrapper.add_child(d["root"])
 	return wrapper
 
+func _make_join_screen() -> Control:
+	var d := _make_panel("Rejoindre une partie")
+	var v: VBoxContainer = d["vbox"]
+	
+	# favoris :
+	var fav_label := Label.new()
+	fav_label.text = "Serveurs enregistrés :"
+	v.add_child(fav_label)
+	
+	var fav_dropdown = OptionButton.new()
+	fav_dropdown.custom_minimum_size = Vector2(0, 40)
+	v.add_child(fav_dropdown)
+	
+	# nom serveur
+	var name_label := Label.new()
+	name_label.text = "Nom du serveur (optionnel - pour sauvegarder) :"
+	v.add_child(name_label)
+	
+	name_input = _make_line_edit("Ex: Serveur I2SI")
+	v.add_child(name_input)
+	
+	# ip/url serveur
+	var ip_label := Label.new()
+	ip_label.text = "Adresse IP ou URL du serveur :"
+	v.add_child(ip_label)
+	
+	ip_input = _make_line_edit("Ex: 127.0.0.1 ou jeu.mon-domaine.com", network_manager.SERVER_IP)
+	v.add_child(ip_input)
+	
+	# port serveur
+	var port_label := Label.new()
+	port_label.text = "Port du serveur :"
+	v.add_child(port_label)
+	
+	port_input = _make_line_edit("Default : 7776", str(network_manager.SERVER_PORT))
+	port_input.max_length = 5 # Un port réseau ne dépasse jamais 65535
+	port_input.text_changed.connect(_on_port_text_changed)
+	v.add_child(port_input)
+	
+	# fenêtre de dialogue :
+	var delete_dialog = ConfirmationDialog.new()
+	delete_dialog.title = "Attention !"
+	delete_dialog.dialog_text = "Êtes-vous sûr de vouloir retirer ce serveur ?\nCe favori sera perdu à jamais !"
+	add_child(delete_dialog)
+	
+	# boutons interface
+	var h_btns := HBoxContainer.new()
+	h_btns.add_theme_constant_override("separation", 10)
+	v.add_child(h_btns)
+	
+	var btn_save := _make_button("Sauvegarder en Favori")
+	var btn_delete = _make_button("Retirer")
+	var btn_connect := _make_button("Connexion")
+	var btn_back := _make_button("Retour")
+	
+	btn_connect.pressed.connect(_on_join_confirm_pressed)
+	btn_back.pressed.connect(_show_main)
+	btn_save.pressed.connect(_on_save_favorite_pressed.bind(fav_dropdown, btn_save, btn_delete))
+	btn_delete.pressed.connect(_on_delete_pressed.bind(delete_dialog))
+	
+	v.add_child(btn_connect)
+	h_btns.add_child(btn_save)
+	h_btns.add_child(btn_delete)
+	v.add_child(btn_back)
+	
+	
+	
+	# .bind() transmet automatiquement les nœuds locaux en arguments additionnels
+	fav_dropdown.item_selected.connect(_on_favorite_selected.bind(fav_dropdown, btn_save, btn_delete))
+	ip_input.text_changed.connect(func(_t): _check_duplicate_fav_status(fav_dropdown, btn_save, btn_delete))
+	port_input.text_changed.connect(func(_t): _check_duplicate_fav_status(fav_dropdown, btn_save, btn_delete))
+	delete_dialog.confirmed.connect(_on_delete_confirmed.bind(fav_dropdown, btn_save, btn_delete))
+	
+	_update_favorites_dropdown(fav_dropdown)
+	_check_duplicate_fav_status(fav_dropdown, btn_save, btn_delete)
+	
+	var wrapper := Control.new()
+	wrapper.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	wrapper.visible = false
+	wrapper.add_child(d["root"])
+	return wrapper
+
 # =========================================================
 # NAVIGATION
 # =========================================================
 func _set_visible_screen(active: Control) -> void:
 	screen_main.visible = active == screen_main
 	screen_lobby.visible = active == screen_lobby
+	screen_join.visible = active == screen_join
 	screen_options.visible = active == screen_options
 	screen_controls.visible = active == screen_controls
 
@@ -256,7 +347,12 @@ func _set_visible_screen(active: Control) -> void:
 func _show_main() -> void:
 	waiting_action = &""
 	_set_visible_screen(screen_main)
+	# alors... la solution suivante marche MAIS si un joueur se déconnecte, tout le monde est déconnecté
+	#network_manager.shutdown() #tentative de déconnexion automatique quand on arrive sur la page d'accueil
 
+func _show_join() -> void:
+	waiting_action = &""
+	_set_visible_screen(screen_join)
 
 func _show_options() -> void:
 	waiting_action = &""
@@ -305,8 +401,9 @@ func _on_tuto_pressed() -> void:
 
 func _on_multi_pressed() -> void:
 	network_manager.shutdown()
-	_show_lobby()
-	network_manager.join_dedicated_server()
+	_show_join()
+	#_show_lobby()
+	#network_manager.join_dedicated_server()
 
 
 func _on_join_succeeded() -> void:
@@ -319,6 +416,11 @@ func _on_join_succeeded() -> void:
 		lobby_status_label.text = "L'hôte va bientôt lancer la partie."
 	_update_lobby_player_count()
 
+func _on_join_confirm_pressed() -> void:
+	var ip_to_use = ip_input.text
+	var port_to_use = port_input.text.to_int()
+	_show_lobby()
+	network_manager.join_dedicated_server(ip_to_use,port_to_use)
 
 func _on_host_started() -> void:
 	lobby_title_label.text = "En attente de joueurs... (vous êtes l'hôte)"
@@ -360,10 +462,113 @@ func _on_player_count_updated(count: int) -> void:
 		if network_manager.is_host() and lobby_start_button != null:
 			lobby_start_button.disabled = count < 2
 
+func _on_save_favorite_pressed(fav_dropdown: OptionButton, btn_save: Button, btn_delete: Button) -> void:
+	var alias = name_input.text.strip_edges()
+	var host = ip_input.text.strip_edges()
+	var port = port_input.text.to_int()
+	
+	if alias == "":
+		alias = host
+		
+	if host != "" and port > 0:
+		network_manager.save_favorite(alias, host, port)
+		_update_favorites_dropdown(fav_dropdown)
+		_check_duplicate_fav_status(fav_dropdown, btn_save, btn_delete)
+		DEBUG.log("Favori enregistré !")
+
 
 func _on_reset_pressed() -> void:
 	key_config_manager.reset_to_defaults(_get_rebindable_actions())
 	_rebuild_actions_ui()
+
+func _on_port_text_changed(new_text: String) -> void:
+	# On sauvegarde la position du curseur
+	var caret_pos = port_input.caret_column
+	var clean_text = ""
+	
+	# On parcourt le texte tapé et on ne garde que les chiffres
+	for i in new_text.length():
+		if new_text[i] >= "0" and new_text[i] <= "9":
+			clean_text += new_text[i]
+			
+	# Si le texte contient des caractères interdits (il a été modifié)
+	if clean_text != new_text:
+		port_input.text = clean_text
+		# On replace le curseur correctement pour que le joueur puisse continuer à taper
+		port_input.caret_column = caret_pos - 1
+
+
+## Recrée la liste des choix dans le menu déroulant
+func _update_favorites_dropdown(fav_dropdown: OptionButton) -> void:
+	fav_dropdown.clear()
+	fav_dropdown.add_item("-- Saisie manuelle --")
+	
+	var favs = network_manager.get_favorites()
+	for alias in favs.keys():
+		fav_dropdown.add_item(alias)
+
+
+## Quand l'utilisateur choisit un élément dans le menu déroulant
+func _on_favorite_selected(index: int, fav_dropdown: OptionButton, btn_save: Button, btn_delete: Button) -> void:
+	if index == 0:
+		name_input.text = ""
+		ip_input.text = ""
+		port_input.text = str(network_manager.SERVER_PORT)
+	else:
+		var alias = fav_dropdown.get_item_text(index)
+		var favs = network_manager.get_favorites()
+		if favs.has(alias):
+			name_input.text = alias
+			ip_input.text = favs[alias]["host"]
+			port_input.text = str(favs[alias]["port"])
+			
+	_check_duplicate_fav_status(fav_dropdown, btn_save, btn_delete)
+
+
+## Vérifie si la combinaison IP + Port actuelle existe déjà dans les favoris
+func _check_duplicate_fav_status(fav_dropdown: OptionButton, btn_save: Button, btn_delete: Button) -> void:
+	var current_host = ip_input.text.strip_edges()
+	var current_port = port_input.text.to_int()
+	
+	var favs = network_manager.get_favorites()
+	var found_alias = ""
+	
+	for alias in favs.keys():
+		if favs[alias]["host"] == current_host and favs[alias]["port"] == current_port:
+			found_alias = alias
+			break
+			
+	if found_alias != "":
+		btn_save.disabled = true
+		btn_delete.disabled = false
+		
+		# Aligne le menu déroulant sur le favori correspondant
+		for i in fav_dropdown.item_count:
+			if fav_dropdown.get_item_text(i) == found_alias:
+				fav_dropdown.selected = i
+				break
+	else:
+		btn_save.disabled = (current_host == "" or current_port <= 0)
+		btn_delete.disabled = true
+		if fav_dropdown.selected != 0:
+			fav_dropdown.selected = 0
+
+
+
+## Quand on clique sur le bouton "Retirer"
+func _on_delete_pressed(delete_dialog: ConfirmationDialog) -> void:
+	delete_dialog.popup_centered()
+
+
+## Déclenché uniquement si le joueur clique sur "OK" (ou "Confirmer") dans la popup
+func _on_delete_confirmed(fav_dropdown: OptionButton, btn_save: Button, btn_delete: Button) -> void:
+	var selected_index = fav_dropdown.selected
+	if selected_index != 0:
+		var alias = fav_dropdown.get_item_text(selected_index)
+		network_manager.delete_favorite(alias)
+		_update_favorites_dropdown(fav_dropdown)
+		# Force la remise à zéro de l'interface vers le mode manuel
+		_on_favorite_selected(0, fav_dropdown, btn_save, btn_delete)
 
 # =========================================================
 # REBIND UI

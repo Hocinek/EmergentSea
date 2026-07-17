@@ -9,8 +9,9 @@ signal peer_left(peer_id: int)
 signal player_count_updated(count: int)
 
 var SERVER_IP := "127.0.0.1"
-var SERVER_PORT := 666
+var SERVER_PORT := 7776
 const MAX_PLAYERS := 2
+const FAVORITES_FILE := "user://server_favorites.cfg"
 
 var peer: ENetMultiplayerPeer = null
 var local_peer_id: int = -1
@@ -22,30 +23,46 @@ func _enter_tree() -> void:
 	add_to_group("network_manager")
 
 func _ready() -> void:
-	var config := ConfigFile.new()
-	if config:
-		var network_cfg = config.load("res://Scripts/config/network.cfg")
-		if network_cfg == OK:
-			SERVER_PORT = config.get_value("network", "port", 666)
-			SERVER_IP = config.get_value("network", "ip", "127.0.0.1")
-		else:
-			DEBUG.log("Fichier de configuration réseau non lisible, par défaut : %s:%d" % [SERVER_IP, SERVER_PORT],DEBUG.ERROR)
-	else:
-		DEBUG.log("Impossible de démarrer le lecteur du fichier de config, config par défaut utilisée : %s:%d" % [SERVER_IP, SERVER_PORT],DEBUG.ERROR)
 	multiplayer.connected_to_server.connect(_on_connected_to_server)
 	multiplayer.connection_failed.connect(_on_connection_failed)
 	multiplayer.peer_connected.connect(_on_peer_connected)
 	multiplayer.peer_disconnected.connect(_on_peer_disconnected)
 
-func join_dedicated_server() -> void:
+
+func join_dedicated_server(custom_address: String = "", custom_port: int = 0) -> void:
+	var final_host = SERVER_IP
+	var final_port = SERVER_PORT
+	
+	if custom_address.strip_edges() != "":
+		var clean_address = custom_address.strip_edges()
+		
+		# Nettoyage si l'utilisateur met un préfixe de protocole inutile pour ENet
+		if clean_address.contains("://"):
+			clean_address = clean_address.split("://")[1]
+		
+		# Si l'utilisateur a écrit "serveur.com:8080" ou "12.34.56.78:1234"
+		if clean_address.contains(":"):
+			var parts = clean_address.split(":")
+			final_host = parts[0]
+			final_port = parts[1].to_int()
+		else:
+			final_host = clean_address
+			if custom_port > 0:
+				final_port = custom_port
+	elif custom_port > 0:
+		final_port = custom_port
+
 	peer = ENetMultiplayerPeer.new()
-	var error := peer.create_client(SERVER_IP, SERVER_PORT)
+	# Godot résout automatiquement les noms de domaine
+	var error := peer.create_client(final_host, final_port)
 	if error != OK:
 		push_error("[NETWORK] Impossible de se connecter : " + str(error))
 		join_failed.emit()
 		return
 	multiplayer.multiplayer_peer = peer
-	print("[NETWORK] Connexion à %s:%d..." % [SERVER_IP, SERVER_PORT])
+	print("[NETWORK] Connexion à %s:%d..." % [final_host, final_port])
+
+
 
 func shutdown() -> void:
 	if multiplayer.multiplayer_peer != null:
@@ -110,7 +127,7 @@ func _trigger_win_by_disconnect(disconnected_peer_id: int) -> void:
 		turn_manager.declare_winner_by_disconnect(local_player_id)
 	elif not OS.has_feature("dedicated_server"):
 		# Fallback : retour au menu principal
-		get_tree().change_scene_to_file("res://Scenes/MainMenu.tscn")
+		get_tree().change_scene_to_file("res://Scenes/accueil/MainMenu.tscn")
 
 @rpc("any_peer", "call_remote", "reliable")
 func _rpc_request_player_id() -> void:
@@ -153,3 +170,31 @@ func handle_local_player_quit() -> void:
 
 	# Nettoyage local
 	shutdown()
+
+
+# =========================================================
+# GESTION DES FAVORIS
+# =========================================================
+func save_favorite(alias: String, host: String, port: int) -> void:
+	var config := ConfigFile.new()
+	config.load(FAVORITES_FILE) # On charge l'existant si présent
+	
+	# On stocke sous forme de dictionnaire pour la simplicité
+	config.set_value("favorites", alias, {"host": host, "port": port})
+	config.save(FAVORITES_FILE)
+
+func get_favorites() -> Dictionary:
+	var favorites := {}
+	var config := ConfigFile.new()
+	if config.load(FAVORITES_FILE) == OK:
+		if config.has_section("favorites"):
+			for alias in config.get_section_keys("favorites"):
+				favorites[alias] = config.get_value("favorites", alias)
+	return favorites
+
+func delete_favorite(alias: String) -> void:
+	var config := ConfigFile.new()
+	config.load(FAVORITES_FILE)
+	if config.has_section_key("favorites", alias):
+		config.erase_section_key("favorites", alias)
+		config.save(FAVORITES_FILE)

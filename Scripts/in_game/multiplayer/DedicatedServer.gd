@@ -1,7 +1,7 @@
 extends Node
 class_name DedicatedServer
 
-var PORT := 666
+var PORT := 7776
 const MAX_PLAYERS := 2
 
 var peer: ENetMultiplayerPeer = null
@@ -20,7 +20,7 @@ func _ready() -> void:
 		if config:
 			var network_cfg = config.load("res://Scripts/config/network.cfg")
 			if network_cfg == OK:
-				PORT = config.get_value("network", "port", 666)
+				PORT = config.get_value("network", "port", 7776)
 			else:
 				DEBUG.log("Fichier de configuration réseau non lisible, port par défaut utilisé : %d" % PORT,DEBUG.ERROR)
 		else:

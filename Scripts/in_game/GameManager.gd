@@ -1,7 +1,7 @@
 ###===================================================================###
 ##								GameManager							   ##
-# Ce script permet de coordonner le reste du jeu						#
-# VERSION CORRIGÉE avec support Fog of War							#
+## Ce script permet de coordonner le reste du jeu						#
+## avec support Fog of War												#
 ###===================================================================###
 class_name GameManager
 extends Node
@@ -332,10 +332,6 @@ func _input(event: InputEvent) -> void:
 				get_viewport().set_input_as_handled()
 
 
-
-# ===============================
-# GESTION DE LA SÉLECTION
-# ===============================
 #region gestion de la selection
 ## Permet de connaître le bateau actuellement sélectionné
 func get_selected_ship() -> Navires:
